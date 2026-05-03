@@ -1,0 +1,9 @@
+
+ByteStreams.info
+
+An Intranet for ByteStreams LLC
+- Access & Refresh Tokens
+- Ability to interact with outside entities. Initially definitely AWS and Supabase
+-  SS(O (SAML) security integration between google workspace and cloudflare
+
+In general the ability to create, run, manage company side resources (apps, files, etc) from behind bytestreams.ai
