@@ -1,0 +1,28 @@
+# AGENTS.md
+
+## feat/sveltekit-sso-landing — SvelteKit SSO + Landing Page
+
+**Date:** 2026-05-03
+**Agent:** Oz (Warp)
+
+### Summary
+
+Scaffolded the ByteStreams intranet as a SvelteKit + TypeScript application with Cloudflare Access SAML SSO authentication and a branded landing page.
+
+### Changes
+
+- Initialized SvelteKit project with `@sveltejs/adapter-cloudflare` for Cloudflare Pages deployment
+- Implemented Cloudflare Access JWT validation (`jose` library) with dev mode mock auth bypass
+- Created branded login page (`/login`) with Google SSO button following ByteStreams Brand Kit v1.0
+- Created protected dashboard (`/`) with nav, user greeting, and product card grid (DialTone.Menu, DialTone.Med, Documentation)
+- Built reusable components: `Nav.svelte`, `ProductCard.svelte`
+- Established brand design system in `src/app.css` — CSS custom properties for colors, typography, spacing, radius, motion from Brand Kit
+- Set up Vitest with 85% coverage thresholds — 63 tests across 7 files (unit + component)
+- Added GitHub Actions CI/CD pipeline (lint → typecheck → test+coverage → build → deploy)
+- Added ESLint flat config for SvelteKit + TypeScript
+
+### Architecture
+
+- **Auth:** Cloudflare Access (SP) ↔ Google Workspace SAML (IdP). App validates `Cf-Access-Jwt-Assertion` JWT headers — no in-app SAML.
+- **Deploy:** Cloudflare Pages via `wrangler pages deploy`
+- **Stack:** SvelteKit 2, Svelte 5, TypeScript, Vite 6, Vitest 3

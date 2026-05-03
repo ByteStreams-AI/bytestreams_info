@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: #0A0F24;
+      color: #FFFFFF;
+      min-height: 100vh;
+    }
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid #1E2547;
+      background: #0D1230;
+    }
+    nav .brand {
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.5px;
+    }
+    nav .user-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 14px;
+      color: #8A8FAA;
+    }
+    nav .logout-btn {
+      color: #8A8FAA;
+      text-decoration: none;
+      font-size: 13px;
+      padding: 6px 14px;
+      border: 1px solid #2A3060;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    nav .logout-btn:hover {
+      color: #FFFFFF;
+      border-color: #4A5090;
+    }
+    .container {
+      max-width: 960px;
+      margin: 48px auto;
+      padding: 0 32px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #8A8FAA;
+      font-size: 15px;
+      margin-bottom: 40px;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: #111733;
+      border: 1px solid #1E2547;
+      border-radius: 12px;
+      padding: 24px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #3A4080; }
+    .card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .card p {
+      color: #8A8FAA;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .card .badge {
+      display: inline-block;
+      margin-top: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: #1B998B22;
+      color: #1B998B;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="brand">ByteStreams Intranet</div>
+    <div class="user-info">
+      <span><%= user.firstName %> <%= user.lastName %> &middot; <%= user.email %></span>
+      <a href="/auth/sso/logout" class="logout-btn">Sign Out</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>Welcome back, <%= user.firstName || 'there' %></h1>
+    <p class="subtitle">ByteStreams LLC — Internal Dashboard</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <h3>DialTone.Menu</h3>
+        <p>Voice AI for restaurants — call handling, order capture, and SMS confirmations.</p>
+        <span class="badge">Active</span>
+      </div>
+      <div class="card">
+        <h3>DialTone.Med</h3>
+        <p>AI phone assistant for medical and dental practices — scheduling, intake, routing.</p>
+        <span class="badge">In Development</span>
+      </div>
+      <div class="card">
+        <h3>Documentation</h3>
+        <p>Internal docs, API references, runbooks, and compliance policies.</p>
+        <span class="badge">Internal</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

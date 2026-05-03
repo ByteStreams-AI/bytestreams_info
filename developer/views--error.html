@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: #0A0F24;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .error-card {
+      background: #111733;
+      border: 1px solid #1E2547;
+      border-radius: 16px;
+      padding: 48px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .error-card h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #E74C3C;
+    }
+    .error-card p {
+      color: #8A8FAA;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .error-card a {
+      display: inline-block;
+      color: #FFFFFF;
+      background: #1B998B;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px 28px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .error-card a:hover { background: #17887B; }
+  </style>
+</head>
+<body>
+  <div class="error-card">
+    <h1><%= title %></h1>
+    <p><%= message %></p>
+    <a href="/login">Back to Sign In</a>
+  </div>
+</body>
+</html>

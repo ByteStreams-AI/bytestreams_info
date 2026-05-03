@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The page you were looking for could not be found on ByteStreams.">
+    <meta name="theme-color" content="#0D1117">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Page not found &mdash; ByteStreams</title>
+
+    <link rel="icon" type="image/svg+xml" href="assets/bytestreams-icon-256.svg">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <link rel="stylesheet" href="dist/css/main.css">
+
+    <style>
+        .not-found {
+            text-align: center;
+            padding: 32px 0 16px;
+        }
+        .not-found__eyebrow {
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.8125rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin: 0 0 16px;
+        }
+        .not-found__mark {
+            font-family: 'Inter', system-ui, sans-serif;
+            font-weight: 700;
+            font-size: clamp(6rem, 18vw, 11rem);
+            line-height: 1;
+            letter-spacing: -0.04em;
+            background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin: 0 0 24px;
+        }
+        .not-found__actions {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 32px;
+        }
+    </style>
+</head>
+<body data-theme="dark">
+    <!-- ============== Header ============== -->
+    <header class="header" id="siteHeader">
+        <div class="header__container">
+            <div class="header__brand">
+                <a href="index.html#home" class="header__logo" aria-label="ByteStreams &mdash; home">
+                    <img src="assets/blue-side-slim-logo.png" alt="ByteStreams" class="header__logo-mark" width="198" height="56">
+                </a>
+                <p class="header__tagline">Smarter Workflows, Stronger Results.</p>
+            </div>
+
+            <nav class="header__nav" id="primaryNav" aria-label="Primary">
+                <ul class="header__nav-list">
+                    <li><a href="index.html#home"     class="header__nav-link">Home</a></li>
+                    <li><a href="index.html#features" class="header__nav-link">Features</a></li>
+                    <li><a href="index.html#about"    class="header__nav-link">About</a></li>
+                    <li><a href="index.html#contact"  class="header__nav-link">Contact</a></li>
+                </ul>
+            </nav>
+
+            <div class="header__actions">
+                <a href="index.html#contact" class="btn btn--primary btn--sm">Get Started</a>
+                <button class="header__hamburger" id="hamburgerBtn"
+                        aria-label="Toggle navigation"
+                        aria-controls="primaryNav"
+                        aria-expanded="false">
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ============== Content ============== -->
+    <main class="section">
+        <div class="section__container">
+            <div class="not-found">
+                <p class="not-found__eyebrow">404 &middot; Page not found</p>
+                <p class="not-found__mark" aria-hidden="true">404</p>
+            </div>
+            <header class="section__header">
+                <h1 class="section__title">We can&rsquo;t find that page.</h1>
+                <p class="section__subtitle">
+                    It may have moved, been renamed, or never existed. The workflow is still flowing &mdash;
+                    pick one of these instead.
+                </p>
+            </header>
+            <div class="not-found__actions">
+                <a href="index.html#home" class="btn btn--primary">Back to home</a>
+                <a href="index.html#contact" class="btn btn--outline">Contact</a>
+            </div>
+        </div>
+    </main>
+
+    <!-- ============== Footer ============== -->
+    <footer class="footer">
+        <div class="footer__container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <a href="index.html#home" class="footer__logo" aria-label="ByteStreams &mdash; home">
+                        <img src="assets/blue-side-slim-logo.png" alt="ByteStreams" width="198" height="56">
+                    </a>
+                    <p class="footer__tagline">
+                        Smarter Workflows, Stronger Results.
+                    </p>
+                </div>
+
+                <div class="footer__site-map" aria-label="Footer site links">
+                    <div class="footer__site-row">
+                        <p class="footer__site-label">Company</p>
+                        <ul class="footer__site-links">
+                            <li><a href="index.html#about" class="footer__link">About</a></li>
+                            <li><a href="#" class="footer__link">Security</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer__site-row">
+                        <p class="footer__site-label">Product</p>
+                        <ul class="footer__site-links">
+                            <li><a href="https://dialtone.menu" class="footer__link">DialTone.menu</a></li>
+                            <li><a href="#" class="footer__link">DialTone.med (coming soon)</a></li>
+                            <li><a href="index.html#features" class="footer__link">Features</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer__site-row">
+                        <p class="footer__site-label">Legal</p>
+                        <ul class="footer__site-links">
+                            <li><a href="privacy.html" class="footer__link">Privacy</a></li>
+                            <li><a href="terms.html" class="footer__link">Terms</a></li>
+                            <li><a href="sms-terms.html" class="footer__link">SMS Terms</a></li>
+                            <li><a href="cookies.html" class="footer__link">Cookie Policy</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer__bottom">
+                <p class="footer__copyright">
+                    &copy; 2026 ByteStreams. Smarter Workflows, Stronger Results.
+                </p>
+                <div class="footer__social" aria-label="Social links">
+                    <a href="#" class="footer__social-link" aria-label="LinkedIn"><i class="fa-brands fa-linkedin-in" aria-hidden="true"></i></a>
+                    <a href="#" class="footer__social-link" aria-label="X / Twitter"><i class="fa-brands fa-x-twitter" aria-hidden="true"></i></a>
+                    <a href="#" class="footer__social-link" aria-label="GitHub"><i class="fa-brands fa-github" aria-hidden="true"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
