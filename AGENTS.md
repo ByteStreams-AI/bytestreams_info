@@ -26,3 +26,23 @@ Scaffolded the ByteStreams intranet as a SvelteKit + TypeScript application with
 - **Auth:** Cloudflare Access (SP) ↔ Google Workspace SAML (IdP). App validates `Cf-Access-Jwt-Assertion` JWT headers — no in-app SAML.
 - **Deploy:** Cloudflare Pages via `wrangler pages deploy`
 - **Stack:** SvelteKit 2, Svelte 5, TypeScript, Vite 6, Vitest 3
+
+## 2026-05-03 — Auth Architecture Evaluation
+
+**Date:** 2026-05-03
+**Agent:** Oz (Warp)
+
+### Summary
+
+Evaluated switching from Cloudflare Access JWT auth to direct Google Workspace SAML SSO. Decided to stay with Cloudflare Access.
+
+### Decision
+
+- Cloudflare Access remains the auth layer — handles SAML with Google Workspace at the edge, passes JWT to app
+- Direct SAML (`@node-saml/node-saml`) would require `adapter-node` and self-hosted infra, incompatible with Cloudflare Pages/Workers
+- No code changes made — current auth implementation is the correct approach
+- See `developer/developer-journal.md` for full rationale
+
+### Status
+
+Pending: `.env` configuration, Cloudflare Access application setup in Zero Trust dashboard, Cloudflare Pages deployment
