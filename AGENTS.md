@@ -46,3 +46,25 @@ Evaluated switching from Cloudflare Access JWT auth to direct Google Workspace S
 ### Status
 
 Pending: `.env` configuration, Cloudflare Access application setup in Zero Trust dashboard, Cloudflare Pages deployment
+
+## fix/cloudflare-access-auth-alignment — CF Access Auth Alignment
+
+**Date:** 2026-05-05
+**Agent:** Oz (Warp)
+
+### Summary
+
+Aligned auth implementation with Cloudflare Access JWT spec per `developer/sveltekit-cloudflare-access-auth.md`. Fixed team domain, switched to platform bindings, and adopted soft-fail auth pattern.
+
+### Changes
+
+- Fixed team domain: `bytestreams.cloudflareaccess.com` → `bytestreamsai.cloudflareaccess.com`
+- Switched env config from `.env` to `.dev.vars` (Cloudflare convention); created `.dev.vars.example`
+- Rewrote `auth.ts`: platform bindings (`event.platform.env`), JWKS caching with cooldown/TTL, soft-fail (returns null instead of throwing), cookie fallback for `CF_Authorization`
+- Updated `User` type: replaced `firstName`/`lastName` (not in CF Access JWT) with `displayName` (derived from email prefix), added `sub`, `iat`, `exp`
+- Updated `hooks.server.ts`: soft-fail pattern — sets `locals.user = null`, page-level guards handle redirects
+- Fixed dev mode logout: `logged_out` cookie mechanism so Sign Out works locally
+- Updated Nav and dashboard UI to use `displayName`
+- Added `Platform` interface to `app.d.ts` for CF env bindings
+- Gitignored auth reference doc and `.wrangler/`
+- Updated all tests (67 passing)

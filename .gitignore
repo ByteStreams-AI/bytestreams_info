@@ -4,8 +4,11 @@ build/
 .env
 .env.*
 !.env.example
+.dev.vars
 *.log
 .DS_Store
 coverage/
 developer/certs/
 *.pem
+developer/sveltekit-cloudflare-access-auth.md
+.wrangler/

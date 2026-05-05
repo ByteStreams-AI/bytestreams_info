@@ -4,25 +4,15 @@ vi.mock('$app/environment', () => ({
 	dev: false
 }));
 
-vi.mock('$env/dynamic/private', () => ({
-	env: {
-		CF_ACCESS_TEAM_DOMAIN: '',
-		CF_ACCESS_AUD: 'test-aud',
-		DEV_USER_EMAIL: '',
-		DEV_USER_FIRST_NAME: '',
-		DEV_USER_LAST_NAME: ''
-	}
-}));
-
 vi.mock('jose', () => ({
 	createRemoteJWKSet: vi.fn(() => vi.fn()),
 	jwtVerify: vi.fn()
 }));
 
-describe('auth edge cases — missing team domain', () => {
-	it('validateCFAccessToken returns null when team domain is empty', async () => {
-		const { validateCFAccessToken } = await import('$lib/server/auth');
-		const result = await validateCFAccessToken('some-token');
+describe('auth edge cases', () => {
+	it('verifyAccessJwt returns null for empty string token', async () => {
+		const { verifyAccessJwt } = await import('$lib/server/auth');
+		const result = await verifyAccessJwt('', 'aud', 'domain.com');
 		expect(result).toBeNull();
 	});
 
@@ -31,11 +21,11 @@ describe('auth edge cases — missing team domain', () => {
 		expect(isDevMode()).toBe(false);
 	});
 
-	it('getDevUser falls back to defaults when env vars are empty', async () => {
+	it('getDevUser returns hardcoded defaults', async () => {
 		const { getDevUser } = await import('$lib/server/auth');
 		const user = getDevUser();
 		expect(user.email).toBe('dev@bytestreams.ai');
-		expect(user.firstName).toBe('Dev');
-		expect(user.lastName).toBe('User');
+		expect(user.sub).toBe('dev-user-id');
+		expect(user.displayName).toBe('Dev');
 	});
 });

@@ -21,8 +21,7 @@
 
 	<div class="nav-user">
 		<span class="nav-user-name">
-			{user.firstName}
-			{user.lastName}
+			{user.displayName}
 			<span class="nav-user-email">{user.email}</span>
 		</span>
 		<a href="/auth/logout" class="btn-outline">Sign Out</a>

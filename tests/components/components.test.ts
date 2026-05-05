@@ -5,15 +5,16 @@ import ProductCard from '$lib/components/ProductCard.svelte';
 
 const mockUser = {
 	email: 'scott@bytestreams.ai',
-	firstName: 'Scott',
-	lastName: 'Thornton'
+	sub: 'cf-user-123',
+	displayName: 'Scott',
+	iat: 1700000000,
+	exp: 1700086400
 };
 
 describe('Nav', () => {
-	it('renders user name', () => {
+	it('renders user display name', () => {
 		render(Nav, { props: { user: mockUser } });
 		expect(screen.getByText(/Scott/)).toBeInTheDocument();
-		expect(screen.getByText(/Thornton/)).toBeInTheDocument();
 	});
 
 	it('renders user email', () => {

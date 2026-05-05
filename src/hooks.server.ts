@@ -2,47 +2,40 @@
  * SvelteKit server hooks — authentication middleware.
  *
  * Intercepts every request to validate Cloudflare Access JWT.
- * Public routes (/login, /health) are excluded from auth checks.
+ * Soft-fail: sets locals.user to null if unauthenticated.
+ * Page-level guards handle redirects for protected routes.
  * In dev mode, a mock user is injected automatically.
  */
 
-import { redirect, type Handle } from '@sveltejs/kit';
-import { validateCFAccessToken, getDevUser, isDevMode, isPublicPath } from '$lib/server/auth';
+import type { Handle } from '@sveltejs/kit';
+import { verifyAccessJwt, getDevUser, isDevMode } from '$lib/server/auth';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const { pathname } = event.url;
-
-	// Skip auth for public routes
-	if (isPublicPath(pathname)) {
-		event.locals.user = null;
-
-		// In dev mode, still populate user for public pages that check auth
-		if (isDevMode()) {
-			event.locals.user = getDevUser();
-		}
-
-		return resolve(event);
-	}
-
 	// --- Development: mock auth bypass ---
 	if (isDevMode()) {
-		event.locals.user = getDevUser();
+		if (event.cookies.get('logged_out')) {
+			event.locals.user = null;
+		} else {
+			event.locals.user = getDevUser();
+		}
 		return resolve(event);
 	}
 
 	// --- Production: validate Cloudflare Access JWT ---
-	const token = event.request.headers.get('cf-access-jwt-assertion');
+	// Header is preferred; fall back to CF_Authorization cookie.
+	const token =
+		event.request.headers.get('cf-access-jwt-assertion') ??
+		event.cookies.get('CF_Authorization') ??
+		null;
 
-	if (!token) {
-		throw redirect(302, '/login');
+	const aud = event.platform?.env.CF_ACCESS_AUD;
+	const teamDomain = event.platform?.env.CF_ACCESS_TEAM_DOMAIN;
+
+	if (aud && teamDomain) {
+		event.locals.user = await verifyAccessJwt(token, aud, teamDomain);
+	} else {
+		event.locals.user = null;
 	}
 
-	const user = await validateCFAccessToken(token);
-
-	if (!user) {
-		throw redirect(302, '/login');
-	}
-
-	event.locals.user = user;
 	return resolve(event);
 };

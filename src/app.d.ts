@@ -9,7 +9,12 @@ declare global {
 			user: import('$lib/types').User | null;
 		}
 		// interface Error {}
-		// interface Platform {}
+		interface Platform {
+			env: {
+				CF_ACCESS_AUD: string;
+				CF_ACCESS_TEAM_DOMAIN: string;
+			};
+		}
 	}
 }
 

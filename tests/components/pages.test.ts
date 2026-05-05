@@ -41,8 +41,10 @@ describe('Login Page', () => {
 describe('Dashboard Page', () => {
 	const mockUser = {
 		email: 'scott@bytestreams.ai',
-		firstName: 'Scott',
-		lastName: 'Thornton'
+		sub: 'cf-user-123',
+		displayName: 'Scott',
+		iat: 1700000000,
+		exp: 1700086400
 	};
 
 	it('renders welcome message with user name', () => {
@@ -82,9 +84,9 @@ describe('Dashboard Page', () => {
 		expect(container.querySelector('.dashboard')).not.toBeInTheDocument();
 	});
 
-	it('shows fallback greeting when firstName is empty', () => {
-		const emptyNameUser = { ...mockUser, firstName: '' };
-		render(DashboardPage, { props: { data: { user: emptyNameUser } } });
-		expect(screen.getByText(/Welcome back, there/)).toBeInTheDocument();
+	it('renders greeting with displayName', () => {
+		const customUser = { ...mockUser, displayName: 'Jane' };
+		render(DashboardPage, { props: { data: { user: customUser } } });
+		expect(screen.getByText(/Welcome back, Jane/)).toBeInTheDocument();
 	});
 });

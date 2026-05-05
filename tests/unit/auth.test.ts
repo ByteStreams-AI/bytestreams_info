@@ -5,24 +5,16 @@ vi.mock('$app/environment', () => ({
 	dev: true
 }));
 
-vi.mock('$env/dynamic/private', () => ({
-	env: {
-		CF_ACCESS_TEAM_DOMAIN: 'bytestreams.cloudflareaccess.com',
-		CF_ACCESS_AUD: 'test-audience-tag',
-		DEV_USER_EMAIL: 'test@bytestreams.ai',
-		DEV_USER_FIRST_NAME: 'Test',
-		DEV_USER_LAST_NAME: 'User'
-	}
-}));
-
 vi.mock('jose', () => ({
 	createRemoteJWKSet: vi.fn(() => vi.fn()),
 	jwtVerify: vi.fn()
 }));
 
-import { isPublicPath, PUBLIC_PATHS, getDevUser, isDevMode, validateCFAccessToken } from '$lib/server/auth';
+import { isPublicPath, PUBLIC_PATHS, getDevUser, isDevMode, verifyAccessJwt } from '$lib/server/auth';
 import { jwtVerify } from 'jose';
-import { env } from '$env/dynamic/private';
+
+const TEST_AUD = 'test-audience-tag';
+const TEST_DOMAIN = 'bytestreamsai.cloudflareaccess.com';
 
 describe('isPublicPath', () => {
 	it('returns true for /login', () => {
@@ -66,20 +58,27 @@ describe('PUBLIC_PATHS', () => {
 });
 
 describe('getDevUser', () => {
-	it('returns user from environment variables', () => {
+	it('returns mock user with required fields', () => {
 		const user = getDevUser();
-		expect(user).toEqual({
-			email: 'test@bytestreams.ai',
-			firstName: 'Test',
-			lastName: 'User'
+		expect(user).toMatchObject({
+			email: 'dev@bytestreams.ai',
+			sub: 'dev-user-id',
+			displayName: 'Dev'
 		});
 	});
 
-	it('returns object with required User fields', () => {
+	it('returns object with all User fields', () => {
 		const user = getDevUser();
 		expect(user).toHaveProperty('email');
-		expect(user).toHaveProperty('firstName');
-		expect(user).toHaveProperty('lastName');
+		expect(user).toHaveProperty('sub');
+		expect(user).toHaveProperty('displayName');
+		expect(user).toHaveProperty('iat');
+		expect(user).toHaveProperty('exp');
+	});
+
+	it('sets exp in the future', () => {
+		const user = getDevUser();
+		expect(user.exp).toBeGreaterThan(user.iat);
 	});
 });
 
@@ -89,38 +88,50 @@ describe('isDevMode', () => {
 	});
 });
 
-describe('validateCFAccessToken', () => {
+describe('verifyAccessJwt', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('returns user when JWT is valid with all claims', async () => {
+	it('returns null for null/undefined token', async () => {
+		expect(await verifyAccessJwt(null, TEST_AUD, TEST_DOMAIN)).toBeNull();
+		expect(await verifyAccessJwt(undefined, TEST_AUD, TEST_DOMAIN)).toBeNull();
+	});
+
+	it('returns user when JWT is valid', async () => {
 		vi.mocked(jwtVerify).mockResolvedValueOnce({
 			payload: {
 				email: 'scott@bytestreams.ai',
-				given_name: 'Scott',
-				family_name: 'Thornton'
+				sub: 'cf-user-123',
+				iat: 1700000000,
+				exp: 1700086400
 			},
 			protectedHeader: { alg: 'RS256' }
 		} as never);
 
-		const user = await validateCFAccessToken('valid-token');
+		const user = await verifyAccessJwt('valid-token', TEST_AUD, TEST_DOMAIN);
 		expect(user).toEqual({
 			email: 'scott@bytestreams.ai',
-			firstName: 'Scott',
-			lastName: 'Thornton'
+			sub: 'cf-user-123',
+			displayName: 'Scott',
+			iat: 1700000000,
+			exp: 1700086400
 		});
 	});
 
-	it('falls back to email prefix for missing given_name', async () => {
+	it('derives displayName from email prefix with capitalisation', async () => {
 		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: { email: 'scott@bytestreams.ai' },
+			payload: {
+				email: 'jane@bytestreams.ai',
+				sub: 'cf-user-456',
+				iat: 1700000000,
+				exp: 1700086400
+			},
 			protectedHeader: { alg: 'RS256' }
 		} as never);
 
-		const user = await validateCFAccessToken('valid-token');
-		expect(user?.firstName).toBe('scott');
-		expect(user?.lastName).toBe('');
+		const user = await verifyAccessJwt('valid-token', TEST_AUD, TEST_DOMAIN);
+		expect(user?.displayName).toBe('Jane');
 	});
 
 	it('returns null when JWT has no email claim', async () => {
@@ -129,42 +140,53 @@ describe('validateCFAccessToken', () => {
 			protectedHeader: { alg: 'RS256' }
 		} as never);
 
-		const user = await validateCFAccessToken('token-no-email');
+		const user = await verifyAccessJwt('token-no-email', TEST_AUD, TEST_DOMAIN);
+		expect(user).toBeNull();
+	});
+
+	it('returns null when JWT has no sub claim', async () => {
+		vi.mocked(jwtVerify).mockResolvedValueOnce({
+			payload: { email: 'test@bytestreams.ai' },
+			protectedHeader: { alg: 'RS256' }
+		} as never);
+
+		const user = await verifyAccessJwt('token-no-sub', TEST_AUD, TEST_DOMAIN);
 		expect(user).toBeNull();
 	});
 
 	it('returns null when JWT verification throws', async () => {
 		vi.mocked(jwtVerify).mockRejectedValueOnce(new Error('Invalid signature'));
 
-		const user = await validateCFAccessToken('bad-token');
+		const user = await verifyAccessJwt('bad-token', TEST_AUD, TEST_DOMAIN);
 		expect(user).toBeNull();
 	});
 
-	it('calls jwtVerify with correct audience and issuer', async () => {
+	it('calls jwtVerify with correct issuer and audience', async () => {
 		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: { email: 'test@bytestreams.ai' },
+			payload: { email: 'test@bytestreams.ai', sub: 'cf-user-789' },
 			protectedHeader: { alg: 'RS256' }
 		} as never);
 
-		await validateCFAccessToken('test-token');
+		await verifyAccessJwt('test-token', TEST_AUD, TEST_DOMAIN);
 
 		expect(jwtVerify).toHaveBeenCalledWith(
 			'test-token',
 			expect.any(Function),
 			{
-				audience: 'test-audience-tag',
-				issuer: 'https://bytestreams.cloudflareaccess.com'
+				issuer: `https://${TEST_DOMAIN}`,
+				audience: TEST_AUD
 			}
 		);
 	});
 
-	it('returns null when CF_ACCESS_AUD is not configured', async () => {
-		const savedAud = env.CF_ACCESS_AUD;
-		(env as Record<string, string>).CF_ACCESS_AUD = '';
+	it('defaults iat/exp to 0 when missing from payload', async () => {
+		vi.mocked(jwtVerify).mockResolvedValueOnce({
+			payload: { email: 'test@bytestreams.ai', sub: 'cf-user' },
+			protectedHeader: { alg: 'RS256' }
+		} as never);
 
-		const user = await validateCFAccessToken('some-token');
-		expect(user).toBeNull();
-
-		(env as Record<string, string>).CF_ACCESS_AUD = savedAud!;
+		const user = await verifyAccessJwt('test-token', TEST_AUD, TEST_DOMAIN);
+		expect(user?.iat).toBe(0);
+		expect(user?.exp).toBe(0);
 	});
 });

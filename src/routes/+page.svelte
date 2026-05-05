@@ -36,7 +36,7 @@
 
 	<main class="dashboard">
 		<div class="dashboard-header">
-			<h1>Welcome back, {data.user.firstName || 'there'}</h1>
+			<h1>Welcome back, {data.user.displayName}</h1>
 			<p class="dashboard-subtitle">ByteStreams LLC — Internal Dashboard</p>
 		</div>
 

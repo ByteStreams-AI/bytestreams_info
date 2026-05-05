@@ -1,0 +1,13 @@
+# ============================================
+# ByteStreams Intranet — Cloudflare Dev Vars
+# Copy to .dev.vars and fill in your values
+# Used by: wrangler pages dev
+# ============================================
+
+# --- Cloudflare Access ---
+CF_ACCESS_TEAM_DOMAIN=bytestreamsai.cloudflareaccess.com
+CF_ACCESS_AUD=                # Application Audience (AUD) tag from CF Access
+
+# --- Development Mock Auth ---
+# Used by vite dev to bypass CF Access JWT validation
+DEV_MOCK_EMAIL=dev@bytestreams.ai
