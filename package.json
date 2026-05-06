@@ -33,7 +33,8 @@
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.18.0",
     "vite": "^6.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "wrangler": "^4.88.0"
   },
   "dependencies": {
     "jose": "^6.0.0"
