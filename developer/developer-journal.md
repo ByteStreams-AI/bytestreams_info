@@ -38,7 +38,44 @@ The `developer/` directory Express/SAML code remains as reference documentation 
 
 ### Next Steps
 
-1. Copy `.env.example` to `.env` and fill in `CF_ACCESS_AUD`
-2. Configure Cloudflare Access application in Zero Trust dashboard with Google Workspace as IdP
-3. Set Access Policy to allow `@bytestreams.ai` domain
-4. Deploy to Cloudflare Pages with env vars configured
+1. ~~Copy `.env.example` to `.env` and fill in `CF_ACCESS_AUD`~~ ✅
+2. ~~Configure Cloudflare Access application in Zero Trust dashboard with Google Workspace as IdP~~ ✅
+3. ~~Set Access Policy to allow `@bytestreams.ai` domain~~ ✅
+4. Deploy to Cloudflare Pages with env vars configured — in progress
+
+## 2026-05-06 — Cloudflare Pages Deployment
+
+**Participants:** Scott Thornton, Oz (Warp)
+
+### Context
+
+With auth code aligned to CF Access JWT spec, began deploying the SvelteKit app to Cloudflare Pages.
+
+### Issues Encountered & Resolved
+
+1. **"Site can't be reached"** — Cloudflare Access was configured and redirecting to login, but no Pages project was deployed behind it. Authentication worked (302 → CF Access login → Google auth succeeded) but post-auth redirect had no app to serve.
+
+2. **Wrong dashboard flow** — Initially landed in "Create a Worker" flow instead of Pages. Correct path: Workers & Pages → Import Repository.
+
+3. **pnpm install failure** (`packages field missing or empty`) — Cloudflare auto-detected pnpm from `pnpm-lock.yaml` but used a different version. Fixed by adding `"packageManager": "pnpm@10.33.0"` to `package.json`.
+
+4. **Build command using npm** — Originally set to `npm install && npm run build` which conflicted with pnpm-managed dependencies. Changed to `pnpm run build`.
+
+5. **wrangler not found** — `wrangler` CLI not pre-installed in Cloudflare build environment. Fixed by adding `wrangler` as a devDependency.
+
+6. **Deploy command missing asset path** — `npx wrangler versions upload` didn't know where build output was. Switched to `npx wrangler pages deploy .svelte-kit/cloudflare --project-name=bytestreams-intranet`.
+
+7. **API token permissions** — Auto-generated token lacked Pages deploy permissions. Created custom API token with Workers Scripts Edit, Cloudflare Pages Edit, Workers Builds Configuration Edit.
+
+8. **Build token invalidated** — After creating new API token, the original build token was rolled. Needs to be updated in Worker Builds settings.
+
+### Cloudflare Pages Configuration
+
+- **Project name:** bytestreams-intranet
+- **Build command:** `pnpm run build`
+- **Deploy command:** `npx wrangler pages deploy .svelte-kit/cloudflare --project-name=bytestreams-intranet`
+- **Env vars:** `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `NODE_PACKAGE_MANAGER`, `CLOUDFLARE_API_TOKEN`
+
+### Status
+
+Build succeeds. Deploy step pending API token fix in Worker Builds settings.

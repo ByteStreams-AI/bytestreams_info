@@ -68,3 +68,31 @@ Aligned auth implementation with Cloudflare Access JWT spec per `developer/svelt
 - Added `Platform` interface to `app.d.ts` for CF env bindings
 - Gitignored auth reference doc and `.wrangler/`
 - Updated all tests (67 passing)
+
+## 2026-05-06 — Cloudflare Pages Deployment
+
+**Date:** 2026-05-06
+**Agent:** Oz (Warp)
+
+### Summary
+
+Connected GitHub repo to Cloudflare Pages via the unified Workers & Pages dashboard. Resolved build and deploy configuration issues.
+
+### Changes
+
+- Added `packageManager: "pnpm@10.33.0"` to `package.json` — Cloudflare was auto-detecting pnpm but using wrong version
+- Added `wrangler` as devDependency — not pre-installed in Cloudflare build environment
+- Added `wrangler.jsonc` — configures asset directory for deploy step
+- Build command: `pnpm run build`
+- Deploy command: `npx wrangler pages deploy .svelte-kit/cloudflare --project-name=bytestreams-intranet`
+
+### Deployment Configuration
+
+- **Platform:** Cloudflare Workers & Pages (unified), connected via Import Repository
+- **Environment variables:** `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `NODE_PACKAGE_MANAGER`, `CLOUDFLARE_API_TOKEN`
+- **API Token:** Custom token with Workers Scripts Edit, Cloudflare Pages Edit, Workers Builds Configuration Edit permissions
+- **Non-production branches:** Builds enabled for preview deployments
+
+### Status
+
+In progress: Resolving API token permissions for deploy step
