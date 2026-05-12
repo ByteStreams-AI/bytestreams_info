@@ -1,6 +1,7 @@
 {
 	"name": "bytestreams-intranet",
 	"compatibility_date": "2026-05-06",
+	"main": ".svelte-kit/cloudflare/_worker.js",
 	"assets": {
 		"directory": ".svelte-kit/cloudflare"
 	}
