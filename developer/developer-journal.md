@@ -102,3 +102,25 @@ Added `"main": ".svelte-kit/cloudflare/_worker.js"` to `wrangler.jsonc`. The `ad
 - **Deploy command:** `npx wrangler deploy`
 - **Worker URL:** `https://bytestreams-intranet.cottonbytes.workers.dev`
 - **Note:** This deploys as a Cloudflare Worker (not Pages). Cloudflare Access must be configured for the Worker URL if SSO is required.
+
+## 2026-05-13 — GitHub Actions pnpm Version Conflict Fix
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+GitHub Actions failed during `pnpm/action-setup@v4` because pnpm was pinned in two places:
+
+- Workflow input: `version: 10`
+- `package.json`: `"packageManager": "pnpm@10.33.0"`
+
+`pnpm/action-setup` rejects mixed version sources and fails with a multiple versions specified error.
+
+### Fix
+
+Updated `.github/workflows/ci.yml` to remove explicit `version` from both `Install pnpm` steps (CI and deploy jobs), allowing the action to use the version declared in `package.json`.
+
+### Result
+
+- Single pnpm source of truth remains in `package.json`
+- Avoids `ERR_PNPM_BAD_PM_VERSION` style mismatch failures in GitHub Actions
