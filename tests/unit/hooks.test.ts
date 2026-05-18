@@ -45,7 +45,7 @@ function createMockEvent(
 	}
 
 	const cookies = {
-		get: vi.fn(() => undefined)
+		get: vi.fn((): string | undefined => undefined)
 	};
 
 	return {

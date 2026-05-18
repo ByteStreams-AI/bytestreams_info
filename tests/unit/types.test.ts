@@ -5,12 +5,16 @@ describe('User type', () => {
 	it('accepts a valid user object', () => {
 		const user: User = {
 			email: 'scott@bytestreams.ai',
-			firstName: 'Scott',
-			lastName: 'Thornton'
+			sub: 'cf-user-123',
+			displayName: 'Scott',
+			iat: 1700000000,
+			exp: 1700086400
 		};
 		expect(user.email).toBe('scott@bytestreams.ai');
-		expect(user.firstName).toBe('Scott');
-		expect(user.lastName).toBe('Thornton');
+		expect(user.sub).toBe('cf-user-123');
+		expect(user.displayName).toBe('Scott');
+		expect(user.iat).toBe(1700000000);
+		expect(user.exp).toBe(1700086400);
 	});
 });
 
