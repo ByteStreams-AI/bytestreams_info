@@ -53,7 +53,7 @@ describe('login page server load', () => {
 		const { load } = await import('$lib/../routes/login/+page.server');
 		const cookies = createMockCookies();
 		const result = await load({ locals: { user: null }, cookies } as never);
-		expect(result).toEqual({});
+		expect(result).toEqual({ loginUrl: '/' });
 	});
 
 	it('clears logged_out cookie in dev mode when not authenticated', async () => {

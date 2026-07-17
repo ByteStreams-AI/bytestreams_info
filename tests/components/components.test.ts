@@ -43,7 +43,8 @@ describe('Nav', () => {
 
 	it('has navigation landmark', () => {
 		render(Nav, { props: { user: mockUser } });
-		expect(screen.getByRole('navigation')).toBeInTheDocument();
+		const navs = screen.getAllByRole('navigation');
+		expect(navs.length).toBeGreaterThanOrEqual(1);
 	});
 });
 

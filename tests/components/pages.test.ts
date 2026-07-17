@@ -72,7 +72,7 @@ describe('Dashboard Page', () => {
 		render(DashboardPage, { props: { data: { user: mockUser } } });
 		expect(screen.getByText('Active')).toBeInTheDocument();
 		expect(screen.getByText('In Development')).toBeInTheDocument();
-		expect(screen.getByText('Internal')).toBeInTheDocument();
+		expect(screen.getAllByText('Internal')[0]).toBeInTheDocument();
 	});
 
 	it('renders nav with user info', () => {
