@@ -18,7 +18,8 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 
 	if (dev) {
 		cookies.delete('logged_out', { path: '/' });
+		return { loginUrl: '/' };
 	}
 
-	return { loginUrl: '/' };
+	return { loginUrl: '/cdn-cgi/access/login?redirect_url=/' };
 };

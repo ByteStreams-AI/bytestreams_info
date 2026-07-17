@@ -41,38 +41,25 @@
 	/>
 </svelte:head>
 
-{#if data.user}
-	<Nav user={data.user} />
+<Nav user={data.user} />
 
-	<main class="dashboard">
-		<div class="dashboard-header">
-			<h1>Welcome back, {data.user.displayName}</h1>
-			<p class="dashboard-subtitle">ByteStreams LLC — Internal Dashboard</p>
-		</div>
+<main class="dashboard">
+	<div class="dashboard-header">
+		<h1>Welcome back, {data.user.displayName}</h1>
+		<p class="dashboard-subtitle">ByteStreams LLC — Internal Dashboard</p>
+	</div>
 
-		<div class="section-header">
-			<h2>Internal Tools</h2>
-			<p>Direct access to ByteStreams products and resources. More tools will be added here as they come online.</p>
-		</div>
+	<div class="section-header">
+		<h2>Internal Tools</h2>
+		<p>Direct access to ByteStreams products and resources. More tools will be added here as they come online.</p>
+	</div>
 
-		<div class="card-grid">
-			{#each products as product (product.name)}
-				<ProductCard {product} />
-			{/each}
-		</div>
-	</main>
-{:else}
-	<main class="landing-minimal" aria-label="ByteStreams intranet landing">
-		<img
-			src="/assets/blue-side-slim-logo.png"
-			alt="ByteStreams"
-			class="landing-logo"
-			width="198"
-			height="56"
-		/>
-		<p class="landing-tagline">Smarter Workflows, Stronger Results.</p>
-	</main>
-{/if}
+	<div class="card-grid">
+		{#each products as product (product.name)}
+			<ProductCard {product} />
+		{/each}
+	</div>
+</main>
 
 <style>
 	.dashboard {
@@ -119,30 +106,9 @@
 		color: var(--text-faded);
 	}
 
-	.landing-minimal {
-		min-height: 100vh;
-		padding: 28px 20px;
-		background: #0d1117;
-	}
-
-	.landing-logo {
-		display: block;
-		max-width: 198px;
-		height: auto;
-		margin-bottom: 14px;
-	}
-
+	.landing-minimal,
+	.landing-logo,
 	.landing-tagline {
-		margin: 0;
-		color: #c9d1d9;
-		font-size: 1.625rem;
-		line-height: 1.35;
-		letter-spacing: 0.01em;
-	}
-
-	@media (max-width: 640px) {
-		.landing-tagline {
-			font-size: 1.25rem;
-		}
+		display: none;
 	}
 </style>
