@@ -131,6 +131,12 @@ A wrapper UI over **AWS Secrets Manager** (HIPAA-eligible, SOC 2-attested). The 
 
 ## 4. Technical Stack
 
+### Implementation status note (2026-05-19)
+
+- Current production code in this repo is auth-first (Cloudflare Access JWT validation) and does not yet include a wired application database for KPI reads.
+- Supabase Postgres remains the planned system of record for intranet application data once data features are implemented.
+- The separate DialTone Outreach FastAPI app (`dialtone_outreach/web/app.py`) already reads KPI-related operational data from Supabase via `outreach/db.py`.
+
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
 | Frontend + server | **SvelteKit** (TypeScript, Vite) | User preference; SSR for auth-aware routing; mature; good security primitives (CSP, CSRF) |

@@ -18,12 +18,42 @@ export interface User {
  * Product card data for the intranet dashboard.
  */
 export interface Product {
-	/** Display name. */
 	name: string;
-	/** Short description. */
 	description: string;
-	/** Status badge label. */
 	status: 'Active' | 'In Development' | 'Internal' | 'Coming Soon';
-	/** Optional external URL. */
 	href?: string;
 }
+
+/**
+ * A CRM lead row from Supabase (read-only scraper fields + editable sales fields).
+ */
+export interface Lead {
+	lead_id: string;
+	business_name: string;
+	phone: string | null;
+	address: string | null;
+	city: string | null;
+	status: string;
+	business_type: string | null;
+	offers_delivery: boolean | null;
+	offers_pickup: boolean | null;
+	uses_doordash_mktg: boolean | null;
+	uses_chownow: boolean | null;
+	price_range: string | null;
+	yelp_rating: number | null;
+	yelp_review_count: number | null;
+	// Sales-editable fields
+	contact_name: string | null;
+	email: string | null;
+	website_url: string | null;
+	notes: string | null;
+	num_locations: number | null;
+	michelin_rating: string | null;
+	has_website: boolean | null;
+	has_app: boolean | null;
+	uses_pos: string | null;
+	uses_kds: boolean | null;
+	uses_sms: boolean | null;
+	created_at: string;
+}
+

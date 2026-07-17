@@ -1,5 +1,44 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-05-20 — KPI Dashboard (Task #1)
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Implemented the DialTone Outreach KPI cards on the authenticated intranet dashboard. Source of truth: `docs/KPI-Requirements-Task-1-2026-05-19.md`.
+
+### Changes
+
+- Added `KpiFunnel` and `KpiData` interfaces to `src/lib/types.ts`
+- Created `src/lib/components/KpiGroup.svelte` — self-contained KPI display component:
+  - Fetches `/api/kpis` on mount, auto-refreshes every 60 minutes
+  - Skeleton loading state (9 pulsing placeholder cards)
+  - Non-blocking inline error state with Retry button
+  - 3×3 card grid: counts (Total Contacts, Emails Sent Today, Contacts Emailed), pipeline (Demos Booked, Pilots, Customers), funnel conversions (Email→Demo, Demo→Pilot, Pilot→Customer)
+  - `generated_at` timestamp shown in browser local time
+- Created `src/routes/api/kpis/+server.ts` — auth-gated server route:
+  - Requires authenticated session (401 if not)
+  - Dev mode: returns deterministic mock data (no Supabase needed)
+  - Production: two parallel Supabase REST queries — `contact_status_counts` view + count-only `email_log` query for today's emails
+  - Returns 502 on upstream failure, 503 if secrets not configured
+  - `Cache-Control: no-store` on all responses
+- Extended `Platform.env` in `src/app.d.ts` with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+- Updated `.dev.vars.example` with the two new secret keys
+- Added `KpiGroup` to the authenticated dashboard in `src/routes/+page.svelte`
+- Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as Cloudflare Worker secrets via `pnpm exec wrangler secret put`
+
+### Deployment
+
+- Version ID: `41312ae5-416a-43c0-a092-e1e38c4eca3a`
+- URL: `https://bytestreams-intranet.cottonbytes.workers.dev`
+
+### KPI Decisions (from requirements doc)
+
+- `re_engage` included in `sent_contacts`
+- Auto-refresh every 60 minutes
+- Timestamp displayed in browser local time
+
 ## 2026-05-03 — Auth Architecture Decision: Cloudflare Access vs Direct SAML
 
 **Participants:** Scott Thornton, Oz (Warp)
@@ -124,3 +163,117 @@ Updated `.github/workflows/ci.yml` to remove explicit `version` from both `Insta
 
 - Single pnpm source of truth remains in `package.json`
 - Avoids `ERR_PNPM_BAD_PM_VERSION` style mismatch failures in GitHub Actions
+
+## 2026-05-18 — Intranet Landing Page for Unauthenticated Users
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+After the `bytestreams.info` apex and `www` hosts were stabilized in Cloudflare, added a clear intranet landing page for visitors who are not yet signed in.
+
+### Changes
+
+- Reworked `src/routes/+page.svelte` so unauthenticated visitors see a dedicated ByteStreams intranet landing page while authenticated users still see the internal dashboard.
+- Added explicit intranet messaging throughout the landing page: private access only, Google Workspace SSO, internal docs/dashboards, and support contact details.
+- Copied the static landing assets from `bytestreams_ai/public` into `static/` so the page can use the shared branding resources, CSS, JS, and legal pages.
+
+### Verification
+
+- `pnpm check` passes with 0 errors and 0 warnings.
+
+## 2026-05-19 — Intranet-First Copy Pass
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+The first landing page draft was functional, but the intranet intent could read too softly for first-time visitors.
+
+### Changes
+
+- Strengthened the visible copy in `src/routes/+page.svelte` to say “ByteStreams Internal Intranet” in the title, hero, banner, footer, and support sections.
+- Added a dedicated intranet notice banner so the page reads as a private internal entry point immediately.
+
+### Verification
+
+- `pnpm check` passes with 0 errors and 0 warnings.
+
+## 2026-05-19 — Intranet Visual Hardening
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Requested an even more obvious internal-only treatment on the unauthenticated landing page.
+
+### Changes
+
+- Added a high-visibility warning strip: “BYTESTREAMS INTERNAL INTRANET: AUTHORIZED PERSONNEL ONLY”.
+- Added a persistent “Authorized users only” security pill in header actions on desktop.
+- Kept mobile readability by collapsing to the warning strip and hiding the pill on smaller viewports.
+
+### Verification
+
+- `pnpm check` passes with 0 errors and 0 warnings.
+
+## 2026-05-19 — Minimal Landing Page
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Requested to reduce the unauthenticated landing page to only the logo and tagline with no additional content blocks.
+
+### Changes
+
+- Simplified the unauthenticated branch in `src/routes/+page.svelte` to only render:
+	- ByteStreams logo
+	- “Smarter Workflows, Stronger Results.” tagline
+- Removed all additional landing sections, legal/footer/navigation elements, and related intranet marketing content from the unauthenticated view.
+- Kept authenticated dashboard behavior unchanged.
+
+### Verification
+
+- `pnpm check` passes with 0 errors and 0 warnings.
+
+## 2026-05-19 — KPI Data Source Clarification (Task #1 Input)
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Task #1 for the KPI migration project required confirming the source data location before finalizing requirements and technical approach.
+
+### Finding
+
+- The DialTone Outreach FastAPI app (`dialtone_outreach/web/app.py`) reads dashboard and KPI data through `outreach/db.py`.
+- `outreach/db.py` initializes a Supabase client using `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` from `outreach/config.py`.
+- Therefore, the existing KPI operational source is Supabase Postgres (tables/views including `contacts`, `email_log`, `contact_status_counts`, and `contacts_due_for_outreach`).
+
+### Impact on bytestreams_info
+
+- This SvelteKit repo currently has no runtime KPI database integration (auth-first implementation).
+- For KPI landing-page delivery, requirements and implementation docs should treat Supabase as the upstream source and explicitly include a data-integration step in scope.
+
+## 2026-05-19 — Task #1 KPI Requirements Artifact Added
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+After confirming KPI data originates from DialTone Outreach Supabase, Task #1 needed a business-readable requirements artifact that implementation and GitHub Issues can reference directly.
+
+### Changes
+
+- Added `docs/KPI-Requirements-Task-1-2026-05-19.md`.
+- Document includes:
+	- KPI definitions and formulas
+	- source data assumptions and relevant tables/views
+	- API response contract draft for landing-page KPI payload
+	- data quality rules and acceptance criteria
+	- open decisions for business confirmation
+
+### Outcome
+
+- Task #1 now has a concrete source-of-truth document suitable for linking from project issues and implementation tasks.

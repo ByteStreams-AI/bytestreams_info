@@ -13,6 +13,8 @@ declare global {
 			env: {
 				CF_ACCESS_AUD: string;
 				CF_ACCESS_TEAM_DOMAIN: string;
+				SUPABASE_URL: string;
+				SUPABASE_SERVICE_ROLE_KEY: string;
 			};
 		}
 	}
