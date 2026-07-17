@@ -1,8 +1,13 @@
 {
 	"name": "bytestreams-intranet",
 	"compatibility_date": "2026-05-06",
+	"compatibility_flags": ["nodejs_compat"],
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"assets": {
 		"directory": ".svelte-kit/cloudflare"
-	}
+	},
+	"routes": [
+		{ "pattern": "www.bytestreams.info/*", "zone_name": "bytestreams.info" },
+		{ "pattern": "bytestreams.info/*", "zone_name": "bytestreams.info" }
+	]
 }
