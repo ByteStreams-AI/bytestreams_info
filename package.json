@@ -37,6 +37,7 @@
     "wrangler": "^4.88.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.7",
     "jose": "^6.0.0"
   },
   "packageManager": "pnpm@10.33.0"

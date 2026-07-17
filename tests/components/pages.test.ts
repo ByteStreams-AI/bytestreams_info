@@ -4,34 +4,36 @@ import LoginPage from '$lib/../routes/login/+page.svelte';
 import DashboardPage from '$lib/../routes/+page.svelte';
 
 describe('Login Page', () => {
+	const loginData = { user: null, loginUrl: '/' };
+
 	it('renders sign-in heading', () => {
-		render(LoginPage, { props: { data: { user: null } } });
+		render(LoginPage, { props: { data: loginData } });
 		expect(screen.getByText('ByteStreams Intranet')).toBeInTheDocument();
 	});
 
 	it('renders sign-in subtitle', () => {
-		render(LoginPage, { props: { data: { user: null } } });
+		render(LoginPage, { props: { data: loginData } });
 		expect(
 			screen.getByText('Sign in with your ByteStreams Google Workspace account to continue.')
 		).toBeInTheDocument();
 	});
 
 	it('renders Google SSO button linking to /', () => {
-		render(LoginPage, { props: { data: { user: null } } });
+		render(LoginPage, { props: { data: loginData } });
 		const ssoLink = screen.getByText('Sign in with Google');
 		expect(ssoLink).toBeInTheDocument();
 		expect(ssoLink.closest('a')).toHaveAttribute('href', '/');
 	});
 
 	it('renders logo image', () => {
-		render(LoginPage, { props: { data: { user: null } } });
+		render(LoginPage, { props: { data: loginData } });
 		const logo = screen.getByAltText('ByteStreams');
 		expect(logo).toBeInTheDocument();
 		expect(logo).toHaveAttribute('src', '/assets/blue-side-slim-logo.png');
 	});
 
 	it('renders authorized personnel footer', () => {
-		render(LoginPage, { props: { data: { user: null } } });
+		render(LoginPage, { props: { data: loginData } });
 		expect(
 			screen.getByText('ByteStreams LLC — Authorized personnel only')
 		).toBeInTheDocument();

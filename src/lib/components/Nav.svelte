@@ -19,6 +19,10 @@
 		<span class="nav-label">Intranet</span>
 	</div>
 
+	<nav class="nav-links" aria-label="Section">
+		<a href="/crm" class="nav-link">CRM</a>
+	</nav>
+
 	<div class="nav-user">
 		<span class="nav-user-name">
 			{user.displayName}
@@ -70,6 +74,23 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
+	}
+
+	.nav-links {
+		display: flex;
+		align-items: center;
+		gap: var(--space-lg);
+	}
+
+	.nav-link {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--text-muted);
+		text-decoration: none;
+	}
+
+	.nav-link:hover {
+		color: var(--text-bright);
 	}
 
 	.nav-user-name {

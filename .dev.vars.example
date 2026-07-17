@@ -8,6 +8,10 @@
 CF_ACCESS_TEAM_DOMAIN=bytestreamsai.cloudflareaccess.com
 CF_ACCESS_AUD=                # Application Audience (AUD) tag from CF Access
 
+# --- Supabase (DialTone Outreach) ---
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=   # service_role secret from Supabase project settings
+
 # --- Development Mock Auth ---
 # Used by vite dev to bypass CF Access JWT validation
 DEV_MOCK_EMAIL=dev@bytestreams.ai
