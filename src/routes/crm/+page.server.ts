@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-	update: async ({ request, locals, platform }) => {
+		update: async ({ request, locals }) => {
 		if (!locals.user) {
 			throw error(401, 'Unauthorized');
 		}

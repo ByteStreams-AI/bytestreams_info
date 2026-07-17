@@ -110,7 +110,7 @@
 							<span>City</span>
 							<select bind:value={filterCity} aria-label="Filter by city">
 								<option value="">All</option>
-								{#each cities as city}
+								{#each cities as city (city)}
 									<option value={city}>{city}</option>
 								{/each}
 							</select>
@@ -122,7 +122,7 @@
 							<span>Status</span>
 							<select bind:value={filterStatus} aria-label="Filter by status">
 								<option value="">All</option>
-								{#each STATUSES as s}
+								{#each STATUSES as s (s)}
 									<option value={s}>{STATUS_LABELS[s]}</option>
 								{/each}
 							</select>
@@ -233,7 +233,7 @@
 				<label class="field-row">
 					<span>Status</span>
 					<select name="status" bind:value={selectedLead.status}>
-						{#each STATUSES as s}
+{#each STATUSES as s (s)}
 							<option value={s}>{STATUS_LABELS[s]}</option>
 						{/each}
 					</select>
