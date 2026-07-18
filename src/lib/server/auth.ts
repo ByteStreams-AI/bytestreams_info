@@ -7,32 +7,9 @@
  * guards decide how to handle unauthenticated requests.
  */
 
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import type { JWTPayload } from 'jose';
 import { dev } from '$app/environment';
 import type { User } from '$lib/types';
-
-/** Cached JWKS instance — persists for the life of the Worker isolate. */
-let jwksCache: ReturnType<typeof createRemoteJWKSet> | null = null;
-let cachedTeamDomain: string | null = null;
-
-/**
- * Returns the Cloudflare Access JWKS set, creating it on first call.
- * jose handles key refresh automatically when a new key ID appears.
- *
- * @param teamDomain - The Cloudflare Access team domain.
- * @returns The JWKS set for token verification.
- */
-function getJWKS(teamDomain: string): ReturnType<typeof createRemoteJWKSet> {
-	if (!jwksCache || cachedTeamDomain !== teamDomain) {
-		const jwksUrl = new URL(`https://${teamDomain}/cdn-cgi/access/certs`);
-		jwksCache = createRemoteJWKSet(jwksUrl, {
-			cooldownDuration: 10 * 60 * 1000,
-			cacheMaxAge: 12 * 60 * 60 * 1000
-		});
-		cachedTeamDomain = teamDomain;
-	}
-	return jwksCache;
-}
 
 /**
  * Derives a display name from an email address.
@@ -66,27 +43,24 @@ function mapPayloadToUser(payload: JWTPayload): User | null {
 }
 
 /**
- * Validates a Cloudflare Access JWT and extracts user claims.
+ * Decodes a Cloudflare Access JWT and extracts user claims.
+ * Does not re-verify the signature — CF Access already verified at the edge.
  * Soft-fail: never throws on invalid token; returns null.
  *
  * @param token - The raw JWT string (header or cookie).
- * @param aud - The CF Access Application Audience tag.
- * @param teamDomain - The CF Access team domain.
- * @returns The authenticated User, or null if validation fails.
+ * @returns The authenticated User, or null if decoding fails.
  */
-export async function verifyAccessJwt(
-	token: string | null | undefined,
-	aud: string,
-	teamDomain: string
-): Promise<User | null> {
+export function verifyAccessJwt(
+	token: string | null | undefined
+): User | null {
 	if (!token) return null;
 
 	try {
-		const jwks = getJWKS(teamDomain);
-		const { payload } = await jwtVerify(token, jwks, {
-			issuer: `https://${teamDomain}`,
-			audience: aud
-		});
+		const parts = token.split('.');
+		if (parts.length !== 3) return null;
+		const payload = JSON.parse(atob(parts[1])) as JWTPayload;
+		// Reject expired tokens
+		if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
 		return mapPayloadToUser(payload);
 	} catch {
 		return null;

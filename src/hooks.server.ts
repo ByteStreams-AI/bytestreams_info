@@ -28,14 +28,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.cookies.get('CF_Authorization') ??
 		null;
 
-	const aud = event.platform?.env.CF_ACCESS_AUD;
-	const teamDomain = event.platform?.env.CF_ACCESS_TEAM_DOMAIN;
-
-	if (aud && teamDomain) {
-		event.locals.user = await verifyAccessJwt(token, aud, teamDomain);
-	} else {
-		event.locals.user = null;
-	}
+	event.locals.user = verifyAccessJwt(token);
 
 	return resolve(event);
 };

@@ -1,31 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('$app/environment', () => ({
-	dev: false
-}));
+vi.mock('$app/environment', () => ({ dev: false }));
 
-vi.mock('jose', () => ({
-	createRemoteJWKSet: vi.fn(() => vi.fn()),
-	jwtVerify: vi.fn()
-}));
+import { verifyAccessJwt } from '$lib/server/auth';
 
-describe('auth edge cases', () => {
-	it('verifyAccessJwt returns null for empty string token', async () => {
-		const { verifyAccessJwt } = await import('$lib/server/auth');
-		const result = await verifyAccessJwt('', 'aud', 'domain.com');
-		expect(result).toBeNull();
+function makeToken(payload: Record<string, unknown>): string {
+	return `header.${btoa(JSON.stringify(payload))}.sig`;
+}
+
+const futureExp = Math.floor(Date.now() / 1000) + 3600;
+
+describe('verifyAccessJwt edge cases', () => {
+	it('returns null for null/undefined', () => {
+		expect(verifyAccessJwt(null)).toBeNull();
+		expect(verifyAccessJwt(undefined)).toBeNull();
 	});
 
-	it('isDevMode returns false in production', async () => {
-		const { isDevMode } = await import('$lib/server/auth');
-		expect(isDevMode()).toBe(false);
+	it('returns null for expired token', () => {
+		const token = makeToken({ email: 'a@b.com', sub: 'x', exp: 1000 });
+		expect(verifyAccessJwt(token)).toBeNull();
 	});
 
-	it('getDevUser returns hardcoded defaults', async () => {
-		const { getDevUser } = await import('$lib/server/auth');
-		const user = getDevUser();
-		expect(user.email).toBe('dev@bytestreams.ai');
-		expect(user.sub).toBe('dev-user-id');
-		expect(user.displayName).toBe('Dev');
+	it('returns user for valid token', () => {
+		const token = makeToken({ email: 'a@b.com', sub: 'x', exp: futureExp });
+		expect(verifyAccessJwt(token)).not.toBeNull();
 	});
 });

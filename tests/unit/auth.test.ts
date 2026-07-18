@@ -1,20 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Mock SvelteKit modules before importing auth
 vi.mock('$app/environment', () => ({
 	dev: true
 }));
 
-vi.mock('jose', () => ({
-	createRemoteJWKSet: vi.fn(() => vi.fn()),
-	jwtVerify: vi.fn()
-}));
-
 import { isPublicPath, PUBLIC_PATHS, getDevUser, isDevMode, verifyAccessJwt } from '$lib/server/auth';
-import { jwtVerify } from 'jose';
 
-const TEST_AUD = 'test-audience-tag';
-const TEST_DOMAIN = 'bytestreamsai.cloudflareaccess.com';
+/** Creates a fake JWT with the given payload (no real signature). */
+function makeToken(payload: Record<string, unknown>): string {
+	return `header.${btoa(JSON.stringify(payload))}.sig`;
+}
+
+const futureExp = Math.floor(Date.now() / 1000) + 3600;
 
 describe('isPublicPath', () => {
 	it('returns true for /login', () => {
@@ -89,104 +87,60 @@ describe('isDevMode', () => {
 });
 
 describe('verifyAccessJwt', () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
+	it('returns null for null token', () => {
+		expect(verifyAccessJwt(null)).toBeNull();
 	});
 
-	it('returns null for null/undefined token', async () => {
-		expect(await verifyAccessJwt(null, TEST_AUD, TEST_DOMAIN)).toBeNull();
-		expect(await verifyAccessJwt(undefined, TEST_AUD, TEST_DOMAIN)).toBeNull();
+	it('returns null for undefined token', () => {
+		expect(verifyAccessJwt(undefined)).toBeNull();
 	});
 
-	it('returns user when JWT is valid', async () => {
-		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: {
-				email: 'scott@bytestreams.ai',
-				sub: 'cf-user-123',
-				iat: 1700000000,
-				exp: 1700086400
-			},
-			protectedHeader: { alg: 'RS256' }
-		} as never);
+	it('returns null for malformed token (not 3 parts)', () => {
+		expect(verifyAccessJwt('not-a-jwt')).toBeNull();
+	});
 
-		const user = await verifyAccessJwt('valid-token', TEST_AUD, TEST_DOMAIN);
+	it('returns user when JWT has valid claims', () => {
+		const token = makeToken({ email: 'scott@bytestreams.ai', sub: 'cf-user-123', iat: 1700000000, exp: futureExp });
+		const user = verifyAccessJwt(token);
 		expect(user).toEqual({
 			email: 'scott@bytestreams.ai',
 			sub: 'cf-user-123',
 			displayName: 'Scott',
 			iat: 1700000000,
-			exp: 1700086400
+			exp: futureExp
 		});
 	});
 
-	it('derives displayName from email prefix with capitalisation', async () => {
-		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: {
-				email: 'jane@bytestreams.ai',
-				sub: 'cf-user-456',
-				iat: 1700000000,
-				exp: 1700086400
-			},
-			protectedHeader: { alg: 'RS256' }
-		} as never);
-
-		const user = await verifyAccessJwt('valid-token', TEST_AUD, TEST_DOMAIN);
+	it('derives displayName from email prefix with capitalisation', () => {
+		const token = makeToken({ email: 'jane@bytestreams.ai', sub: 'cf-user-456', iat: 0, exp: futureExp });
+		const user = verifyAccessJwt(token);
 		expect(user?.displayName).toBe('Jane');
 	});
 
-	it('returns null when JWT has no email claim', async () => {
-		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: { sub: 'no-email' },
-			protectedHeader: { alg: 'RS256' }
-		} as never);
-
-		const user = await verifyAccessJwt('token-no-email', TEST_AUD, TEST_DOMAIN);
-		expect(user).toBeNull();
+	it('returns null when JWT has no email claim', () => {
+		const token = makeToken({ sub: 'no-email', exp: futureExp });
+		expect(verifyAccessJwt(token)).toBeNull();
 	});
 
-	it('returns null when JWT has no sub claim', async () => {
-		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: { email: 'test@bytestreams.ai' },
-			protectedHeader: { alg: 'RS256' }
-		} as never);
-
-		const user = await verifyAccessJwt('token-no-sub', TEST_AUD, TEST_DOMAIN);
-		expect(user).toBeNull();
+	it('returns null when JWT has no sub claim', () => {
+		const token = makeToken({ email: 'test@bytestreams.ai', exp: futureExp });
+		expect(verifyAccessJwt(token)).toBeNull();
 	});
 
-	it('returns null when JWT verification throws', async () => {
-		vi.mocked(jwtVerify).mockRejectedValueOnce(new Error('Invalid signature'));
-
-		const user = await verifyAccessJwt('bad-token', TEST_AUD, TEST_DOMAIN);
-		expect(user).toBeNull();
+	it('returns null when token is expired', () => {
+		const token = makeToken({ email: 'test@bytestreams.ai', sub: 'user', exp: 1000 });
+		expect(verifyAccessJwt(token)).toBeNull();
 	});
 
-	it('calls jwtVerify with correct issuer and audience', async () => {
-		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: { email: 'test@bytestreams.ai', sub: 'cf-user-789' },
-			protectedHeader: { alg: 'RS256' }
-		} as never);
-
-		await verifyAccessJwt('test-token', TEST_AUD, TEST_DOMAIN);
-
-		expect(jwtVerify).toHaveBeenCalledWith(
-			'test-token',
-			expect.any(Function),
-			{
-				issuer: `https://${TEST_DOMAIN}`,
-				audience: TEST_AUD
-			}
-		);
-	});
-
-	it('defaults iat/exp to 0 when missing from payload', async () => {
-		vi.mocked(jwtVerify).mockResolvedValueOnce({
-			payload: { email: 'test@bytestreams.ai', sub: 'cf-user' },
-			protectedHeader: { alg: 'RS256' }
-		} as never);
-
-		const user = await verifyAccessJwt('test-token', TEST_AUD, TEST_DOMAIN);
+	it('defaults iat to 0 when missing from payload', () => {
+		const token = makeToken({ email: 'test@bytestreams.ai', sub: 'cf-user', exp: futureExp });
+		const user = verifyAccessJwt(token);
 		expect(user?.iat).toBe(0);
+	});
+
+	it('defaults exp to 0 when missing (no expiry check)', () => {
+		const token = makeToken({ email: 'test@bytestreams.ai', sub: 'cf-user' });
+		const user = verifyAccessJwt(token);
 		expect(user?.exp).toBe(0);
 	});
 });

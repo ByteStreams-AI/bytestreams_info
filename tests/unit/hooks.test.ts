@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Track which mock dev mode returns — toggled per test
 let mockDevMode = true;
 
 const mockDevUser = {
@@ -28,17 +27,7 @@ vi.mock('$lib/server/auth', () => ({
 import { handle } from '$lib/../hooks.server';
 import { verifyAccessJwt } from '$lib/server/auth';
 
-/**
- * Creates a mock SvelteKit RequestEvent.
- *
- * @param pathname - The URL pathname.
- * @param options - Optional token and platform env overrides.
- * @returns A mock RequestEvent.
- */
-function createMockEvent(
-	pathname: string,
-	options: { token?: string; platformEnv?: { CF_ACCESS_AUD: string; CF_ACCESS_TEAM_DOMAIN: string } | null } = {}
-) {
+function createMockEvent(pathname: string, options: { token?: string } = {}) {
 	const headers = new Headers();
 	if (options.token) {
 		headers.set('cf-access-jwt-assertion', options.token);
@@ -52,9 +41,6 @@ function createMockEvent(
 		url: new URL(`https://bytestreams.info${pathname}`),
 		request: { headers },
 		cookies,
-		platform: options.platformEnv !== null
-			? { env: options.platformEnv ?? { CF_ACCESS_AUD: 'test-aud', CF_ACCESS_TEAM_DOMAIN: 'bytestreamsai.cloudflareaccess.com' } }
-			: undefined,
 		locals: {} as App.Locals
 	};
 }
@@ -96,7 +82,7 @@ describe('hooks.server handle', () => {
 		});
 
 		it('sets user to null when no token present', async () => {
-			vi.mocked(verifyAccessJwt).mockResolvedValueOnce(null);
+			vi.mocked(verifyAccessJwt).mockReturnValueOnce(null);
 			const event = createMockEvent('/');
 			await handle({ event: event as never, resolve: mockResolve });
 			expect(event.locals.user).toBeNull();
@@ -104,48 +90,33 @@ describe('hooks.server handle', () => {
 		});
 
 		it('sets user to null when JWT validation fails', async () => {
-			vi.mocked(verifyAccessJwt).mockResolvedValueOnce(null);
+			vi.mocked(verifyAccessJwt).mockReturnValueOnce(null);
 			const event = createMockEvent('/', { token: 'invalid-token' });
 			await handle({ event: event as never, resolve: mockResolve });
 			expect(event.locals.user).toBeNull();
 		});
 
 		it('sets user from valid JWT and resolves', async () => {
-			vi.mocked(verifyAccessJwt).mockResolvedValueOnce(mockProdUser);
+			vi.mocked(verifyAccessJwt).mockReturnValueOnce(mockProdUser);
 			const event = createMockEvent('/', { token: 'valid-token' });
 			await handle({ event: event as never, resolve: mockResolve });
 			expect(event.locals.user).toEqual(mockProdUser);
 			expect(mockResolve).toHaveBeenCalled();
 		});
 
-		it('passes token, aud, and teamDomain to verifyAccessJwt', async () => {
-			vi.mocked(verifyAccessJwt).mockResolvedValueOnce(mockProdUser);
+		it('passes token to verifyAccessJwt', async () => {
+			vi.mocked(verifyAccessJwt).mockReturnValueOnce(mockProdUser);
 			const event = createMockEvent('/', { token: 'my-jwt-token' });
 			await handle({ event: event as never, resolve: mockResolve });
-			expect(verifyAccessJwt).toHaveBeenCalledWith(
-				'my-jwt-token',
-				'test-aud',
-				'bytestreamsai.cloudflareaccess.com'
-			);
+			expect(verifyAccessJwt).toHaveBeenCalledWith('my-jwt-token');
 		});
 
 		it('falls back to CF_Authorization cookie when header missing', async () => {
-			vi.mocked(verifyAccessJwt).mockResolvedValueOnce(mockProdUser);
+			vi.mocked(verifyAccessJwt).mockReturnValueOnce(mockProdUser);
 			const event = createMockEvent('/');
 			event.cookies.get.mockReturnValueOnce('cookie-token');
 			await handle({ event: event as never, resolve: mockResolve });
-			expect(verifyAccessJwt).toHaveBeenCalledWith(
-				'cookie-token',
-				'test-aud',
-				'bytestreamsai.cloudflareaccess.com'
-			);
-		});
-
-		it('sets user to null when platform env is missing', async () => {
-			const event = createMockEvent('/', { token: 'valid-token', platformEnv: null });
-			await handle({ event: event as never, resolve: mockResolve });
-			expect(event.locals.user).toBeNull();
-			expect(verifyAccessJwt).not.toHaveBeenCalled();
+			expect(verifyAccessJwt).toHaveBeenCalledWith('cookie-token');
 		});
 	});
 });
