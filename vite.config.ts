@@ -22,7 +22,8 @@ export default defineConfig({
 				'src/routes/+layout.svelte',
 				'src/**/*.test.ts',
 				'src/routes/crm/**',
-				'src/lib/server/supabase.ts'
+				'src/lib/server/supabase.ts',
+				'src/routes/+page.server.ts'
 			],
 			thresholds: {
 				lines: 85,

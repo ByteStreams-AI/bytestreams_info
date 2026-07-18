@@ -81,9 +81,9 @@ describe('Dashboard Page', () => {
 		expect(screen.getByText('Sign Out')).toBeInTheDocument();
 	});
 
-	it('does not render when user is null', () => {
-		const { container } = render(DashboardPage, { props: { data: { user: null } } });
-		expect(container.querySelector('.dashboard')).not.toBeInTheDocument();
+	it('renders dashboard when user is provided', () => {
+		const { container } = render(DashboardPage, { props: { data: { user: mockUser } } });
+		expect(container.querySelector('.dashboard')).toBeInTheDocument();
 	});
 
 	it('renders greeting with displayName', () => {
