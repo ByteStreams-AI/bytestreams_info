@@ -21,5 +21,5 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 		return { loginUrl: '/' };
 	}
 
-	return { loginUrl: '/cdn-cgi/access/login?redirect_url=/' };
+	return { loginUrl: '/crm' };
 };
