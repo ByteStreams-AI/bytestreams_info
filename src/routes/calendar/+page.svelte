@@ -175,6 +175,14 @@
 			window.location.reload();
 		}
 	}
+
+	async function handleDelete() {
+		saving = true;
+		const fd = new FormData();
+		fd.append('id', form.id);
+		const res = await fetch('?/delete', { method: 'POST', body: fd });
+		afterDelete({ type: res.ok ? 'success' : 'error', data: res.ok ? { success: true } : undefined });
+	}
 </script>
 
 <svelte:head>
@@ -238,23 +246,9 @@
 				<div class="modal-actions">
 					{#if deleteConfirm}
 						<span class="delete-confirm-text">Are you sure?</span>
-						<form
-							method="POST"
-							action="?/delete"
-							style="display:contents"
-							use:enhance={() => {
-								saving = true;
-								return async ({ result, update }) => {
-									await update({ reset: false });
-									afterDelete(result as { type: string; data?: { success?: boolean } });
-								};
-							}}
-						>
-							<input type="hidden" name="id" value={form.id} />
-							<button type="submit" class="btn-danger" disabled={saving}>
-								{saving ? 'Deleting…' : 'Yes, delete'}
-							</button>
-						</form>
+						<button type="button" class="btn-danger" disabled={saving} onclick={handleDelete}>
+							{saving ? 'Deleting…' : 'Yes, delete'}
+						</button>
 						<button type="button" class="btn-ghost" onclick={() => (deleteConfirm = false)}>Cancel</button>
 					{:else}
 						<button type="button" class="btn-danger-outline" onclick={() => (deleteConfirm = true)}>Delete</button>

@@ -22,6 +22,7 @@ export default defineConfig({
 				'src/routes/+layout.svelte',
 				'src/**/*.test.ts',
 				'src/routes/crm/**',
+				'src/routes/calendar/**',
 				'src/lib/server/supabase.ts',
 				'src/routes/+page.server.ts'
 			],
