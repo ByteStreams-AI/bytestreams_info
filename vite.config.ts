@@ -23,6 +23,7 @@ export default defineConfig({
 				'src/**/*.test.ts',
 				'src/routes/crm/**',
 				'src/routes/calendar/**',
+				'src/routes/files/**',
 				'src/lib/server/supabase.ts',
 				'src/routes/+page.server.ts'
 			],
