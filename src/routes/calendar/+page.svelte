@@ -154,7 +154,7 @@
 	});
 
 	// ── After form actions: sync calendar ─────────────────────────────────────
-	function afterCreate(result: { type: string; data?: { success?: boolean } }, formEl: HTMLFormElement) {
+	function afterCreate(result: { type: string; data?: { success?: boolean } }) {
 		saving = false;
 		if (result.type === 'success' && result.data?.success) {
 			// Reload page to get fresh events from server (simplest & most reliable)
@@ -209,7 +209,7 @@
 					saving = true;
 					return async ({ result, update }) => {
 						await update({ reset: false });
-						afterCreate(result as { type: string; data?: { success?: boolean } }, document.createElement('form'));
+							afterCreate(result as { type: string; data?: { success?: boolean } });
 					};
 				}}
 			>
@@ -284,9 +284,7 @@
 
 	<label class="field-row field-row--inline">
 		<span>All day</span>
-		<input type="checkbox" name="all_day" bind:checked={form.all_day}
-			onchange={() => { form.all_day; }}
-		/>
+		<input type="checkbox" name="all_day" bind:checked={form.all_day} />
 		<input type="hidden" name="all_day" value={String(form.all_day)} />
 	</label>
 
