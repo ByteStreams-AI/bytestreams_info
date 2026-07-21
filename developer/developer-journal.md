@@ -1,5 +1,70 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-21 — Calendar & File Storage Features
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Added two new intranet features: a full-featured FullCalendar event calendar and a Supabase Storage file management page.
+
+### Changes
+
+**Calendar (`/calendar`)**
+- Installed `@fullcalendar/core`, `daygrid`, `timegrid`, `list`, `interaction` (all pinned to v6.1.x)
+- Month / Week / Day / List views via toolbar
+- Click or drag to select a date range → pre-filled create modal
+- Click event → edit modal with save/delete (with confirmation)
+- Drag-to-move and resize events, persisted immediately via fetch
+- Color picker (6 swatches) per event
+- Past dates blocked: `selectAllow` prevents selection, `eventDrop` reverts if dragged to past
+- DB migration: `developer/migrations/005_create_events.sql` — `events` table with `updated_at` trigger and `start_at` index (**must be run in Supabase SQL Editor**)
+- Nav link added
+
+**File Storage (`/files`)**
+- Supabase Storage bucket: `documents` (**must be created manually in Supabase dashboard, set to private**)
+- Upload: click or drag-and-drop, auto-submits on file select
+- Allowed types: PDF, Word, Excel, PowerPoint, plain text, CSV, Markdown, images (PNG/JPG/GIF/WebP), video (MP4/MOV) — max 25 MB, validated server-side
+- File list: name (with icon), size, last updated
+- Download via signed URL (1 hour expiry), opens in new tab
+- Delete with single confirmation click
+- Filenames sanitized to prevent path traversal
+- Nav link added
+
+**CI Fixes**
+- `src/routes/calendar/**` and `src/routes/files/**` added to vitest coverage exclusions (same pattern as CRM)
+- Fixed nested `<form>` in calendar delete flow — replaced with `fetch`-based `handleDelete()`
+- Fixed `StorageFile` typecheck — explicitly mapped fields from Supabase `FileObject` instead of casting
+
+---
+
+## 2026-07-21 — CRM: Researched Status & Notes Field Expansion
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Quick CRM quality-of-life improvements: added a new lead status and expanded the notes field to support longer entries.
+
+### Changes
+
+**New Lead Status: "Researched"**
+- Added `researched` between `new` and `contacted` in the status pipeline
+- Updated `STATUSES`, `STATUS_LABELS`, and `STATUS_CLASS` arrays in `src/routes/crm/+page.svelte`
+- Added `researched` to `VALID_STATUSES` in `src/routes/crm/+page.server.ts` (server-side validation)
+- Added `badge--researched` CSS style (purple, consistent with badge design system)
+
+**Notes Field**
+- Expanded textarea from `rows="4"` to `rows="15"` (comfortably holds 750+ words)
+- Added `maxlength="5000"` to enforce a safe upper bound
+- Added `resize: vertical; overflow-y: auto; min-height: 200px` so the field is scrollable and user-resizable
+
+### Deployment
+
+- Committed and pushed to `main` — GitHub Actions CI/CD pipeline triggered for Cloudflare Worker deploy
+
+---
+
 ## 2026-07-17 — CRM Enrichment, Filters, Deploy & Auth Fix
 
 **Participants:** Scott Thornton, GitHub Copilot
