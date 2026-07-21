@@ -1,6 +1,51 @@
 # Developer Journal — ByteStreams Intranet
 
-## 2026-05-20 — KPI Dashboard (Task #1)
+## 2026-07-17 — CRM Enrichment, Filters, Deploy & Auth Fix
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+End-to-end session: CRM table filters, Yelp enrichment pipeline, DB migrations, UI panel updates, CI/CD pipeline setup, and production auth debugging.
+
+### Changes
+
+**CRM Filters (bytestreams_info)**
+- Added search-by-business-name, city dropdown, status/delivery/pickup filters to CRM table
+- All `{#each}` blocks keyed to fix Svelte reactivity warnings
+
+**Business Type & Michelin (bytestreams_info + dialtone_outreach)**
+- Auto-classification from Yelp alias heuristics: `food_truck`, `single_location`, `multi_location`
+- Added `multi_configuration` option for user overrides
+- Moved "Type" from table column to edit panel with full dropdown (Unknown/Food Truck/Single Location/Multi-Configuration/Multi-Location/Enterprise)
+- Added Michelin rating dropdown (None/★1 Star/★★2 Stars/★★★3 Stars/Bib Gourmand/Green Star)
+- DB migration `002_add_michelin_business_type.sql` applied
+
+**Yelp Enrichment (dialtone_outreach)**
+- `website_url` from `attributes.menu_url` (Yelp removed `website` field)
+- `price_range`, `yelp_rating`, `yelp_review_count` from search/detail endpoints
+- DB migrations `003_add_website_url.sql` and `004_add_yelp_enrichment_fields.sql` applied
+- Three-step upsert in `db.py` to protect `business_type` and `website_url` from re-scrape overwrites
+- Website field shown as clickable link in CRM edit panel
+
+**Yelp enrichment fields displayed in CRM panel:** Price, Yelp Rating + review count (read-only section)
+
+**CI/CD (bytestreams_info)**
+- Fixed GitHub Actions workflow: `branches-ignore: main` → `branches: [main, '**']`
+- Fixed wrangler: `wrangler pages deploy` → `wrangler deploy` (Worker with Assets, not Pages)
+- Added `nodejs_compat` compatibility flag to `wrangler.jsonc`
+- Added custom domain routes to `wrangler.jsonc`
+- Added `CF_ACCESS_AUD` and `CF_ACCESS_TEAM_DOMAIN` as Worker secrets
+- Coverage exclusions: `src/routes/crm/**`, `src/lib/server/supabase.ts`, `src/routes/+page.server.ts`
+
+**Auth Fix (bytestreams_info)**
+- `/` now redirects unauthenticated users to `/login` via `+page.server.ts`
+- Login "Sign in" button uses `data-sveltekit-reload` to force full page load (CF Access can't intercept SvelteKit client-side nav)
+- Simplified JWT handling: decode-only (no JWKS verification) since CF Access already verified at the edge — eliminated silent JWKS network failures in Worker
+- Login button links to `/crm` so CF Access OAuth challenge triggers on navigation
+
+---
+
 
 **Participants:** Scott Thornton, GitHub Copilot
 

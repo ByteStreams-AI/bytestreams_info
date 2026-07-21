@@ -5,6 +5,7 @@ import type { PageServerLoad, Actions } from './$types';
 /** Editable status values — all valid lead statuses. */
 const VALID_STATUSES = [
 	'new',
+	'researched',
 	'contacted',
 	'followup_required',
 	'demo_scheduled',

@@ -7,6 +7,7 @@
 
 	const STATUSES = [
 		'new',
+		'researched',
 		'contacted',
 		'followup_required',
 		'demo_scheduled',
@@ -16,6 +17,7 @@
 
 	const STATUS_LABELS: Record<string, string> = {
 		new: 'New',
+		researched: 'Researched',
 		contacted: 'Contacted',
 		followup_required: 'Follow-up',
 		demo_scheduled: 'Demo Scheduled',
@@ -25,6 +27,7 @@
 
 	const STATUS_CLASS: Record<string, string> = {
 		new: 'badge--new',
+		researched: 'badge--researched',
 		contacted: 'badge--contacted',
 		followup_required: 'badge--followup',
 		demo_scheduled: 'badge--demo',
@@ -271,7 +274,7 @@
 
 				<label class="field-row">
 					<span>Notes</span>
-					<textarea name="notes" rows="4" bind:value={selectedLead.notes}></textarea>
+					<textarea name="notes" rows="15" maxlength="5000" style="resize: vertical; overflow-y: auto; min-height: 200px;" bind:value={selectedLead.notes}></textarea>
 				</label>
 
 				<label class="field-row field-row--inline">
@@ -481,6 +484,7 @@
 	}
 
 	.badge--new { background: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info); }
+	.badge--researched { background: color-mix(in srgb, #a78bfa 15%, transparent); color: #7c3aed; }
 	.badge--contacted { background: color-mix(in srgb, var(--color-byte-amber) 15%, transparent); color: var(--color-byte-amber); }
 	.badge--followup { background: color-mix(in srgb, var(--color-byte-amber) 20%, transparent); color: var(--color-byte-amber); }
 	.badge--demo { background: color-mix(in srgb, var(--color-data-teal) 15%, transparent); color: var(--color-data-teal); }
