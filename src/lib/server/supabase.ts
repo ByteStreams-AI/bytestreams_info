@@ -129,7 +129,14 @@ export async function listFiles(folder = ''): Promise<StorageFile[]> {
 		sortBy: { column: 'updated_at', order: 'desc' }
 	});
 	if (error) throw new Error(error.message);
-	return (data ?? []).filter((f) => f.name !== '.emptyFolderPlaceholder') as StorageFile[];
+	return (data ?? [])
+		.filter((f) => f.name !== '.emptyFolderPlaceholder')
+		.map((f) => ({
+			name: f.name,
+			size: f.metadata?.size ?? 0,
+			updated_at: f.updated_at ?? f.created_at ?? new Date().toISOString(),
+			metadata: f.metadata ?? {}
+		}));
 }
 
 /** Upload a file; returns the storage path. */
