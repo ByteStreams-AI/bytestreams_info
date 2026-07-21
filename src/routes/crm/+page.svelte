@@ -223,7 +223,7 @@
 							if (idx !== -1) {
 								data.leads[idx] = { ...data.leads[idx], ...selectedLead! };
 							}
-							saveMessage = 'Saved';
+							selectedLead = null;
 						} else {
 							saveMessage = 'Error saving';
 						}
