@@ -15,6 +15,7 @@ const ALLOWED_TYPES = new Set([
 	'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 	'text/plain',
 	'text/csv',
+	'text/markdown',
 	'image/png',
 	'image/jpeg',
 	'image/gif',

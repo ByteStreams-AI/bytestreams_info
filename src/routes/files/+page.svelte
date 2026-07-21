@@ -27,6 +27,7 @@
 		const ext = name.split('.').pop()?.toLowerCase() ?? '';
 		if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return '🖼️';
 		if (ext === 'pdf') return '📄';
+		if (ext === 'md') return '📋';
 		if (['doc', 'docx'].includes(ext)) return '📝';
 		if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
 		if (['ppt', 'pptx'].includes(ext)) return '📑';
@@ -98,7 +99,7 @@
 					Click or drag a file to upload
 				{/if}
 			</span>
-			<span class="upload-hint">PDF, Word, Excel, images, video · max 25 MB</span>
+			<span class="upload-hint">PDF, Word, Excel, Markdown, images, video · max 25 MB</span>
 			<input
 				type="file"
 				name="file"
