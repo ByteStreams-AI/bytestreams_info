@@ -118,6 +118,13 @@
 			selectable: true,
 			events: initialEvents,
 
+			// Prevent selecting dates in the past
+			selectAllow: ({ start }) => {
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				return start >= today;
+			},
+
 			// Click existing event → open edit modal
 			eventClick: ({ event }) => {
 				openEdit(event);
@@ -130,7 +137,13 @@
 			},
 
 			// Drag-to-move: persist new times immediately via fetch
-			eventDrop: async ({ event }) => {
+			eventDrop: async ({ event, revert }) => {
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				if (event.start && event.start < today) {
+					revert();
+					return;
+				}
 				const fd = new FormData();
 				fd.append('id', event.id);
 				fd.append('start_at', event.startStr);
