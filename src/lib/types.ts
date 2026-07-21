@@ -57,3 +57,19 @@ export interface Lead {
 	created_at: string;
 }
 
+/**
+ * A calendar event row from Supabase.
+ */
+export interface CalendarEvent {
+	id: string;
+	title: string;
+	description: string | null;
+	start_at: string; // ISO 8601 UTC
+	end_at: string;   // ISO 8601 UTC
+	all_day: boolean;
+	color: string | null;
+	created_by: string;
+	created_at: string;
+	updated_at: string;
+}
+

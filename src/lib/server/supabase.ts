@@ -5,7 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import type { Lead } from '$lib/types';
+import type { Lead, CalendarEvent } from '$lib/types';
 
 function getClient() {
 	const url = env.SUPABASE_URL?.trim();
@@ -55,5 +55,58 @@ export async function updateLeadSalesFields(
 ): Promise<void> {
 	const client = getClient();
 	const { error } = await client.from('leads').update(fields).eq('lead_id', leadId);
+	if (error) throw new Error(error.message);
+}
+
+// ── Calendar Events ───────────────────────────────────────────────────────────
+
+/** Fetch all events, ordered by start time. */
+export async function fetchEvents(): Promise<CalendarEvent[]> {
+	const client = getClient();
+	const { data, error } = await client
+		.from('events')
+		.select('id, title, description, start_at, end_at, all_day, color, created_by, created_at, updated_at')
+		.order('start_at', { ascending: true });
+	if (error) throw new Error(error.message);
+	return (data ?? []) as CalendarEvent[];
+}
+
+/** Create a new event. Returns the created row. */
+export async function createEvent(fields: {
+	title: string;
+	description?: string | null;
+	start_at: string;
+	end_at: string;
+	all_day?: boolean;
+	color?: string | null;
+	created_by: string;
+}): Promise<CalendarEvent> {
+	const client = getClient();
+	const { data, error } = await client.from('events').insert(fields).select().single();
+	if (error) throw new Error(error.message);
+	return data as CalendarEvent;
+}
+
+/** Update an existing event by id. */
+export async function updateEvent(
+	id: string,
+	fields: {
+		title?: string;
+		description?: string | null;
+		start_at?: string;
+		end_at?: string;
+		all_day?: boolean;
+		color?: string | null;
+	}
+): Promise<void> {
+	const client = getClient();
+	const { error } = await client.from('events').update(fields).eq('id', id);
+	if (error) throw new Error(error.message);
+}
+
+/** Delete an event by id. */
+export async function deleteEvent(id: string): Promise<void> {
+	const client = getClient();
+	const { error } = await client.from('events').delete().eq('id', id);
 	if (error) throw new Error(error.message);
 }
