@@ -36,6 +36,13 @@ Added two new intranet features: a full-featured FullCalendar event calendar and
 - Fixed nested `<form>` in calendar delete flow — replaced with `fetch`-based `handleDelete()`
 - Fixed `StorageFile` typecheck — explicitly mapped fields from Supabase `FileObject` instead of casting
 
+### ⚠️ Manual Production Setup Required
+
+Before these features work in production, two steps must be completed manually:
+
+1. **Events table** — Run `developer/migrations/005_create_events.sql` in the [Supabase SQL Editor](https://supabase.com/dashboard) for the project
+2. **File bucket** — Create a private Storage bucket named exactly `documents` in the Supabase dashboard under Storage
+
 ---
 
 ## 2026-07-21 — CRM: Researched Status & Notes Field Expansion
