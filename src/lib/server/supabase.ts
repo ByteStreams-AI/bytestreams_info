@@ -110,3 +110,47 @@ export async function deleteEvent(id: string): Promise<void> {
 	const { error } = await client.from('events').delete().eq('id', id);
 	if (error) throw new Error(error.message);
 }
+
+// ── File Storage ──────────────────────────────────────────────────────────────
+
+const BUCKET = 'documents';
+
+export interface StorageFile {
+	name: string;
+	size: number;
+	updated_at: string;
+	metadata: Record<string, string | number | null>;
+}
+
+/** List all files in the documents bucket. */
+export async function listFiles(folder = ''): Promise<StorageFile[]> {
+	const client = getClient();
+	const { data, error } = await client.storage.from(BUCKET).list(folder, {
+		sortBy: { column: 'updated_at', order: 'desc' }
+	});
+	if (error) throw new Error(error.message);
+	return (data ?? []).filter((f) => f.name !== '.emptyFolderPlaceholder') as StorageFile[];
+}
+
+/** Upload a file; returns the storage path. */
+export async function uploadFile(path: string, file: File): Promise<string> {
+	const client = getClient();
+	const { error } = await client.storage.from(BUCKET).upload(path, file, { upsert: true });
+	if (error) throw new Error(error.message);
+	return path;
+}
+
+/** Generate a signed download URL valid for 1 hour. */
+export async function getSignedUrl(path: string): Promise<string> {
+	const client = getClient();
+	const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, 3600);
+	if (error) throw new Error(error.message);
+	return data.signedUrl;
+}
+
+/** Delete a file from the bucket. */
+export async function deleteFile(path: string): Promise<void> {
+	const client = getClient();
+	const { error } = await client.storage.from(BUCKET).remove([path]);
+	if (error) throw new Error(error.message);
+}

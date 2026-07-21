@@ -22,6 +22,7 @@
 	<nav class="nav-links" aria-label="Section">
 		<a href="/crm" class="nav-link">CRM</a>
 		<a href="/calendar" class="nav-link">Calendar</a>
+		<a href="/files" class="nav-link">Files</a>
 	</nav>
 
 	<div class="nav-user">

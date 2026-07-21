@@ -120,6 +120,7 @@
 
 			// Prevent selecting dates in the past
 			selectAllow: ({ start }) => {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
 				return start >= today;
@@ -138,6 +139,7 @@
 
 			// Drag-to-move: persist new times immediately via fetch
 			eventDrop: async ({ event, revert }) => {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
 				if (event.start && event.start < today) {
