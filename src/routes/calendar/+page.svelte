@@ -301,7 +301,6 @@
 		<span>Start</span>
 		<input
 			type={form.all_day ? 'date' : 'datetime-local'}
-			name="start_at"
 			value={form.all_day ? form.start_at.slice(0, 10) : form.start_at}
 			oninput={(e) => {
 				const v = (e.currentTarget as HTMLInputElement).value;
@@ -315,7 +314,6 @@
 		<span>End</span>
 		<input
 			type={form.all_day ? 'date' : 'datetime-local'}
-			name="end_at"
 			value={form.all_day ? form.end_at.slice(0, 10) : form.end_at}
 			oninput={(e) => {
 				const v = (e.currentTarget as HTMLInputElement).value;
