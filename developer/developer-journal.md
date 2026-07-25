@@ -1,5 +1,27 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-25 — CRM Manual Lead Creation
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Added a manual lead-entry workflow to the CRM so customers can be added without the automated enrichment pipeline.
+
+### Changes
+
+- Added an **Add Lead** button and modal to `/crm`
+- Added required business name, city, and state validation
+- Added optional contact, address, website, business type, and notes fields
+- Added a protected SvelteKit form action and Supabase insert helper
+- Included `state` in the CRM lead query and `Lead` type
+
+### Validation
+
+- `pnpm check` — 0 errors
+- `pnpm test` — 68 tests passed
+- `pnpm build` — Cloudflare production build succeeded
+
 ## 2026-07-21 — Calendar & File Storage Features
 
 **Participants:** Scott Thornton, GitHub Copilot

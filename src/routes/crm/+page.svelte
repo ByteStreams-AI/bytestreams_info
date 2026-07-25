@@ -2,6 +2,7 @@
 	import Nav from '$lib/components/Nav.svelte';
 	import type { Lead } from '$lib/types';
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 
 	let { data } = $props();
 
@@ -38,6 +39,20 @@
 	let selectedLead = $state<Lead | null>(null);
 	let saving = $state(false);
 	let saveMessage = $state<string | null>(null);
+
+	let showAddModal = $state(false);
+	let addSaving = $state(false);
+	let addError = $state<string | null>(null);
+
+	function openAddModal() {
+		showAddModal = true;
+		addError = null;
+	}
+
+	function closeAddModal() {
+		showAddModal = false;
+		addError = null;
+	}
 
 	// ── Filtering ─────────────────────────────────────────────────────────────
 	let search = $state('');
@@ -91,6 +106,7 @@
 	<div class="crm-header">
 		<h1>Lead Pipeline</h1>
 		<span class="crm-count">{filteredLeads.length} of {data.leads.length} leads</span>
+		<button class="btn-add-lead" onclick={openAddModal}>+ Add Lead</button>
 	</div>
 
 	<div class="crm-toolbar">
@@ -180,6 +196,106 @@
 		</table>
 	</div>
 </main>
+
+{#if showAddModal}
+	<!-- Add Lead modal -->
+	<div class="panel-backdrop" onclick={closeAddModal} role="presentation"></div>
+	<div class="edit-panel" aria-label="Add new lead" role="dialog" aria-modal="true">
+		<div class="panel-header">
+			<h2>Add New Lead</h2>
+			<button class="btn-close" onclick={closeAddModal} aria-label="Close">✕</button>
+		</div>
+		<p class="required-note"><span class="req">*</span> Required field</p>
+		<form
+			method="POST"
+			action="?/create"
+			use:enhance={() => {
+				addSaving = true;
+				addError = null;
+				return async ({ result, update }) => {
+					addSaving = false;
+					if (result.type === 'success') {
+						showAddModal = false;
+						await invalidateAll();
+					} else if (result.type === 'failure') {
+						addError = (result.data as { message?: string } | undefined)?.message ?? 'Failed to save.';
+					} else {
+						addError = 'Something went wrong.';
+					}
+					await update({ reset: false });
+				};
+			}}
+		>
+			<label class="field-row">
+				<span><span class="req">*</span> Business Name</span>
+				<input type="text" name="business_name" required autocomplete="off" />
+			</label>
+
+			<label class="field-row">
+				<span><span class="req">*</span> City</span>
+				<input type="text" name="city" required autocomplete="off" />
+			</label>
+
+			<label class="field-row">
+				<span><span class="req">*</span> State</span>
+				<input type="text" name="state" required placeholder="TX" maxlength="100" autocomplete="off" />
+			</label>
+
+			<label class="field-row">
+				<span>Phone</span>
+				<input type="tel" name="phone" />
+			</label>
+
+			<label class="field-row">
+				<span>Address</span>
+				<input type="text" name="address" />
+			</label>
+
+			<label class="field-row">
+				<span>Contact Name</span>
+				<input type="text" name="contact_name" />
+			</label>
+
+			<label class="field-row">
+				<span>Email</span>
+				<input type="email" name="email" />
+			</label>
+
+			<label class="field-row">
+				<span>Website URL</span>
+				<input type="url" name="website_url" placeholder="https://…" />
+			</label>
+
+			<label class="field-row field-row--inline">
+				<span>Business Type</span>
+				<select name="business_type">
+					<option value="">Unknown</option>
+					<option value="food_truck">Food Truck</option>
+					<option value="single_location">Single Location</option>
+					<option value="multi_configuration">Multi-Configuration</option>
+					<option value="multi_location">Multi-Location</option>
+					<option value="enterprise">Enterprise</option>
+				</select>
+			</label>
+
+			<label class="field-row">
+				<span>Notes</span>
+				<textarea name="notes" rows="4"></textarea>
+			</label>
+
+			{#if addError}
+				<p class="add-error">{addError}</p>
+			{/if}
+
+			<div class="panel-actions">
+				<button type="submit" class="btn-save" disabled={addSaving}>
+					{addSaving ? 'Saving…' : 'Add Lead'}
+				</button>
+				<button type="button" class="btn-cancel" onclick={closeAddModal}>Cancel</button>
+			</div>
+		</form>
+	</div>
+{/if}
 
 {#if selectedLead}
 	<!-- Slide-in edit panel -->
@@ -664,5 +780,59 @@
 
 	.website-link:hover {
 		text-decoration: underline;
+	}
+
+	.btn-add-lead {
+		margin-left: auto;
+		padding: var(--space-sm) var(--space-lg);
+		background: var(--color-stream-blue);
+		color: #fff;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-add-lead:hover {
+		background: var(--color-deep-stream);
+	}
+
+	.required-note {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		margin-bottom: var(--space-md);
+	}
+
+	.req {
+		color: #ef4444;
+		font-weight: 700;
+		margin-right: 2px;
+	}
+
+	.field-row .req {
+		color: #ef4444;
+	}
+
+	.add-error {
+		color: var(--color-error);
+		font-size: 0.8125rem;
+		margin-bottom: var(--space-md);
+	}
+
+	.btn-cancel {
+		padding: var(--space-sm) var(--space-lg);
+		background: transparent;
+		color: var(--text-muted);
+		border: 1px solid var(--border-edge);
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-cancel:hover {
+		color: var(--text-bright);
+		background: var(--bg-slate);
 	}
 </style>

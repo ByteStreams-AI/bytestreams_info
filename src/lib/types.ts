@@ -42,6 +42,7 @@ export interface Lead {
 	price_range: string | null;
 	yelp_rating: number | null;
 	yelp_review_count: number | null;
+	state: string | null;
 	// Sales-editable fields
 	contact_name: string | null;
 	email: string | null;

@@ -1,5 +1,5 @@
-import { redirect, error } from '@sveltejs/kit';
-import { fetchLeads, updateLeadSalesFields } from '$lib/server/supabase';
+import { redirect, error, fail } from '@sveltejs/kit';
+import { fetchLeads, updateLeadSalesFields, insertLead } from '$lib/server/supabase';
 import type { PageServerLoad, Actions } from './$types';
 
 /** Editable status values — all valid lead statuses. */
@@ -83,6 +83,34 @@ export const actions: Actions = {
 		}
 
 		await updateLeadSalesFields(leadId, payload);
+
+		return { success: true };
+	},
+
+	create: async ({ request, locals }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+
+		const form = await request.formData();
+		const business_name = (form.get('business_name') as string | null)?.trim() ?? '';
+		const city = (form.get('city') as string | null)?.trim() ?? '';
+		const state = (form.get('state') as string | null)?.trim() ?? '';
+
+		if (!business_name) return fail(400, { message: 'Business name is required.' });
+		if (!city) return fail(400, { message: 'City is required.' });
+		if (!state) return fail(400, { message: 'State is required.' });
+
+		const row: Record<string, string | null> = { business_name, city, state };
+
+		for (const field of ['phone', 'address', 'contact_name', 'email', 'website_url', 'notes', 'business_type'] as const) {
+			const val = (form.get(field) as string | null)?.trim() || null;
+			if (val) row[field] = val;
+		}
+
+		try {
+			await insertLead(row);
+		} catch (e) {
+			return fail(500, { message: e instanceof Error ? e.message : 'Failed to save lead.' });
+		}
 
 		return { success: true };
 	}

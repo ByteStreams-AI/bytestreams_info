@@ -7,6 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
 import type { Lead, CalendarEvent } from '$lib/types';
 
+type InsertRow = Record<string, string | number | boolean | null>;
+
 function getClient() {
 	const url = env.SUPABASE_URL?.trim();
 	const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -22,8 +24,8 @@ export async function fetchLeads(): Promise<Lead[]> {
 	const { data, error } = await client
 		.from('leads')
 		.select(
-			`lead_id, business_name, phone, address, city, status, business_type, michelin_rating,
-			 offers_delivery, offers_pickup, uses_doordash_mktg, uses_chownow,
+		`lead_id, business_name, phone, address, city, state, status, business_type, michelin_rating,
+		 offers_delivery, offers_pickup, uses_doordash_mktg, uses_chownow,
 			 price_range, yelp_rating, yelp_review_count,
 			 contact_name, email, website_url, notes, num_locations, has_website, has_app,
 			 uses_pos, uses_kds, uses_sms, created_at`
@@ -55,6 +57,13 @@ export async function updateLeadSalesFields(
 ): Promise<void> {
 	const client = getClient();
 	const { error } = await client.from('leads').update(fields).eq('lead_id', leadId);
+	if (error) throw new Error(error.message);
+}
+
+/** Insert a single manually-entered lead. */
+export async function insertLead(row: InsertRow): Promise<void> {
+	const client = getClient();
+	const { error } = await client.from('leads').insert(row);
 	if (error) throw new Error(error.message);
 }
 
