@@ -9,6 +9,12 @@ import type { Lead, CalendarEvent } from '$lib/types';
 
 type InsertRow = Record<string, string | number | boolean | null>;
 
+const LEAD_FIELDS = `lead_id, business_name, phone, address, city, state, status, business_type, michelin_rating,
+	offers_delivery, offers_pickup, uses_doordash_mktg, uses_chownow,
+	price_range, yelp_rating, yelp_review_count,
+	contact_name, email, website_url, notes, call_script, num_locations, has_website, has_app,
+	uses_pos, uses_kds, uses_sms, created_at`;
+
 function getClient() {
 	const url = env.SUPABASE_URL?.trim();
 	const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -23,17 +29,24 @@ export async function fetchLeads(): Promise<Lead[]> {
 	const client = getClient();
 	const { data, error } = await client
 		.from('leads')
-		.select(
-		`lead_id, business_name, phone, address, city, state, status, business_type, michelin_rating,
-		 offers_delivery, offers_pickup, uses_doordash_mktg, uses_chownow,
-			 price_range, yelp_rating, yelp_review_count,
-			 contact_name, email, website_url, notes, num_locations, has_website, has_app,
-			 uses_pos, uses_kds, uses_sms, created_at`
-		)
+		.select(LEAD_FIELDS)
 		.order('created_at', { ascending: false });
 
 	if (error) throw new Error(error.message);
 	return (data ?? []) as Lead[];
+}
+
+/** Fetch one lead by ID for server-side actions. */
+export async function fetchLead(leadId: string): Promise<Lead | null> {
+	const client = getClient();
+	const { data, error } = await client
+		.from('leads')
+		.select(LEAD_FIELDS)
+		.eq('lead_id', leadId)
+		.maybeSingle();
+
+	if (error) throw new Error(error.message);
+	return data as Lead | null;
 }
 
 /** Update only the sales-editable fields on a lead. Scraper fields are never touched. */
@@ -45,6 +58,7 @@ export async function updateLeadSalesFields(
 		email?: string | null;
 		website_url?: string | null;
 		notes?: string | null;
+		call_script?: string | null;
 		num_locations?: number | null;
 		business_type?: string | null;
 		michelin_rating?: string | null;

@@ -1,11 +1,13 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { fetchLeads, updateLeadSalesFields, insertLead } from '$lib/server/supabase';
+import { fetchLead, fetchLeads, updateLeadSalesFields, insertLead } from '$lib/server/supabase';
+import { generateCallScript } from '$lib/server/call-script';
 import type { PageServerLoad, Actions } from './$types';
 
 /** Editable status values — all valid lead statuses. */
 const VALID_STATUSES = [
 	'new',
 	'researched',
+	'reviewed',
 	'prospect',
 	'contacted',
 	'followup_required',
@@ -62,7 +64,7 @@ export const actions: Actions = {
 			payload.status = status;
 		}
 
-		const textFields = ['contact_name', 'email', 'website_url', 'notes', 'uses_pos', 'business_type', 'michelin_rating'] as const;
+		const textFields = ['contact_name', 'email', 'website_url', 'notes', 'call_script', 'uses_pos', 'business_type', 'michelin_rating'] as const;
 		for (const field of textFields) {
 			if (READONLY_FIELDS.has(field)) continue;
 			const val = form.get(field);
@@ -87,6 +89,38 @@ export const actions: Actions = {
 		await updateLeadSalesFields(leadId, payload);
 
 		return { success: true };
+	},
+
+	generateScript: async ({ request, locals, platform }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+
+		const form = await request.formData();
+		const leadId = form.get('lead_id');
+		if (!leadId || typeof leadId !== 'string') {
+			return fail(400, { message: 'Missing lead ID.' });
+		}
+
+		try {
+			const lead = await fetchLead(leadId);
+			if (!lead) return fail(404, { message: 'Lead not found.' });
+			if (lead.status !== 'researched' && lead.status !== 'reviewed') {
+				return fail(400, { message: 'Save the lead as Researched or Reviewed before generating a script.' });
+			}
+			if (!platform?.env.AI) {
+				return fail(503, { message: 'AI generation is not available in this environment.' });
+			}
+
+			const callScript = await generateCallScript(platform.env.AI, lead);
+			await updateLeadSalesFields(leadId, { call_script: callScript });
+			return { success: true, call_script: callScript };
+		} catch (generationError) {
+			console.error(JSON.stringify({
+				message: 'call script generation failed',
+				leadId,
+				error: generationError instanceof Error ? generationError.message : String(generationError)
+			}));
+			return fail(500, { message: 'Unable to generate the call script. Please try again.' });
+		}
 	},
 
 	create: async ({ request, locals }) => {

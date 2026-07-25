@@ -48,6 +48,7 @@ export interface Lead {
 	email: string | null;
 	website_url: string | null;
 	notes: string | null;
+	call_script: string | null;
 	num_locations: number | null;
 	michelin_rating: string | null;
 	has_website: boolean | null;

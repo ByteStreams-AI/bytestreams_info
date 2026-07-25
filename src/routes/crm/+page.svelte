@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Nav from '$lib/components/Nav.svelte';
 	import type { Lead } from '$lib/types';
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 
 	let { data } = $props();
@@ -9,6 +9,7 @@
 	const STATUSES = [
 		'new',
 		'researched',
+		'reviewed',
 		'prospect',
 		'contacted',
 		'followup_required',
@@ -21,6 +22,7 @@
 	const STATUS_LABELS: Record<string, string> = {
 		new: 'New',
 		researched: 'Researched',
+		reviewed: 'Reviewed',
 		prospect: 'Prospect',
 		contacted: 'Contacted',
 		followup_required: 'Follow-up',
@@ -33,6 +35,7 @@
 	const STATUS_CLASS: Record<string, string> = {
 		new: 'badge--new',
 		researched: 'badge--researched',
+		reviewed: 'badge--reviewed',
 		prospect: 'badge--prospect',
 		contacted: 'badge--contacted',
 		followup_required: 'badge--followup',
@@ -45,6 +48,8 @@
 	let selectedLead = $state<Lead | null>(null);
 	let saving = $state(false);
 	let saveMessage = $state<string | null>(null);
+	let generatingScript = $state(false);
+	let scriptMessage = $state<string | null>(null);
 
 	let showAddModal = $state(false);
 	let addSaving = $state(false);
@@ -89,11 +94,38 @@
 	function openPanel(lead: Lead) {
 		selectedLead = { ...lead };
 		saveMessage = null;
+		scriptMessage = null;
 	}
 
 	function closePanel() {
 		selectedLead = null;
 		saveMessage = null;
+		scriptMessage = null;
+	}
+
+	async function generateScript() {
+		if (!selectedLead) return;
+		generatingScript = true;
+		scriptMessage = null;
+		const body = new FormData();
+		body.set('lead_id', selectedLead.lead_id);
+
+		try {
+			const response = await fetch('?/generateScript', { method: 'POST', body });
+			const result = deserialize(await response.text()) as { type?: string; data?: { call_script?: string; message?: string } };
+			if (result.type === 'success' && result.data?.call_script) {
+				selectedLead.call_script = result.data.call_script;
+				const index = data.leads.findIndex((lead) => lead.lead_id === selectedLead!.lead_id);
+				if (index !== -1) data.leads[index].call_script = result.data.call_script;
+				scriptMessage = 'Generated and saved';
+			} else {
+				scriptMessage = result.data?.message ?? 'Unable to generate script';
+			}
+		} catch {
+			scriptMessage = 'Unable to generate script';
+		} finally {
+			generatingScript = false;
+		}
 	}
 
 	function flag(val: boolean | null) {
@@ -308,7 +340,12 @@
 	<div class="panel-backdrop" onclick={closePanel} role="presentation"></div>
 	<aside class="edit-panel" aria-label="Edit lead">
 		<div class="panel-header">
-			<h2>{selectedLead.business_name}</h2>
+			<div class="panel-title">
+				<h2>{selectedLead.business_name}</h2>
+				{#if selectedLead.call_script?.trim()}
+					<span class="script-generated-badge">Call Script Generated</span>
+				{/if}
+			</div>
 			<button class="btn-close" onclick={closePanel} aria-label="Close">✕</button>
 		</div>
 
@@ -398,6 +435,30 @@
 					<span>Notes</span>
 					<textarea name="notes" rows="15" maxlength="5000" style="resize: vertical; overflow-y: auto; min-height: 200px;" bind:value={selectedLead.notes}></textarea>
 				</label>
+
+				<div class="field-row call-script-field">
+					<div class="call-script-heading">
+						<span>AI Call Script</span>
+						<button
+							type="button"
+							class="btn-generate"
+							disabled={generatingScript || !['researched', 'reviewed'].includes(selectedLead.status)}
+							onclick={generateScript}
+						>
+							{generatingScript ? 'Generating…' : 'Generate Script'}
+						</button>
+					</div>
+					<textarea
+						name="call_script"
+						rows="18"
+						maxlength="15000"
+						placeholder="Set the status to Researched or Reviewed, save it, then generate a personalized script."
+						bind:value={selectedLead.call_script}
+					></textarea>
+					{#if scriptMessage}
+						<span class:script-error={!scriptMessage.includes('saved')} class="script-message">{scriptMessage}</span>
+					{/if}
+				</div>
 
 				<label class="field-row field-row--inline">
 					<span>Business type</span>
@@ -607,6 +668,7 @@
 
 	.badge--new { background: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info); }
 	.badge--researched { background: color-mix(in srgb, #a78bfa 15%, transparent); color: #7c3aed; }
+	.badge--reviewed { background: color-mix(in srgb, var(--color-data-teal) 15%, transparent); color: var(--color-data-teal); }
 	.badge--prospect { background: color-mix(in srgb, var(--color-stream-blue) 15%, transparent); color: var(--color-stream-blue); }
 	.badge--contacted { background: color-mix(in srgb, var(--color-byte-amber) 15%, transparent); color: var(--color-byte-amber); }
 	.badge--followup { background: color-mix(in srgb, var(--color-byte-amber) 20%, transparent); color: var(--color-byte-amber); }
@@ -661,7 +723,30 @@
 	.panel-header h2 {
 		font-size: 1.125rem;
 		font-weight: 600;
+		max-width: 100%;
+	}
+
+	.panel-title {
+		display: flex;
+		min-width: 0;
 		max-width: 320px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-sm);
+	}
+
+	.script-generated-badge {
+		display: inline-flex;
+		align-items: center;
+		min-height: 22px;
+		padding: 3px 8px;
+		border: 1px solid color-mix(in srgb, var(--color-signal-green) 40%, transparent);
+		border-radius: 4px;
+		background: color-mix(in srgb, var(--color-signal-green) 12%, transparent);
+		color: var(--color-signal-green);
+		font-size: 0.68rem;
+		font-weight: 600;
+		line-height: 1.2;
 	}
 
 	.btn-close {
@@ -842,5 +927,46 @@
 	.btn-cancel:hover {
 		color: var(--text-bright);
 		background: var(--bg-slate);
+	}
+
+	.call-script-field textarea {
+		min-height: 320px;
+		resize: vertical;
+		font-family: var(--font-code);
+		font-size: 0.78rem;
+		line-height: 1.5;
+	}
+
+	.call-script-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+	}
+
+	.btn-generate {
+		padding: 6px 10px;
+		background: var(--color-data-teal);
+		color: #fff;
+		border: 0;
+		border-radius: 4px;
+		font: inherit;
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-generate:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+	.script-message {
+		font-size: 0.75rem;
+		color: var(--color-signal-green);
+	}
+
+	.script-error {
+		color: var(--color-error);
 	}
 </style>

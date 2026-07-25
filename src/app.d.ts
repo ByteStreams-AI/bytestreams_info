@@ -1,4 +1,5 @@
 /// <reference types="@sveltejs/kit" />
+/// <reference types="@cloudflare/workers-types" />
 
 declare global {
 	namespace App {
@@ -11,6 +12,7 @@ declare global {
 		// interface Error {}
 		interface Platform {
 			env: {
+				AI: Ai;
 				CF_ACCESS_AUD: string;
 				CF_ACCESS_TEAM_DOMAIN: string;
 				SUPABASE_URL: string;

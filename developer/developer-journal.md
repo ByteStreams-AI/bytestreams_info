@@ -1,5 +1,35 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-25 — AI-Personalized CRM Call Scripts
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Added on-demand call-script generation for researched CRM leads using the approved DialTone.Menu cold-call framework and the lead's existing enrichment data.
+
+### Changes
+
+- Added **Reviewed** as a CRM status while retaining **Researched**
+- Added a persistent, editable `call_script` field to each lead
+- Added a **Generate Script** control for leads saved as Researched or Reviewed
+- Added a **Call Script Generated** badge beneath the lead name when a saved script exists
+- Added a server-side prompt builder that includes only known CRM facts and prohibits invented details, unsupported savings, and native-delivery claims
+- Bundled `dialtone_sm/DialTone_Cold_Call_Template.md` as the canonical AI framework under `src/lib/server/prompts/`
+- Added `pnpm sync:call-script` to refresh the bundled prompt from the sibling `dialtone_sm` repository
+- Added `docs/runbook.md` covering template operations, deployment, verification, troubleshooting, and rollback
+- Added Cloudflare Workers AI with `@cf/meta/llama-3.3-70b-instruct-fp8-fast`
+- Added official `@cloudflare/workers-types` development types and an `AI` binding in `wrangler.jsonc`
+- Added focused prompt-grounding tests
+
+### Architecture
+
+The SvelteKit action reloads the lead from Supabase by ID instead of trusting client-submitted enrichment fields. It verifies the stored status, generates the script synchronously through the Workers AI binding, saves the result to Supabase, and returns it to the editable CRM panel.
+
+### Production Prerequisite
+
+Run `developer/migrations/008_add_reviewed_call_script.sql` in the Supabase SQL Editor before deploying. The migration adds the `call_script` column and extends the status constraint with `reviewed`.
+
 ## 2026-07-25 — CRM Prospect and Customer Statuses
 
 **Participants:** Scott Thornton, GitHub Copilot
