@@ -9,30 +9,36 @@
 	const STATUSES = [
 		'new',
 		'researched',
+		'prospect',
 		'contacted',
 		'followup_required',
 		'demo_scheduled',
 		'closed_won',
+		'customer',
 		'closed_lost'
 	] as const;
 
 	const STATUS_LABELS: Record<string, string> = {
 		new: 'New',
 		researched: 'Researched',
+		prospect: 'Prospect',
 		contacted: 'Contacted',
 		followup_required: 'Follow-up',
 		demo_scheduled: 'Demo Scheduled',
 		closed_won: 'Closed Won',
+		customer: 'Customer',
 		closed_lost: 'Closed Lost'
 	};
 
 	const STATUS_CLASS: Record<string, string> = {
 		new: 'badge--new',
 		researched: 'badge--researched',
+		prospect: 'badge--prospect',
 		contacted: 'badge--contacted',
 		followup_required: 'badge--followup',
 		demo_scheduled: 'badge--demo',
 		closed_won: 'badge--won',
+		customer: 'badge--customer',
 		closed_lost: 'badge--lost'
 	};
 
@@ -601,10 +607,12 @@
 
 	.badge--new { background: color-mix(in srgb, var(--color-info) 15%, transparent); color: var(--color-info); }
 	.badge--researched { background: color-mix(in srgb, #a78bfa 15%, transparent); color: #7c3aed; }
+	.badge--prospect { background: color-mix(in srgb, var(--color-stream-blue) 15%, transparent); color: var(--color-stream-blue); }
 	.badge--contacted { background: color-mix(in srgb, var(--color-byte-amber) 15%, transparent); color: var(--color-byte-amber); }
 	.badge--followup { background: color-mix(in srgb, var(--color-byte-amber) 20%, transparent); color: var(--color-byte-amber); }
 	.badge--demo { background: color-mix(in srgb, var(--color-data-teal) 15%, transparent); color: var(--color-data-teal); }
 	.badge--won { background: color-mix(in srgb, var(--color-signal-green) 15%, transparent); color: var(--color-signal-green); }
+	.badge--customer { background: color-mix(in srgb, var(--color-signal-green) 25%, transparent); color: var(--color-signal-green); }
 	.badge--lost { background: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error); }
 
 	.btn-edit {

@@ -6,10 +6,12 @@ import type { PageServerLoad, Actions } from './$types';
 const VALID_STATUSES = [
 	'new',
 	'researched',
+	'prospect',
 	'contacted',
 	'followup_required',
 	'demo_scheduled',
 	'closed_won',
+	'customer',
 	'closed_lost'
 ] as const;
 

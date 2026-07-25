@@ -1,5 +1,19 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-25 — CRM Prospect and Customer Statuses
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added **Prospect** and **Customer** to CRM status filters and edit controls
+- Added matching status badges and server-side validation
+- Added migration `007_add_prospect_customer_statuses.sql` for the Supabase status constraint
+
+### Production Prerequisite
+
+Run `developer/migrations/007_add_prospect_customer_statuses.sql` in the Supabase SQL Editor before assigning either new status in production.
+
 ## 2026-07-25 — CRM Manual Lead Creation
 
 **Participants:** Scott Thornton, GitHub Copilot
