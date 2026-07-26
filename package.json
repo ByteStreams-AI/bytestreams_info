@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "sync:call-script": "cp ../dialtone_sm/DialTone_Cold_Call_Template.md src/lib/server/prompts/DialTone_Cold_Call_Template.md",
+    "update:call-script": "bash developer/update-call-script.sh",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "eslint .",

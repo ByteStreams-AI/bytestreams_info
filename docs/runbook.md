@@ -114,6 +114,8 @@ Do not store these values in source control or application environment files.
 
 ## Updating the Canonical Call Template
 
+As of 7/26/2026 you can simply run developer/update-call-script.sh
+
 ### 1. Edit the Editorial Source
 
 ```bash
@@ -126,29 +128,39 @@ Commit and push the editorial change in `dialtone_sm` according to that reposito
 
 ### 2. Synchronize the Application Snapshot
 
+Run the comprehensive update script from the `bytestreams_info` repository:
+
 ```bash
 cd ~/dev/projects/bytestreams/bytestreams_info
-pnpm sync:call-script
+pnpm update:call-script
 ```
 
-This copies the editorial source to:
+The script:
+
+1. Confirms `pnpm` and the editorial source are available.
+2. Copies the editorial source to the bundled application snapshot.
+3. Verifies both templates match byte for byte.
+4. Runs lint, Svelte/TypeScript checks, the complete test suite, and the production build.
+5. Runs a Wrangler dry run and asserts that the `env.AI` binding is present.
+6. Prints every verification result and a final PASS summary.
+
+The script stops on the first failure. It does not commit, push, or deploy anything.
+
+The bundled snapshot is written to:
 
 ```text
 src/lib/server/prompts/DialTone_Cold_Call_Template.md
 ```
 
-Optional byte-for-byte verification:
+For a copy-only operation without the validation suite, use:
 
 ```bash
-cmp -s \
-  ../dialtone_sm/DialTone_Cold_Call_Template.md \
-  src/lib/server/prompts/DialTone_Cold_Call_Template.md \
-  && echo "Templates match"
+pnpm sync:call-script
 ```
 
 ### 3. Validate the Update
 
-Run all checks from `bytestreams_info`:
+`pnpm update:call-script` runs all required checks automatically. To rerun them individually:
 
 ```bash
 pnpm lint

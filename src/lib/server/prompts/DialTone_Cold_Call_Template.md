@@ -22,13 +22,14 @@ Confirm as much of the following as possible:
 - Whether it has a branded mobile app
 - Whether staff must re-enter online orders
 - One specific detail that makes the call relevant ranked in this order (most important first) 1. No phone automation 2. Menu lives in 10 places. 3. Orders scattered (different process for different channels - phone, kiosk, walk-ins, reservations) 4. Thin margins 5. Where's my Truck? - Customers have no idea where the food truck is
-  - How does Dialtone.Menu address each
+  - Dialtone.Menu solutions for each
     1. A voice agent answers every call, 24 - 7. Takes orders that go straight to the kitchen, reservations, messages, provides meta info such as parking and location
     2. A dynamic menu edited in the admin module is updated in the app, website, voice agent within seconds. This includes pricing, specials, and modifiers
     3. Orders from the voice agent, kiosk, app, dine-in, all land in the KDS with the same format and source noted.
-    4. Restaurants only pay 1.5% per order transaction. No hardware fees, no web order fees, no app fees. 
+    4. Restaurants only pay 1.5% per order transaction. No hardware fees, no web order fees, no app fees.
     5. Food Trucks can send location alerts to loyalty customers within 1 - 10 miles (range set by the operator in the admin screen)
   - CREATE THE VALUE STATEMENT BASED ON FINDINGS
+  - List the details ranked 1 - 5 with Restaurant findings and with Dialtone solutions at the top of the Call script labeled "FINDINGS"
 
 Do not state an exact savings amount until the restaurant's current costs and transaction mix have been reviewed.
 
@@ -38,7 +39,7 @@ Do not state an exact savings amount until the restaurant's current costs and tr
 
 > Hi [Name], this is [Your Name] with DialTone.Menu, how are you ? (with downward inflection)
 
-### 2. If Now the Right Person
+### 2. If Not the Right Person
 
 > Thanks, who handles your POS, online ordering, and restaurant technology decisions?
 

@@ -1,5 +1,18 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-26 — Canonical Template Update Script
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added `developer/update-call-script.sh` to synchronize the editorial call template and run the complete validation process
+- Added `pnpm update:call-script` as the supported one-command workflow
+- Added prerequisite, source-file, byte-equality, lint, typecheck, test, build, Wrangler dry-run, and `env.AI` binding checks
+- Added explicit PASS output and a final verification summary
+- Kept commit, push, and deployment outside the script so publishing remains a deliberate review step
+- Updated the operations runbook with the comprehensive workflow and copy-only fallback
+
 ## 2026-07-26 — CRM Call-Script Generation Diagnostics
 
 **Participants:** Scott Thornton, GitHub Copilot
