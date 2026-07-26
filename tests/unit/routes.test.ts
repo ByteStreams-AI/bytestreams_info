@@ -110,6 +110,50 @@ describe('CRM Admin route', () => {
 			'scotton@bytestreams.ai'
 		);
 	});
+
+	it('rejects an invalid restore event ID before accessing the database', async () => {
+		const { actions } = await import('$lib/../routes/crm-admin/+page.server');
+		const request = {
+			formData: vi.fn().mockResolvedValue(new Map([['change_id', 'not-a-uuid']]))
+		};
+		restoreLeadChange.mockClear();
+
+		await expect(actions.restore({ request, locals: { user: crmAdminUser } } as never))
+			.resolves.toMatchObject({ status: 400 });
+		expect(restoreLeadChange).not.toHaveBeenCalled();
+	});
+
+	it('returns the database restore error to the admin', async () => {
+		const { actions } = await import('$lib/../routes/crm-admin/+page.server');
+		const request = {
+			formData: vi.fn().mockResolvedValue(new Map([
+				['change_id', '12345678-1234-1234-1234-123456789abc']
+			]))
+		};
+		restoreLeadChange.mockRejectedValueOnce(new Error('Lead already exists.'));
+
+		await expect(actions.restore({ request, locals: { user: crmAdminUser } } as never))
+			.resolves.toEqual({
+				status: 409,
+				data: { message: 'Lead already exists.' }
+			});
+	});
+
+	it('returns a safe fallback for a non-Error restore rejection', async () => {
+		const { actions } = await import('$lib/../routes/crm-admin/+page.server');
+		const request = {
+			formData: vi.fn().mockResolvedValue(new Map([
+				['change_id', '12345678-1234-1234-1234-123456789abc']
+			]))
+		};
+		restoreLeadChange.mockRejectedValueOnce('database unavailable');
+
+		await expect(actions.restore({ request, locals: { user: crmAdminUser } } as never))
+			.resolves.toMatchObject({
+				status: 409,
+				data: { message: 'Unable to restore this event.' }
+			});
+	});
 });
 
 describe('login page server load', () => {

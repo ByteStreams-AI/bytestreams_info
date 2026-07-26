@@ -1,5 +1,19 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-26 — CRM Admin Coverage Regression
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added CRM Admin component tests for audit rendering, email attribution, search, operation filtering, restore confirmation, action feedback, and empty states
+- Added restore action tests for malformed IDs, database failures, and defensive non-Error failures
+- Restored all global coverage metrics above the required 85% threshold without lowering thresholds or excluding CRM Admin code
+
+### Validation
+
+- `pnpm test:coverage` — 82 tests passed; 94.24% lines/statements, 96.29% functions, 85.71% branches
+
 ## 2026-07-26 — Restricted CRM Change Log and Restore
 
 **Participants:** Scott Thornton, GitHub Copilot
