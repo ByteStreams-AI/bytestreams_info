@@ -5,7 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import type { Lead, CalendarEvent } from '$lib/types';
+import type { Lead, LeadChange, CalendarEvent } from '$lib/types';
 
 type InsertRow = Record<string, string | number | boolean | null>;
 
@@ -15,13 +15,24 @@ const LEAD_FIELDS = `lead_id, business_name, phone, address, city, state, status
 	contact_name, email, website_url, notes, call_script, num_locations, has_website, has_app,
 	uses_pos, uses_kds, uses_sms, created_at`;
 
-function getClient() {
+const RESTORABLE_LEAD_FIELDS = new Set([
+	'lead_id', 'business_name', 'contact_name', 'phone', 'email', 'address', 'city', 'state',
+	'source_url', 'scrape_source', 'status', 'business_type', 'michelin_rating', 'num_locations',
+	'has_website', 'has_app', 'offers_delivery', 'offers_pickup', 'delivery_platforms',
+	'uses_doordash_mktg', 'uses_chownow', 'uses_pos', 'uses_kds', 'uses_sms', 'notes',
+	'call_script', 'website_url', 'price_range', 'yelp_rating', 'yelp_review_count',
+	'created_at', 'updated_at'
+]);
+
+function getClient(actorEmail?: string) {
 	const url = env.SUPABASE_URL?.trim();
 	const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 	if (!url || !key) {
 		throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env');
 	}
-	return createClient(url, key);
+	return createClient(url, key, actorEmail
+		? { global: { headers: { 'x-actor-email': actorEmail } } }
+		: undefined);
 }
 
 /** Fetch all leads ordered by created_at descending. */
@@ -52,6 +63,7 @@ export async function fetchLead(leadId: string): Promise<Lead | null> {
 /** Update only the sales-editable fields on a lead. Scraper fields are never touched. */
 export async function updateLeadSalesFields(
 	leadId: string,
+	actorEmail: string,
 	fields: {
 		status?: string;
 		contact_name?: string | null;
@@ -69,16 +81,67 @@ export async function updateLeadSalesFields(
 		uses_sms?: boolean | null;
 	}
 ): Promise<void> {
-	const client = getClient();
+	const client = getClient(actorEmail);
 	const { error } = await client.from('leads').update(fields).eq('lead_id', leadId);
 	if (error) throw new Error(error.message);
 }
 
 /** Insert a single manually-entered lead. */
-export async function insertLead(row: InsertRow): Promise<void> {
-	const client = getClient();
+export async function insertLead(row: InsertRow, actorEmail: string): Promise<void> {
+	const client = getClient(actorEmail);
 	const { error } = await client.from('leads').insert(row);
 	if (error) throw new Error(error.message);
+}
+
+export async function fetchLeadChanges(limit = 500): Promise<LeadChange[]> {
+	const client = getClient();
+	const { data, error } = await client
+		.from('lead_change_log')
+		.select('change_id, lead_id, operation, old_record, new_record, changed_at, changed_by, changed_by_email, transaction_id')
+		.order('changed_at', { ascending: false })
+		.limit(limit);
+
+	if (error) throw new Error(error.message);
+	return (data ?? []) as LeadChange[];
+}
+
+export async function restoreLeadChange(changeId: string, actorEmail: string): Promise<void> {
+	const client = getClient(actorEmail);
+	const { data: change, error: changeError } = await client
+		.from('lead_change_log')
+		.select('lead_id, operation, old_record')
+		.eq('change_id', changeId)
+		.maybeSingle();
+
+	if (changeError) throw new Error(changeError.message);
+	if (!change) throw new Error('Audit event not found.');
+	if (change.operation === 'INSERT' || !change.old_record) {
+		throw new Error('Insert events do not have a previous state to restore.');
+	}
+
+	const snapshot = Object.fromEntries(
+		Object.entries(change.old_record as Record<string, unknown>).filter(([field]) =>
+			RESTORABLE_LEAD_FIELDS.has(field)
+		)
+	);
+	const leadId = typeof snapshot.lead_id === 'string' ? snapshot.lead_id : change.lead_id;
+	if (!leadId) throw new Error('The audit event does not identify a lead.');
+
+	if (change.operation === 'DELETE') {
+		const { error } = await client.from('leads').insert(snapshot);
+		if (error) throw new Error(error.message);
+		return;
+	}
+
+	delete snapshot.lead_id;
+	const { data, error } = await client
+		.from('leads')
+		.update(snapshot)
+		.eq('lead_id', leadId)
+		.select('lead_id')
+		.maybeSingle();
+	if (error) throw new Error(error.message);
+	if (!data) throw new Error('The lead no longer exists; restore its delete event first.');
 }
 
 // ── Calendar Events ───────────────────────────────────────────────────────────

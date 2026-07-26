@@ -2,7 +2,8 @@
 
 set -Eeuo pipefail
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_PATH=$(readlink -f -- "${BASH_SOURCE[0]}")
+SCRIPT_DIR=$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)
 PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 SOURCE_TEMPLATE="$PROJECT_ROOT/../dialtone_sm/DialTone_Cold_Call_Template.md"
 TARGET_TEMPLATE="$PROJECT_ROOT/src/lib/server/prompts/DialTone_Cold_Call_Template.md"

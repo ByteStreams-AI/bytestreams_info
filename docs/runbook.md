@@ -114,7 +114,15 @@ Do not store these values in source control or application environment files.
 
 ## Updating the Canonical Call Template
 
-As of 7/26/2026 you can simply run developer/update-call-script.sh
+Install the update command once so it can be run from any directory:
+
+```bash
+sudo ln -s \
+  ~/dev/projects/bytestreams/bytestreams_info/developer/update-call-script.sh \
+  /usr/local/bin/update-call-script
+```
+
+The script resolves the symlink back to the repository before locating its files. After installation, run `update-call-script` from any directory.
 
 ### 1. Edit the Editorial Source
 
@@ -128,12 +136,13 @@ Commit and push the editorial change in `dialtone_sm` according to that reposito
 
 ### 2. Synchronize the Application Snapshot
 
-Run the comprehensive update script from the `bytestreams_info` repository:
+Run the comprehensive update command from any directory:
 
 ```bash
-cd ~/dev/projects/bytestreams/bytestreams_info
-pnpm update:call-script
+update-call-script
 ```
+
+Without the global command, run `pnpm update:call-script` from the `bytestreams_info` repository.
 
 The script:
 

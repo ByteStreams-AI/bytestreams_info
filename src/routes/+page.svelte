@@ -5,7 +5,7 @@
 
 	let { data } = $props();
 
-	const products: Product[] = [
+	const products = $derived.by((): Product[] => [
 		{
 			name: 'DialTone.Menu',
 			description:
@@ -25,12 +25,20 @@
 			status: 'Internal',
 			href: '/crm'
 		},
+		...(data.canAccessCrmAdmin
+			? [{
+				name: 'CRM Admin',
+				description: 'Audit lead changes, investigate history, and restore prior states.',
+				status: 'Internal' as const,
+				href: '/crm-admin'
+			}]
+			: []),
 		{
 			name: 'Documentation',
 			description: 'Internal docs, API references, runbooks, and compliance policies.',
 			status: 'Internal'
 		}
-	];
+	]);
 </script>
 
 <svelte:head>
@@ -104,11 +112,5 @@
 	.section-header p {
 		font-size: 0.8125rem;
 		color: var(--text-faded);
-	}
-
-	.landing-minimal,
-	.landing-logo,
-	.landing-tagline {
-		display: none;
 	}
 </style>

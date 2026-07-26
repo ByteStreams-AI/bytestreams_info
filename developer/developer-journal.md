@@ -1,5 +1,24 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-26 — Restricted CRM Change Log and Restore
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added a **CRM Admin** dashboard card visible only to `scotton@bytestreams.ai`
+- Enforced the same exact-email authorization on the server loader and restore action
+- Added a searchable/filterable `lead_change_log` view for operation, business, location, phone, IDs, actor, transaction, and JSON snapshots
+- Added restore support for prior update states and deleted leads; restores create new CDC events for traceability
+- Kept insert events read-only because they have no prior state
+- Added an optional development-only `DEV_USER_EMAIL` override for local authorization testing
+- Added focused tests for card visibility, direct-route denial, audit loading, and restore authorization
+- Added migration `009_add_lead_change_actor_email.sql` and server-side email propagation so future CRM changes show and search by the Cloudflare Access email instead of an opaque UUID
+
+### Production Prerequisite
+
+Run `developer/migrations/009_add_lead_change_actor_email.sql` in the Supabase SQL Editor before deploying this version. Existing audit events remain labeled **Service role** because their initiating email was not captured and cannot be reconstructed reliably.
+
 ## 2026-07-26 — Canonical Template Update Script
 
 **Participants:** Scott Thornton, GitHub Copilot
@@ -10,8 +29,9 @@
 - Added `pnpm update:call-script` as the supported one-command workflow
 - Added prerequisite, source-file, byte-equality, lint, typecheck, test, build, Wrangler dry-run, and `env.AI` binding checks
 - Added explicit PASS output and a final verification summary
+- Made the script resolve symbolic links so it can be exposed as `/usr/local/bin/update-call-script` and run from any directory
 - Kept commit, push, and deployment outside the script so publishing remains a deliberate review step
-- Updated the operations runbook with the comprehensive workflow and copy-only fallback
+- Updated the operations runbook with global command installation, the comprehensive workflow, and the copy-only fallback
 
 ## 2026-07-26 — CRM Call-Script Generation Diagnostics
 

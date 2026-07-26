@@ -59,6 +59,18 @@ export interface Lead {
 	created_at: string;
 }
 
+export interface LeadChange {
+	change_id: string;
+	lead_id: string | null;
+	operation: 'INSERT' | 'UPDATE' | 'DELETE';
+	old_record: Record<string, unknown> | null;
+	new_record: Record<string, unknown> | null;
+	changed_at: string;
+	changed_by: string | null;
+	changed_by_email: string | null;
+	transaction_id: number;
+}
+
 /**
  * A calendar event row from Supabase.
  */

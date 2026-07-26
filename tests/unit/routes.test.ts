@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 
+const { fetchLeadChanges, restoreLeadChange } = vi.hoisted(() => ({
+	fetchLeadChanges: vi.fn().mockResolvedValue([]),
+	restoreLeadChange: vi.fn().mockResolvedValue(undefined)
+}));
+
 vi.mock('$app/environment', () => ({
 	dev: true
 }));
@@ -7,7 +12,16 @@ vi.mock('$app/environment', () => ({
 vi.mock('@sveltejs/kit', () => ({
 	redirect: vi.fn((status: number, location: string) => {
 		throw { status, location, __isRedirect: true };
-	})
+	}),
+	error: vi.fn((status: number, message: string) => {
+		throw { status, message, __isHttpError: true };
+	}),
+	fail: vi.fn((status: number, data: unknown) => ({ status, data }))
+}));
+
+vi.mock('$lib/server/supabase', () => ({
+	fetchLeadChanges,
+	restoreLeadChange
 }));
 
 const mockUser = {
@@ -16,6 +30,11 @@ const mockUser = {
 	displayName: 'Test',
 	iat: 1700000000,
 	exp: 1700086400
+};
+
+const crmAdminUser = {
+	...mockUser,
+	email: 'scotton@bytestreams.ai'
 };
 
 function createMockCookies() {
@@ -37,6 +56,59 @@ describe('layout server load', () => {
 		const { load } = await import('$lib/../routes/+layout.server');
 		const result = await load({ locals: { user: null } } as never);
 		expect(result).toEqual({ user: null });
+	});
+});
+
+describe('dashboard server load', () => {
+	it('exposes CRM admin access only for the allowed account', async () => {
+		const { load } = await import('$lib/../routes/+page.server');
+
+		await expect(load({ locals: { user: crmAdminUser } } as never)).resolves.toMatchObject({
+			canAccessCrmAdmin: true
+		});
+		await expect(load({ locals: { user: mockUser } } as never)).resolves.toMatchObject({
+			canAccessCrmAdmin: false
+		});
+	});
+});
+
+describe('CRM Admin route', () => {
+	it('rejects unauthenticated and non-admin direct access', async () => {
+		const { load } = await import('$lib/../routes/crm-admin/+page.server');
+
+		await expect(load({ locals: { user: null } } as never)).rejects.toMatchObject({
+			status: 302,
+			location: '/login'
+		});
+		await expect(load({ locals: { user: mockUser } } as never)).rejects.toMatchObject({
+			status: 403
+		});
+	});
+
+	it('loads audit events for the CRM admin', async () => {
+		const { load } = await import('$lib/../routes/crm-admin/+page.server');
+		const result = await load({ locals: { user: crmAdminUser } } as never);
+
+		expect(fetchLeadChanges).toHaveBeenCalled();
+		expect(result).toEqual({ user: crmAdminUser, changes: [] });
+	});
+
+	it('permits only the CRM admin to restore an event', async () => {
+		const { actions } = await import('$lib/../routes/crm-admin/+page.server');
+		const request = () => ({
+			formData: vi.fn().mockResolvedValue(new Map([
+				['change_id', '12345678-1234-1234-1234-123456789abc']
+			]))
+		});
+
+		await expect(actions.restore({ request: request(), locals: { user: mockUser } } as never))
+			.rejects.toMatchObject({ status: 403 });
+		await expect(actions.restore({ request: request(), locals: { user: crmAdminUser } } as never))
+			.resolves.toMatchObject({ success: true });
+		expect(restoreLeadChange).toHaveBeenCalledWith(
+			'12345678-1234-1234-1234-123456789abc',
+			'scotton@bytestreams.ai'
+		);
 	});
 });
 

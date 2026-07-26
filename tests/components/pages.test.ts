@@ -48,47 +48,59 @@ describe('Dashboard Page', () => {
 		iat: 1700000000,
 		exp: 1700086400
 	};
+	const dashboardData = { user: mockUser, canAccessCrmAdmin: false };
 
 	it('renders welcome message with user name', () => {
-		render(DashboardPage, { props: { data: { user: mockUser } } });
+		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.getByText(/Welcome back, Scott/)).toBeInTheDocument();
 	});
 
 	it('renders dashboard subtitle', () => {
-		render(DashboardPage, { props: { data: { user: mockUser } } });
+		render(DashboardPage, { props: { data: dashboardData } });
 		expect(
 			screen.getByText('ByteStreams LLC — Internal Dashboard')
 		).toBeInTheDocument();
 	});
 
 	it('renders all three product cards', () => {
-		render(DashboardPage, { props: { data: { user: mockUser } } });
+		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.getByText('DialTone.Menu')).toBeInTheDocument();
 		expect(screen.getByText('DialTone.Med')).toBeInTheDocument();
 		expect(screen.getByText('Documentation')).toBeInTheDocument();
 	});
 
 	it('renders product status badges', () => {
-		render(DashboardPage, { props: { data: { user: mockUser } } });
+		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.getByText('Active')).toBeInTheDocument();
 		expect(screen.getByText('In Development')).toBeInTheDocument();
 		expect(screen.getAllByText('Internal')[0]).toBeInTheDocument();
 	});
 
 	it('renders nav with user info', () => {
-		render(DashboardPage, { props: { data: { user: mockUser } } });
+		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.getByText('scott@bytestreams.ai')).toBeInTheDocument();
 		expect(screen.getByText('Sign Out')).toBeInTheDocument();
 	});
 
 	it('renders dashboard when user is provided', () => {
-		const { container } = render(DashboardPage, { props: { data: { user: mockUser } } });
+		const { container } = render(DashboardPage, { props: { data: dashboardData } });
 		expect(container.querySelector('.dashboard')).toBeInTheDocument();
 	});
 
 	it('renders greeting with displayName', () => {
 		const customUser = { ...mockUser, displayName: 'Jane' };
-		render(DashboardPage, { props: { data: { user: customUser } } });
+		render(DashboardPage, { props: { data: { user: customUser, canAccessCrmAdmin: false } } });
 		expect(screen.getByText(/Welcome back, Jane/)).toBeInTheDocument();
+	});
+
+	it('renders CRM Admin only when access is granted', () => {
+		const { unmount } = render(DashboardPage, {
+			props: { data: { user: mockUser, canAccessCrmAdmin: true } }
+		});
+		expect(screen.getByRole('link', { name: 'CRM Admin' })).toHaveAttribute('href', '/crm-admin');
+		unmount();
+
+		render(DashboardPage, { props: { data: dashboardData } });
+		expect(screen.queryByText('CRM Admin')).not.toBeInTheDocument();
 	});
 });

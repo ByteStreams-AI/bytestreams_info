@@ -9,6 +9,7 @@
 
 import type { JWTPayload } from 'jose';
 import { dev } from '$app/environment';
+import { env } from '$env/dynamic/private';
 import type { User } from '$lib/types';
 
 /**
@@ -73,10 +74,11 @@ export function verifyAccessJwt(
  * @returns A mock User for dev mode.
  */
 export function getDevUser(): User {
+	const email = env.DEV_USER_EMAIL?.trim() || 'dev@bytestreams.ai';
 	return {
-		email: 'dev@bytestreams.ai',
+		email,
 		sub: 'dev-user-id',
-		displayName: 'Dev',
+		displayName: deriveDisplayName(email),
 		iat: Math.floor(Date.now() / 1000),
 		exp: Math.floor(Date.now() / 1000) + 3600
 	};

@@ -86,7 +86,7 @@ export const actions: Actions = {
 			}
 		}
 
-		await updateLeadSalesFields(leadId, payload);
+		await updateLeadSalesFields(leadId, locals.user.email, payload);
 
 		return { success: true };
 	},
@@ -111,7 +111,7 @@ export const actions: Actions = {
 			}
 
 			const callScript = await generateCallScript(platform.env.AI, lead);
-			await updateLeadSalesFields(leadId, { call_script: callScript });
+			await updateLeadSalesFields(leadId, locals.user.email, { call_script: callScript });
 			return { success: true, call_script: callScript };
 		} catch (generationError) {
 			const errorMessage = generationError instanceof Error ? generationError.message : String(generationError);
@@ -144,7 +144,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			await insertLead(row);
+			await insertLead(row, locals.user.email);
 		} catch (e) {
 			return fail(500, { message: e instanceof Error ? e.message : 'Failed to save lead.' });
 		}
