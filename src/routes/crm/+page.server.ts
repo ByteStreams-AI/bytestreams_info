@@ -114,12 +114,13 @@ export const actions: Actions = {
 			await updateLeadSalesFields(leadId, { call_script: callScript });
 			return { success: true, call_script: callScript };
 		} catch (generationError) {
+			const errorMessage = generationError instanceof Error ? generationError.message : String(generationError);
 			console.error(JSON.stringify({
 				message: 'call script generation failed',
 				leadId,
-				error: generationError instanceof Error ? generationError.message : String(generationError)
+				error: errorMessage
 			}));
-			return fail(500, { message: 'Unable to generate the call script. Please try again.' });
+			return fail(500, { message: `Unable to generate the call script: ${errorMessage}` });
 		}
 	},
 

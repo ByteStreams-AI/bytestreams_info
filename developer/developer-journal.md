@@ -1,5 +1,27 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-26 — CRM Call-Script Generation Diagnostics
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Investigated call-script generation after updating the canonical Markdown template. The full template imports successfully, passes the focused prompt tests, and builds into the Cloudflare Worker; Markdown formatting is not used as a parser contract and was not the cause of the inert-looking control.
+
+### Changes
+
+- Moved generation status beside the **Generate Script** button so failures are immediately visible
+- Added an accessible live region for generation status
+- Preserved HTTP/deserialization details for malformed action responses
+- Returned the authenticated Workers AI error message from the server action while retaining structured server logging
+
+### Validation
+
+- `pnpm vitest run tests/unit/call-script.test.ts` — 2 tests passed
+- `pnpm check` — 0 errors (3 pre-existing unused CSS warnings)
+- `pnpm build` — Cloudflare production build succeeded
+- `pnpm wrangler deploy --dry-run` — `env.AI` binding present
+
 ## 2026-07-25 — AI-Personalized CRM Call Scripts
 
 **Participants:** Scott Thornton, GitHub Copilot

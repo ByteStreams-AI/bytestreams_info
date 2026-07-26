@@ -112,17 +112,20 @@
 
 		try {
 			const response = await fetch('?/generateScript', { method: 'POST', body });
-			const result = deserialize(await response.text()) as { type?: string; data?: { call_script?: string; message?: string } };
+			const responseText = await response.text();
+			const result = deserialize(responseText) as { type?: string; data?: { call_script?: string; message?: string } };
 			if (result.type === 'success' && result.data?.call_script) {
 				selectedLead.call_script = result.data.call_script;
 				const index = data.leads.findIndex((lead) => lead.lead_id === selectedLead!.lead_id);
 				if (index !== -1) data.leads[index].call_script = result.data.call_script;
 				scriptMessage = 'Generated and saved';
 			} else {
-				scriptMessage = result.data?.message ?? 'Unable to generate script';
+				scriptMessage = result.data?.message ?? `Unable to generate script (HTTP ${response.status})`;
 			}
-		} catch {
-			scriptMessage = 'Unable to generate script';
+		} catch (generationError) {
+			scriptMessage = generationError instanceof Error
+				? `Unable to generate script: ${generationError.message}`
+				: 'Unable to generate script';
 		} finally {
 			generatingScript = false;
 		}
@@ -439,14 +442,19 @@
 				<div class="field-row call-script-field">
 					<div class="call-script-heading">
 						<span>AI Call Script</span>
-						<button
-							type="button"
-							class="btn-generate"
-							disabled={generatingScript || !['researched', 'reviewed'].includes(selectedLead.status)}
-							onclick={generateScript}
-						>
-							{generatingScript ? 'Generating…' : 'Generate Script'}
-						</button>
+						<div class="call-script-action">
+							{#if scriptMessage}
+								<span class:script-error={!scriptMessage.includes('saved')} class="script-message" aria-live="polite">{scriptMessage}</span>
+							{/if}
+							<button
+								type="button"
+								class="btn-generate"
+								disabled={generatingScript || !['researched', 'reviewed'].includes(selectedLead.status)}
+								onclick={generateScript}
+							>
+								{generatingScript ? 'Generating…' : 'Generate Script'}
+							</button>
+						</div>
 					</div>
 					<textarea
 						name="call_script"
@@ -455,9 +463,6 @@
 						placeholder="Set the status to Researched or Reviewed, save it, then generate a personalized script."
 						bind:value={selectedLead.call_script}
 					></textarea>
-					{#if scriptMessage}
-						<span class:script-error={!scriptMessage.includes('saved')} class="script-message">{scriptMessage}</span>
-					{/if}
 				</div>
 
 				<label class="field-row field-row--inline">
@@ -944,6 +949,14 @@
 		gap: var(--space-md);
 	}
 
+	.call-script-action {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--space-sm);
+		min-width: 0;
+	}
+
 	.btn-generate {
 		padding: 6px 10px;
 		background: var(--color-data-teal);
@@ -964,6 +977,8 @@
 	.script-message {
 		font-size: 0.75rem;
 		color: var(--color-signal-green);
+		text-align: right;
+		overflow-wrap: anywhere;
 	}
 
 	.script-error {
