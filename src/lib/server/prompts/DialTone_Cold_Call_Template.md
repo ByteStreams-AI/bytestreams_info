@@ -5,7 +5,7 @@
 The goal of the call is not to explain the entire platform. It is to:
 
 1. Reach the person responsible for restaurant technology, operations, or ownership.
-2. Identify one relevant operational or cost problem.
+2. Propose a solution for friction points found during the research.
 3. Schedule a 15-minute savings review or product demonstration.
 
 Keep the call simple, repeatable, and specific to what you observed about the restaurant.
@@ -21,31 +21,38 @@ Confirm as much of the following as possible:
 - Whether the restaurant has direct ordering on its own website
 - Whether it has a branded mobile app
 - Whether staff must re-enter online orders
-- One specific detail that makes the call relevant
+- One specific detail that makes the call relevant ranked in this order (most important first) 1. No phone automation 2. Menu lives in 10 places. 3. Orders scattered (different process for different channels - phone, kiosk, walk-ins, reservations) 4. Thin margins 5. Where's my Truck? - Customers have no idea where the food truck is
+  - How does Dialtone.Menu address each
+    1. A voice agent answers every call, 24 - 7. Takes orders that go straight to the kitchen, reservations, messages, provides meta info such as parking and location
+    2. A dynamic menu edited in the admin module is updated in the app, website, voice agent within seconds. This includes pricing, specials, and modifiers
+    3. Orders from the voice agent, kiosk, app, dine-in, all land in the KDS with the same format and source noted.
+    4. Restaurants only pay 1.5% per order transaction. No hardware fees, no web order fees, no app fees. 
+    5. Food Trucks can send location alerts to loyalty customers within 1 - 10 miles (range set by the operator in the admin screen)
+  - CREATE THE VALUE STATEMENT BASED ON FINDINGS
 
 Do not state an exact savings amount until the restaurant's current costs and transaction mix have been reviewed.
 
 ## First 30 Seconds
 
-### 1. Reach the Right Person
+### 1. Introduce Yourself
 
-> Hi, who handles your POS, online ordering, and restaurant technology decisions?
+> Hi [Name], this is [Your Name] with DialTone.Menu, how are you ? (with downward inflection)
+
+### 2. If Now the Right Person
+
+> Thanks, who handles your POS, online ordering, and restaurant technology decisions?
 
 If asked why:
 
-> I am calling from DialTone.Menu. We help restaurants bring direct ordering, payments, and kitchen operations into one system. I have a quick question about how you currently handle online orders.
+> I am calling from DialTone.Menu. We help restaurants like [restaurant name] bring calls, walk-ins, online orders, payments, and kitchen operations into one system. I would like to set up a 15 minute demo to show you how it works.
 
-### 2. Introduce Yourself
+### 3. Once Right Person Is On Phone Repeat Step 1
 
-> Hi [Name], this is [Your Name] with DialTone.Menu. Did I catch you with 30 seconds?
+> Hi [Name], this is [Your Name] with DialTone.Menu, how are you ? (with downward inflection)
 
-If yes, continue. If no:
+### 4. Deliver the Value Statement
 
-> No problem. Is later today or tomorrow morning better for a two-minute call?
-
-### 3. Deliver the Value Statement
-
-> I noticed [specific observation]. DialTone.Menu brings staff POS, direct online ordering, payments, kitchen flow, loyalty, delivery access, and voice ordering into one platform. Restaurants use it to reduce disconnected systems, keep more customers ordering directly, and simplify service. I wanted to see whether a 15-minute comparison would be worthwhile for [Restaurant Name].
+> I noticed [Value Statement from "Before Call: Section ]. Lets have a conference call sometime next week so that we can walk you through how it works. 
 
 Stop and let the prospect respond.
 
@@ -89,7 +96,7 @@ Choose one opener. Do not stack several pitches together.
 
 ## Discovery Questions
 
-Ask two or three questions, not all of them.
+Ask one or two questions, The goal is to book a demo, not have a long conversation. It should be less than 5 minutes.
 
 1. What are you currently using for POS and payment processing?
 2. How do online orders reach the kitchen today?
@@ -120,11 +127,11 @@ Use these as questions and positioning prompts, not as attacks on a competitor.
 
 ### DoorDash
 
-> DoorDash is strong in marketplace demand and delivery. DialTone.Menu helps a restaurant build a direct branded ordering channel and retain first-party customer relationships while still supporting delivery through DoorDash Drive.
+> DoorDash is strong in marketplace demand and delivery. DialTone.Menu helps a restaurant build a direct branded ordering channel and retain first-party customer relationships while still supporting delivery through DoorDash at a much cheaper transaction fee.
 
 ### Resy or OpenTable
 
-> Resy and OpenTable specialize in reservations and guest management. DialTone.Menu addresses the broader order-to-kitchen workflow, including POS, direct ordering, payments, loyalty, and voice ordering.
+> Resy and OpenTable specialize in reservations and guest management. While DialTone.Menu has a competitive addresses the broader order-to-kitchen workflow, including POS, direct ordering, payments, loyalty, and voice ordering.
 
 ## Close for the Meeting
 
@@ -154,7 +161,7 @@ Always offer two specific times. Confirm the email address and send the invitati
 
 ### "Send me information."
 
-> Absolutely. To send the right information, is your bigger priority reducing costs, improving online ordering, or simplifying kitchen operations?
+> Absolutely. To send the right information, I will send you information based on your current model (Food Truck, Single Location, Multi-Location) and a cost matrix so you can understand our value?
 
 After the answer:
 
@@ -166,7 +173,7 @@ After the answer:
 
 ### "We already use DoorDash."
 
-> You can continue offering delivery. The question is whether you also want more customers ordering directly through your brand, with your customer relationship and ordering experience under your control.
+> You can continue offering delivery. The question is whether you also want more customers ordering directly through your brand, with your customer relationship and ordering experience under your control while greatly reducing your DoorDAsh transaction cost.
 
 ### "How much does it cost?"
 
