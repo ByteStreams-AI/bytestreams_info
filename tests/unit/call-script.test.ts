@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildCallScriptPrompt, extractCallScriptContent } from '$lib/server/call-script';
+import { describe, expect, it, vi } from 'vitest';
+import { buildCallScriptPrompt, extractCallScriptContent, generateCallScript } from '$lib/server/call-script';
 import type { Lead } from '$lib/types';
 
 function lead(overrides: Partial<Lead> = {}): Lead {
@@ -63,6 +63,16 @@ describe('buildCallScriptPrompt', () => {
 		expect(prompt).toContain('******STOP HERE******');
 	});
 
+	it('includes only the bounded canonical template', () => {
+		const prompt = buildCallScriptPrompt(lead());
+
+		expect(prompt).toContain('## First 30 Seconds');
+		expect(prompt).toContain('## Observation-Based Openers');
+		expect(prompt).not.toContain('## Objective');
+		expect(prompt).not.toContain('## Research and Business Metadata Requirements');
+		expect(prompt).not.toContain('## Discovery Questions');
+	});
+
 	it('includes approved sourced research and prohibits absence-based claims', () => {
 		const prompt = buildCallScriptPrompt(lead(), [{
 			finding_id: 'finding-1',
@@ -98,15 +108,37 @@ Internal guidance`;
 		);
 	});
 
-	it('preserves an unmarked response', () => {
-		expect(extractCallScriptContent('  ## First 30 Seconds\nCall-ready copy  ')).toBe(
-			'## First 30 Seconds\nCall-ready copy'
-		);
+	it('rejects an unmarked response', () => {
+		expect(() => extractCallScriptContent('## First 30 Seconds\nCall-ready copy'))
+			.toThrow('incomplete call script');
 	});
 
-	it('preserves the response when the stop marker is missing', () => {
+	it('rejects a truncated response when the stop marker is missing', () => {
 		const response = '******START HERE******\n## First 30 Seconds\nCall-ready copy';
 
-		expect(extractCallScriptContent(response)).toBe(response);
+		expect(() => extractCallScriptContent(response)).toThrow('incomplete call script');
+	});
+});
+
+describe('generateCallScript', () => {
+	it('requests enough output tokens and returns only bounded content', async () => {
+		const ai = {
+			run: vi.fn().mockResolvedValue({
+				response: `Do not save this preamble
+******START HERE******
+## First 30 Seconds
+Call-ready copy
+******STOP HERE******
+Do not save this footer`
+			})
+		};
+
+		const script = await generateCallScript(ai as unknown as Ai, lead());
+
+		expect(script).toBe('## First 30 Seconds\nCall-ready copy');
+		expect(ai.run).toHaveBeenCalledWith(
+			'@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+			expect.objectContaining({ max_tokens: 2400 })
+		);
 	});
 });

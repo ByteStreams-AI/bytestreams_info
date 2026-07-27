@@ -1,5 +1,29 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-27 — CRM Call-Script Boundary Enforcement
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Workers AI could exhaust the 1,400-token output limit before returning `******STOP HERE******`. The response extractor then saved the entire incomplete response, including echoed research instructions and canonical template content outside the intended generation boundaries.
+
+### Changes
+
+- Limited the model prompt to canonical template content between `******START HERE******` and `******STOP HERE******`
+- Removed generation requirements for discovery, voicemail, and follow-up sections that sit outside those boundaries
+- Required a complete marked response and reject missing boundary markers instead of saving partial output
+- Increased the output budget from 1,400 to 2,400 tokens
+- Continued stripping any model preamble or footer outside the markers before persistence
+- Added regression coverage for bounded prompts, truncated output, preamble stripping, and the Workers AI token budget
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts tests/unit/crm-research.test.ts` — 13 tests passed
+- `pnpm test` — 110 tests passed
+- `pnpm check` — 0 errors and 0 warnings
+- `pnpm build` — Cloudflare production build succeeded
+
 ## 2026-07-27 — CRM App, Email, and POS Research
 
 **Participants:** Scott Thornton, GitHub Copilot
