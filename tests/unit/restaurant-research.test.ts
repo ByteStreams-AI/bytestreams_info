@@ -55,6 +55,42 @@ describe('researchRestaurantWebsite', () => {
 		expect(result.findings.every((finding) => finding.sourceUrl === 'https://sample.example/')).toBe(true);
 	});
 
+	it('extracts app, public email, and verified POS usage from official website links', async () => {
+		const html = `<html><body>
+			<a href="https://apps.apple.com/us/app/sample-kitchen/id123456789?campaign=website">iPhone app</a>
+			<a href="https://play.google.com/store/apps/details?id=com.sample.kitchen&utm_source=website">Android app</a>
+			<a href="mailto:Hello@SampleKitchen.com?subject=Reservation">Email us</a>
+			<a href="https://order.toasttab.com/online/sample-kitchen?utm_source=website">Order with Toast</a>
+			<a href="https://www.doordash.com/store/sample-kitchen">DoorDash</a>
+		</body></html>`;
+		const fetcher = vi.fn().mockResolvedValue(new Response(html, {
+			status: 200,
+			headers: { 'content-type': 'text/html' }
+		}));
+
+		const result = await researchRestaurantWebsite('https://sample.example', fetcher);
+
+		expect(result.findings).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				category: 'branded_app_ios',
+				value: 'https://apps.apple.com/us/app/sample-kitchen/id123456789'
+			}),
+			expect.objectContaining({
+				category: 'branded_app_android',
+				value: 'https://play.google.com/store/apps/details?id=com.sample.kitchen'
+			}),
+			expect.objectContaining({
+				category: 'public_business_email',
+				value: 'mailto:hello@samplekitchen.com'
+			}),
+			expect.objectContaining({
+				category: 'pos_toast_verified_usage',
+				value: 'https://order.toasttab.com/online/sample-kitchen'
+			})
+		]));
+		expect(result.findings.some((finding) => finding.category === 'pos_doordash_verified_usage')).toBe(false);
+	});
+
 	it('validates redirects before following them', async () => {
 		const fetcher = vi.fn().mockResolvedValue(new Response(null, {
 			status: 302,
@@ -107,12 +143,12 @@ describe('researchRestaurantWebsite', () => {
 			.rejects.toThrow('empty response');
 	});
 
-	it('ignores share links and social home pages', async () => {
+	it('ignores share links, social home pages, and invalid email links', async () => {
 		const html = `<html><body>
 			<a href="https://facebook.com/sharer/sharer.php?u=x">Share</a>
 			<a href="https://x.com/intent/post">Post</a>
 			<a href="https://instagram.com/">Instagram</a>
-			<a href="mailto:hello@sample.example">Email</a>
+			<a href="mailto:not-an-email">Email</a>
 		</body></html>`;
 		const fetcher = vi.fn().mockResolvedValue(new Response(html, {
 			status: 200,

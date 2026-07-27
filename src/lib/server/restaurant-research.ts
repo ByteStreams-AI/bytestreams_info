@@ -26,6 +26,12 @@ const ORDERING_HOSTS = new Set([
 	'ubereats.com'
 ]);
 
+const POS_HOSTS: Record<string, string> = {
+	'clover.com': 'clover',
+	'square.site': 'square',
+	'toasttab.com': 'toast'
+};
+
 export interface ResearchFindingDraft {
 	category: string;
 	value: string;
@@ -98,6 +104,49 @@ function normalizeExternalUrl(url: URL): string {
 	url.hostname = normalizedHostname(url);
 	url.pathname = url.pathname.replace(/\/+$/, '') || '/';
 	return url.toString();
+}
+
+function appStoreCategory(url: URL): string | null {
+	const hostname = normalizedHostname(url);
+	if (matchesHost(hostname, 'apps.apple.com') && /\/app\/.*\/id\d+/i.test(url.pathname)) {
+		return 'branded_app_ios';
+	}
+	if (
+		matchesHost(hostname, 'play.google.com') &&
+		url.pathname.replace(/\/+$/, '') === '/store/apps/details' &&
+		url.searchParams.has('id')
+	) {
+		return 'branded_app_android';
+	}
+	return null;
+}
+
+function normalizeAppStoreUrl(url: URL): string {
+	url.hash = '';
+	url.hostname = normalizedHostname(url);
+	if (matchesHost(url.hostname, 'play.google.com')) {
+		const appId = url.searchParams.get('id');
+		url.search = '';
+		if (appId) url.searchParams.set('id', appId);
+	} else {
+		url.search = '';
+	}
+	return url.toString();
+}
+
+function publicEmailUrl(url: URL): string | null {
+	if (url.protocol !== 'mailto:') return null;
+	const email = decodeURIComponent(url.pathname).trim().toLowerCase();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+	return `mailto:${email}`;
+}
+
+function posProvider(url: URL): string | null {
+	const hostname = normalizedHostname(url);
+	for (const [host, provider] of Object.entries(POS_HOSTS)) {
+		if (matchesHost(hostname, host)) return provider;
+	}
+	return null;
 }
 
 function deduplicateFindings(findings: ResearchFindingDraft[]): ResearchFindingDraft[] {
@@ -196,7 +245,29 @@ export async function researchRestaurantWebsite(
 	}];
 
 	for (const link of links) {
+		const emailUrl = publicEmailUrl(link);
+		if (emailUrl) {
+			findings.push({
+				category: 'public_business_email',
+				value: emailUrl,
+				sourceUrl,
+				confidence: 0.95
+			});
+			continue;
+		}
+
 		if (!['http:', 'https:'].includes(link.protocol)) continue;
+		const appCategory = appStoreCategory(link);
+		if (appCategory) {
+			findings.push({
+				category: appCategory,
+				value: normalizeAppStoreUrl(link),
+				sourceUrl,
+				confidence: 0.95
+			});
+			continue;
+		}
+
 		const platform = socialPlatform(link);
 		if (platform) {
 			findings.push({
@@ -209,6 +280,15 @@ export async function researchRestaurantWebsite(
 		}
 
 		if ([...ORDERING_HOSTS].some((host) => matchesHost(normalizedHostname(link), host))) {
+			const provider = posProvider(link);
+			if (provider) {
+				findings.push({
+					category: `pos_${provider}_verified_usage`,
+					value: normalizeExternalUrl(link),
+					sourceUrl,
+					confidence: 0.9
+				});
+			}
 			findings.push({
 				category: 'online_ordering_url',
 				value: normalizeExternalUrl(link),

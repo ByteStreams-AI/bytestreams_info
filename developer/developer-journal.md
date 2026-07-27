@@ -1,5 +1,22 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-27 — CRM App, Email, and POS Research
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Extended **Research Restaurant** to find direct Apple App Store and Google Play app links published by the official restaurant website
+- Added public business email findings from valid `mailto:` links, normalized for review
+- Added verified Toast, Square, and Clover usage findings when the official website links to those providers
+- Kept marketplace links such as DoorDash classified as online ordering rather than POS evidence
+- Added focused tests for extraction, URL normalization, provenance, and invalid email handling
+
+### Validation
+
+- `pnpm test -- tests/unit/restaurant-research.test.ts` — 108 tests passed
+- `pnpm check` — 0 errors and 0 warnings
+
 ## 2026-07-26 — CRM Admin Coverage Regression
 
 **Participants:** Scott Thornton, GitHub Copilot
