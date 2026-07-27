@@ -76,14 +76,32 @@
 	let filterCity = $state('');
 	let filterDelivery = $state('');
 	let filterPickup = $state('');
+	let currentPage = $state(1);
+	const PAGE_SIZE = 50;
 
-	const cities = $derived([...new Set(data.leads.map((l) => l.city).filter(Boolean))].sort());
+	const cities = $derived.by(() => {
+		return data.leads
+			.map((lead) => lead.city?.trim())
+			.filter((value): value is string => Boolean(value))
+			.reduce<{ value: string; label: string }[]>((options, city) => {
+				const value = city.toLocaleLowerCase();
+				const existingIndex = options.findIndex((option) => option.value === value);
+				if (existingIndex === -1) return [...options, { value, label: city }];
+
+				const existing = options[existingIndex];
+				if (existing.label !== existing.label.toLocaleUpperCase() || city === city.toLocaleUpperCase()) {
+					return options;
+				}
+				return options.with(existingIndex, { value, label: city });
+			}, [])
+			.sort((left, right) => left.label.localeCompare(right.label));
+	});
 
 	const filteredLeads = $derived(
 		data.leads.filter((lead) => {
 			if (search && !lead.business_name.toLowerCase().includes(search.toLowerCase())) return false;
 			if (filterStatus && lead.status !== filterStatus) return false;
-			if (filterCity && lead.city !== filterCity) return false;
+			if (filterCity && lead.city?.trim().toLocaleLowerCase() !== filterCity) return false;
 			if (filterDelivery !== '') {
 				const want = filterDelivery === 'yes';
 				if ((lead.offers_delivery ?? false) !== want) return false;
@@ -95,6 +113,15 @@
 			return true;
 		})
 	);
+	const totalPages = $derived(Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE)));
+	const pageNumbers = $derived(Array.from({ length: totalPages }, (_, index) => index + 1));
+	const pageStart = $derived((currentPage - 1) * PAGE_SIZE);
+	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, filteredLeads.length));
+	const paginatedLeads = $derived(filteredLeads.slice(pageStart, pageEnd));
+
+	function resetPage() {
+		currentPage = 1;
+	}
 
 	function openPanel(lead: Lead) {
 		selectedLead = { ...lead };
@@ -225,6 +252,7 @@
 			type="search"
 			placeholder="Search business name…"
 			bind:value={search}
+			oninput={resetPage}
 			aria-label="Search by business name"
 		/>
 	</div>
@@ -237,10 +265,10 @@
 					<th>
 						<div class="th-filter">
 							<span>City</span>
-							<select bind:value={filterCity} aria-label="Filter by city">
+							<select bind:value={filterCity} onchange={resetPage} aria-label="Filter by city">
 								<option value="">All</option>
-								{#each cities as city (city)}
-									<option value={city}>{city}</option>
+								{#each cities as city (city.value)}
+									<option value={city.value}>{city.label}</option>
 								{/each}
 							</select>
 						</div>
@@ -249,7 +277,7 @@
 					<th>
 						<div class="th-filter">
 							<span>Status</span>
-							<select bind:value={filterStatus} aria-label="Filter by status">
+							<select bind:value={filterStatus} onchange={resetPage} aria-label="Filter by status">
 								<option value="">All</option>
 								{#each STATUSES as s (s)}
 									<option value={s}>{STATUS_LABELS[s]}</option>
@@ -260,7 +288,7 @@
 					<th>
 						<div class="th-filter">
 							<span>Delivery</span>
-							<select bind:value={filterDelivery} aria-label="Filter by delivery">
+							<select bind:value={filterDelivery} onchange={resetPage} aria-label="Filter by delivery">
 								<option value="">All</option>
 								<option value="yes">Yes</option>
 								<option value="no">No</option>
@@ -270,7 +298,7 @@
 					<th>
 						<div class="th-filter">
 							<span>Pickup</span>
-							<select bind:value={filterPickup} aria-label="Filter by pickup">
+							<select bind:value={filterPickup} onchange={resetPage} aria-label="Filter by pickup">
 								<option value="">All</option>
 								<option value="yes">Yes</option>
 								<option value="no">No</option>
@@ -282,7 +310,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each filteredLeads as lead (lead.lead_id)}
+				{#each paginatedLeads as lead (lead.lead_id)}
 					<tr class="crm-row" class:crm-row--selected={selectedLead?.lead_id === lead.lead_id}>
 						<td class="crm-name">{lead.business_name}</td>
 						<td>{lead.city ?? '—'}</td>
@@ -305,6 +333,24 @@
 			</tbody>
 		</table>
 	</div>
+	{#if filteredLeads.length > 0}
+		<nav class="crm-pagination" aria-label="Lead pagination">
+			<span class="pagination-summary">Showing {pageStart + 1}–{pageEnd} of {filteredLeads.length}</span>
+			<div class="pagination-controls">
+				<button type="button" onclick={() => currentPage -= 1} disabled={currentPage === 1}>Previous</button>
+				<label>
+					<span>Page</span>
+					<select bind:value={currentPage} aria-label="Current page">
+						{#each pageNumbers as page (page)}
+							<option value={page}>{page}</option>
+						{/each}
+					</select>
+					<span>of {totalPages}</span>
+				</label>
+				<button type="button" onclick={() => currentPage += 1} disabled={currentPage === totalPages}>Next</button>
+			</div>
+		</nav>
+	{/if}
 </main>
 
 {#if showAddModal}
@@ -704,6 +750,48 @@
 
 	.crm-table-wrap {
 		overflow-x: auto;
+	}
+
+	.crm-pagination {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+		padding: var(--space-md) 0;
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+	}
+
+	.pagination-controls,
+	.pagination-controls label {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+	}
+
+	.pagination-controls button,
+	.pagination-controls select {
+		min-height: 32px;
+		border: 1px solid var(--border-edge);
+		border-radius: 4px;
+		background: var(--bg-slate);
+		color: var(--text-bright);
+		font: inherit;
+	}
+
+	.pagination-controls button {
+		padding: 0 var(--space-md);
+		cursor: pointer;
+	}
+
+	.pagination-controls button:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+	.pagination-controls select {
+		padding: 0 var(--space-sm);
+		cursor: pointer;
 	}
 
 	.crm-table {

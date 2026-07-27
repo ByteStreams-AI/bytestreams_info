@@ -15,6 +15,7 @@ const LEAD_FIELDS = `lead_id, business_name, phone, address, city, state, status
 	price_range, yelp_rating, yelp_review_count,
 	contact_name, email, website_url, notes, call_script, num_locations, has_website, has_app,
 	uses_pos, uses_kds, uses_sms, created_at`;
+const LEAD_PAGE_SIZE = 1000;
 
 const RESTORABLE_LEAD_FIELDS = new Set([
 	'lead_id', 'business_name', 'contact_name', 'phone', 'email', 'address', 'city', 'state',
@@ -39,13 +40,21 @@ function getClient(actorEmail?: string) {
 /** Fetch all leads ordered by created_at descending. */
 export async function fetchLeads(): Promise<Lead[]> {
 	const client = getClient();
-	const { data, error } = await client
-		.from('leads')
-		.select(LEAD_FIELDS)
-		.order('created_at', { ascending: false });
+	const leads: Lead[] = [];
 
-	if (error) throw new Error(error.message);
-	return (data ?? []) as Lead[];
+	for (let from = 0; ; from += LEAD_PAGE_SIZE) {
+		const { data, error } = await client
+			.from('leads')
+			.select(LEAD_FIELDS)
+			.order('created_at', { ascending: false })
+			.order('lead_id', { ascending: true })
+			.range(from, from + LEAD_PAGE_SIZE - 1);
+
+		if (error) throw new Error(error.message);
+		const page = (data ?? []) as Lead[];
+		leads.push(...page);
+		if (page.length < LEAD_PAGE_SIZE) return leads;
+	}
 }
 
 /** Fetch one lead by ID for server-side actions. */
