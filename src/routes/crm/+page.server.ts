@@ -1,6 +1,18 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { fetchLead, fetchLeads, updateLeadSalesFields, insertLead } from '$lib/server/supabase';
+import {
+	completeLeadResearchRun,
+	createLeadResearchRun,
+	failLeadResearchRun,
+	fetchApprovedLeadResearchFindings,
+	fetchLead,
+	fetchLeadResearchFindings,
+	fetchLeads,
+	insertLead,
+	reviewLeadResearchFinding,
+	updateLeadSalesFields
+} from '$lib/server/supabase';
 import { generateCallScript } from '$lib/server/call-script';
+import { researchRestaurantWebsite } from '$lib/server/restaurant-research';
 import type { PageServerLoad, Actions } from './$types';
 
 /** Editable status values — all valid lead statuses. */
@@ -38,9 +50,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(302, '/login');
 	}
 
-	const leads = await fetchLeads();
+	const [leads, researchFindings] = await Promise.all([
+		fetchLeads(),
+		fetchLeadResearchFindings()
+	]);
 
-	return { leads, user: locals.user };
+	return { leads, researchFindings, user: locals.user };
 };
 
 export const actions: Actions = {
@@ -110,7 +125,8 @@ export const actions: Actions = {
 				return fail(503, { message: 'AI generation is not available in this environment.' });
 			}
 
-			const callScript = await generateCallScript(platform.env.AI, lead);
+			const approvedFindings = await fetchApprovedLeadResearchFindings(leadId);
+			const callScript = await generateCallScript(platform.env.AI, lead, approvedFindings);
 			await updateLeadSalesFields(leadId, locals.user.email, { call_script: callScript });
 			return { success: true, call_script: callScript };
 		} catch (generationError) {
@@ -121,6 +137,69 @@ export const actions: Actions = {
 				error: errorMessage
 			}));
 			return fail(500, { message: `Unable to generate the call script: ${errorMessage}` });
+		}
+	},
+
+	researchRestaurant: async ({ request, locals }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+
+		const form = await request.formData();
+		const leadId = form.get('lead_id');
+		if (!leadId || typeof leadId !== 'string') {
+			return fail(400, { message: 'Missing lead ID.' });
+		}
+
+		const lead = await fetchLead(leadId);
+		if (!lead) return fail(404, { message: 'Lead not found.' });
+		if (!lead.website_url?.trim()) {
+			return fail(400, { message: 'Add and save the official website before researching this restaurant.' });
+		}
+
+		let runId: string | null = null;
+		try {
+			runId = await createLeadResearchRun(leadId, lead.website_url, locals.user.email);
+			const result = await researchRestaurantWebsite(lead.website_url);
+			const findings = await completeLeadResearchRun(runId, leadId, result.findings, locals.user.email);
+			return { success: true, findings };
+		} catch (researchError) {
+			const errorMessage = researchError instanceof Error ? researchError.message : String(researchError);
+			if (runId) {
+				try {
+					await failLeadResearchRun(runId, errorMessage, locals.user.email);
+				} catch (persistenceError) {
+					console.error(JSON.stringify({
+						message: 'failed to record restaurant research failure',
+						leadId,
+						runId,
+						error: persistenceError instanceof Error ? persistenceError.message : String(persistenceError)
+					}));
+				}
+			}
+			console.error(JSON.stringify({ message: 'restaurant research failed', leadId, error: errorMessage }));
+			return fail(502, { message: `Unable to research the restaurant: ${errorMessage}` });
+		}
+	},
+
+	reviewResearchFinding: async ({ request, locals }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+
+		const form = await request.formData();
+		const findingId = form.get('finding_id');
+		const reviewStatus = form.get('review_status');
+		if (!findingId || typeof findingId !== 'string') {
+			return fail(400, { message: 'Missing finding ID.' });
+		}
+		if (reviewStatus !== 'approved' && reviewStatus !== 'rejected') {
+			return fail(400, { message: 'Invalid review status.' });
+		}
+
+		try {
+			await reviewLeadResearchFinding(findingId, reviewStatus, locals.user.email);
+			return { success: true, finding_id: findingId, review_status: reviewStatus };
+		} catch (reviewError) {
+			return fail(500, {
+				message: reviewError instanceof Error ? reviewError.message : 'Unable to review this finding.'
+			});
 		}
 	},
 

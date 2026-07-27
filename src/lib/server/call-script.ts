@@ -1,17 +1,22 @@
-import type { Lead } from '$lib/types';
+import type { Lead, LeadResearchFinding } from '$lib/types';
 import callTemplate from '$lib/server/prompts/DialTone_Cold_Call_Template.md?raw';
+
+const START_MARKER = '******START HERE******';
+const STOP_MARKER = '******STOP HERE******';
 
 const GENERATION_RULES = `
 Use the canonical DialTone.Menu template below to create a concise, call-ready script personalized to the supplied CRM facts.
 
 Requirements:
 - Include a gatekeeper opener, permission opener, personalized value statement, exactly three discovery questions, relevant provider pivot, meeting close, voicemail, and follow-up email.
-- Use only the CRM facts supplied below. Never infer that an unknown field is false.
+- Use only the CRM facts and approved sourced research supplied below. Never infer that an unknown field is false.
+- Do not treat the absence of a finding as evidence that a restaurant lacks a product, service, or capability.
 - Do not invent a decision-maker, current provider, pain point, savings amount, fee, contract, or operational problem.
 - Do not claim DialTone operates a delivery network.
 - Do not promise exact savings. Position the meeting as a personalized comparison.
 - Use placeholders such as [Your Name], [Day/Time A], and [Day/Time B] where needed.
 - Keep the spoken first-30-seconds portion under 90 words.
+- Include ${START_MARKER} and ${STOP_MARKER} exactly once, preserving the content boundaries from the canonical template.
 - Return plain text with clear section headings. Do not include analysis or explain your choices.
 `.trim();
 
@@ -19,7 +24,17 @@ function known(value: unknown): boolean {
 	return value !== null && value !== undefined && value !== '';
 }
 
-export function buildCallScriptPrompt(lead: Lead): string {
+export function extractCallScriptContent(response: string): string {
+	const trimmedResponse = response.trim();
+	const start = trimmedResponse.indexOf(START_MARKER);
+	const stop = trimmedResponse.indexOf(STOP_MARKER, start + START_MARKER.length);
+
+	if (start === -1 || stop === -1) return trimmedResponse;
+
+	return trimmedResponse.slice(start + START_MARKER.length, stop).trim();
+}
+
+export function buildCallScriptPrompt(lead: Lead, approvedFindings: LeadResearchFinding[] = []): string {
 	const facts = Object.fromEntries(
 		Object.entries({
 			business_name: lead.business_name,
@@ -47,19 +62,30 @@ export function buildCallScriptPrompt(lead: Lead): string {
 		}).filter(([, value]) => known(value))
 	);
 
-	return `${GENERATION_RULES}\n\nCanonical call template:\n${callTemplate.trim()}\n\nCRM facts:\n${JSON.stringify(facts, null, 2)}`;
+	const research = approvedFindings.map((finding) => ({
+		category: finding.category,
+		value: finding.value,
+		source_url: finding.source_url,
+		retrieved_at: finding.retrieved_at
+	}));
+
+	return `${GENERATION_RULES}\n\nCanonical call template:\n${callTemplate.trim()}\n\nCRM facts:\n${JSON.stringify(facts, null, 2)}\n\nApproved sourced research:\n${JSON.stringify(research, null, 2)}`;
 }
 
-export async function generateCallScript(ai: Ai, lead: Lead): Promise<string> {
+export async function generateCallScript(
+	ai: Ai,
+	lead: Lead,
+	approvedFindings: LeadResearchFinding[] = []
+): Promise<string> {
 	const result = await ai.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
-		prompt: buildCallScriptPrompt(lead),
+		prompt: buildCallScriptPrompt(lead, approvedFindings),
 		max_tokens: 1400,
 		temperature: 0.2,
 		repetition_penalty: 1.05
 	});
 
 	if (typeof result === 'object' && result !== null && 'response' in result) {
-		const script = result.response.trim();
+		const script = extractCallScriptContent(result.response);
 		if (script) return script;
 	}
 

@@ -5,7 +5,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import type { Lead, LeadChange, CalendarEvent } from '$lib/types';
+import type { Lead, LeadChange, CalendarEvent, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
+import type { ResearchFindingDraft } from '$lib/server/restaurant-research';
 
 type InsertRow = Record<string, string | number | boolean | null>;
 
@@ -90,6 +91,105 @@ export async function updateLeadSalesFields(
 export async function insertLead(row: InsertRow, actorEmail: string): Promise<void> {
 	const client = getClient(actorEmail);
 	const { error } = await client.from('leads').insert(row);
+	if (error) throw new Error(error.message);
+}
+
+export async function fetchLeadResearchFindings(): Promise<LeadResearchFinding[]> {
+	const client = getClient();
+	const { data, error } = await client
+		.from('lead_research_findings')
+		.select('finding_id, run_id, lead_id, category, value, source_url, retrieved_at, confidence, review_status, reviewed_by_email, reviewed_at')
+		.order('retrieved_at', { ascending: false })
+		.limit(1000);
+
+	if (error) throw new Error(error.message);
+	return (data ?? []) as LeadResearchFinding[];
+}
+
+export async function fetchApprovedLeadResearchFindings(leadId: string): Promise<LeadResearchFinding[]> {
+	const client = getClient();
+	const { data, error } = await client
+		.from('lead_research_findings')
+		.select('finding_id, run_id, lead_id, category, value, source_url, retrieved_at, confidence, review_status, reviewed_by_email, reviewed_at')
+		.eq('lead_id', leadId)
+		.eq('review_status', 'approved')
+		.order('retrieved_at', { ascending: false });
+
+	if (error) throw new Error(error.message);
+	return (data ?? []) as LeadResearchFinding[];
+}
+
+export async function createLeadResearchRun(
+	leadId: string,
+	sourceUrl: string,
+	actorEmail: string
+): Promise<string> {
+	const client = getClient(actorEmail);
+	const { data, error } = await client
+		.from('lead_research_runs')
+		.insert({ lead_id: leadId, status: 'running', source_url: sourceUrl, requested_by_email: actorEmail })
+		.select('run_id')
+		.single();
+
+	if (error) throw new Error(error.code === '23505' ? 'Research is already running for this lead.' : error.message);
+	return data.run_id as string;
+}
+
+export async function completeLeadResearchRun(
+	runId: string,
+	leadId: string,
+	findings: ResearchFindingDraft[],
+	actorEmail: string
+): Promise<LeadResearchFinding[]> {
+	const client = getClient(actorEmail);
+	if (findings.length > 0) {
+		const { error: findingError } = await client.from('lead_research_findings').insert(
+			findings.map((finding) => ({
+				run_id: runId,
+				lead_id: leadId,
+				category: finding.category,
+				value: finding.value,
+				source_url: finding.sourceUrl,
+				confidence: finding.confidence
+			}))
+		);
+		if (findingError) throw new Error(findingError.message);
+	}
+
+	const { error: runError } = await client
+		.from('lead_research_runs')
+		.update({ status: 'completed', completed_at: new Date().toISOString() })
+		.eq('run_id', runId);
+	if (runError) throw new Error(runError.message);
+
+	const { data, error } = await client
+		.from('lead_research_findings')
+		.select('finding_id, run_id, lead_id, category, value, source_url, retrieved_at, confidence, review_status, reviewed_by_email, reviewed_at')
+		.eq('run_id', runId)
+		.order('category');
+	if (error) throw new Error(error.message);
+	return (data ?? []) as LeadResearchFinding[];
+}
+
+export async function failLeadResearchRun(runId: string, message: string, actorEmail: string): Promise<void> {
+	const client = getClient(actorEmail);
+	const { error } = await client
+		.from('lead_research_runs')
+		.update({ status: 'failed', completed_at: new Date().toISOString(), error_summary: message.slice(0, 1000) })
+		.eq('run_id', runId);
+	if (error) throw new Error(error.message);
+}
+
+export async function reviewLeadResearchFinding(
+	findingId: string,
+	status: ResearchReviewStatus,
+	actorEmail: string
+): Promise<void> {
+	const client = getClient(actorEmail);
+	const { error } = await client
+		.from('lead_research_findings')
+		.update({ review_status: status, reviewed_by_email: actorEmail, reviewed_at: new Date().toISOString() })
+		.eq('finding_id', findingId);
 	if (error) throw new Error(error.message);
 }
 

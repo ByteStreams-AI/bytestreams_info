@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Nav from '$lib/components/Nav.svelte';
-	import type { Lead } from '$lib/types';
+	import type { Lead, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
 	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 
@@ -47,9 +47,14 @@
 
 	let selectedLead = $state<Lead | null>(null);
 	let saving = $state(false);
+	let salesFormDirty = $state(false);
 	let saveMessage = $state<string | null>(null);
 	let generatingScript = $state(false);
 	let scriptMessage = $state<string | null>(null);
+	let researching = $state(false);
+	let researchMessage = $state<string | null>(null);
+	let reviewingFindingId = $state<string | null>(null);
+	let researchFindings = $derived<LeadResearchFinding[]>(data.researchFindings);
 
 	let showAddModal = $state(false);
 	let addSaving = $state(false);
@@ -93,14 +98,78 @@
 
 	function openPanel(lead: Lead) {
 		selectedLead = { ...lead };
+		salesFormDirty = false;
 		saveMessage = null;
 		scriptMessage = null;
+		researchMessage = null;
 	}
 
 	function closePanel() {
 		selectedLead = null;
+		salesFormDirty = false;
 		saveMessage = null;
 		scriptMessage = null;
+		researchMessage = null;
+	}
+
+	const selectedResearchFindings = $derived(
+		selectedLead
+			? researchFindings.filter((finding) => finding.lead_id === selectedLead!.lead_id)
+			: []
+	);
+
+	async function researchRestaurant() {
+		if (!selectedLead) return;
+		researching = true;
+		researchMessage = null;
+		const body = new FormData();
+		body.set('lead_id', selectedLead.lead_id);
+
+		try {
+			const response = await fetch('?/researchRestaurant', { method: 'POST', body });
+			const result = deserialize(await response.text()) as {
+				type?: string;
+				data?: { findings?: LeadResearchFinding[]; message?: string };
+			};
+			if (result.type === 'success' && result.data?.findings) {
+				researchFindings = [
+					...result.data.findings,
+					...researchFindings.filter((finding) => finding.run_id !== result.data!.findings![0]?.run_id)
+				];
+				researchMessage = `Found ${result.data.findings.length} items to review`;
+			} else {
+				researchMessage = result.data?.message ?? `Unable to research restaurant (HTTP ${response.status})`;
+			}
+		} catch (researchError) {
+			researchMessage = researchError instanceof Error
+				? `Unable to research restaurant: ${researchError.message}`
+				: 'Unable to research restaurant';
+		} finally {
+			researching = false;
+		}
+	}
+
+	async function reviewFinding(finding: LeadResearchFinding, reviewStatus: ResearchReviewStatus) {
+		reviewingFindingId = finding.finding_id;
+		researchMessage = null;
+		const body = new FormData();
+		body.set('finding_id', finding.finding_id);
+		body.set('review_status', reviewStatus);
+
+		try {
+			const response = await fetch('?/reviewResearchFinding', { method: 'POST', body });
+			const result = deserialize(await response.text()) as { type?: string; data?: { message?: string } };
+			if (result.type === 'success') {
+				finding.review_status = reviewStatus;
+				researchMessage = reviewStatus === 'approved' ? 'Finding approved' : 'Finding rejected';
+			} else {
+				researchMessage = result.data?.message ?? `Unable to review finding (HTTP ${response.status})`;
+			}
+		} catch (reviewError) {
+			researchMessage = reviewError instanceof Error ? reviewError.message : 'Unable to review finding';
+		} finally {
+			reviewingFindingId = null;
+		}
 	}
 
 	async function generateScript() {
@@ -368,12 +437,53 @@
 			</dl>
 		</section>
 
+		<section class="panel-section research-section">
+			<div class="research-heading">
+				<div>
+					<h3>Restaurant Research</h3>
+					<span class="research-autosave">Saved automatically</span>
+				</div>
+				<button
+					type="button"
+					class="btn-research"
+					disabled={researching || !selectedLead.website_url?.trim()}
+					onclick={researchRestaurant}
+				>
+					{researching ? 'Researching…' : 'Research Restaurant'}
+				</button>
+			</div>
+			{#if researchMessage}
+				<p class:script-error={researchMessage.startsWith('Unable')} class="research-message" aria-live="polite">{researchMessage}</p>
+			{/if}
+			{#if selectedResearchFindings.length > 0}
+				<ul class="research-list">
+					{#each selectedResearchFindings as finding (finding.finding_id)}
+						<li class="research-item">
+							<div class="research-copy">
+								<span class="research-category">{finding.category.replaceAll('_', ' ')}</span>
+								<a href={finding.value} target="_blank" rel="noopener noreferrer">{finding.value}</a>
+								<span class="research-source">Source: <a href={finding.source_url} target="_blank" rel="noopener noreferrer">official website</a> · {Math.round(finding.confidence * 100)}% confidence</span>
+							</div>
+							<div class="research-review">
+								<span class="review-status review-status--{finding.review_status}">{finding.review_status}</span>
+								<button type="button" title="Approve finding" aria-label="Approve finding" disabled={reviewingFindingId === finding.finding_id} onclick={() => reviewFinding(finding, 'approved')}>✓</button>
+								<button type="button" title="Reject finding" aria-label="Reject finding" disabled={reviewingFindingId === finding.finding_id} onclick={() => reviewFinding(finding, 'rejected')}>✕</button>
+							</div>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="research-empty">No saved findings.</p>
+			{/if}
+		</section>
+
 		<!-- Editable sales fields -->
 		<section class="panel-section">
 			<h3>Sales Info</h3>
 			<form
 				method="POST"
 				action="?/update"
+				oninput={() => { salesFormDirty = true; }}
 				use:enhance={() => {
 					saving = true;
 					saveMessage = null;
@@ -535,7 +645,7 @@
 				</label>
 
 				<div class="panel-actions">
-					<button type="submit" class="btn-save" disabled={saving}>
+					<button type="submit" class="btn-save" disabled={saving || !salesFormDirty}>
 						{saving ? 'Saving…' : 'Save'}
 					</button>
 					{#if saveMessage}
@@ -984,4 +1094,72 @@
 	.script-error {
 		color: var(--color-error);
 	}
+
+	.research-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+		margin-bottom: var(--space-md);
+	}
+
+	.research-heading h3 { margin-bottom: 0; }
+
+	.research-autosave {
+		display: block;
+		margin-top: 2px;
+		color: var(--text-faded);
+		font-size: 0.68rem;
+	}
+
+	.btn-research {
+		padding: 6px 10px;
+		border: 0;
+		border-radius: 4px;
+		background: var(--color-stream-blue);
+		color: #fff;
+		font: inherit;
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-research:disabled { opacity: 0.45; cursor: not-allowed; }
+
+	.research-message,
+	.research-empty {
+		margin: 0 0 var(--space-sm);
+		color: var(--text-muted);
+		font-size: 0.75rem;
+	}
+
+	.research-list {
+		display: grid;
+		gap: var(--space-sm);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.research-item {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: var(--space-sm);
+		padding: var(--space-sm);
+		border: 1px solid var(--border-edge);
+		border-radius: 4px;
+		background: var(--bg-slate);
+	}
+
+	.research-copy { display: grid; min-width: 0; gap: 3px; }
+	.research-copy > a { color: var(--text-bright); font-size: 0.75rem; overflow-wrap: anywhere; }
+	.research-category { color: var(--text-muted); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; }
+	.research-source { color: var(--text-faded); font-size: 0.68rem; }
+	.research-source a { color: var(--color-stream-blue); }
+	.research-review { display: flex; align-items: flex-start; gap: 4px; }
+	.research-review button { width: 26px; height: 26px; border: 1px solid var(--border-edge); border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer; }
+	.research-review button:hover { color: var(--text-bright); background: var(--bg-carbon); }
+	.review-status { padding: 4px 6px; border-radius: 4px; color: var(--text-muted); font-size: 0.65rem; text-transform: capitalize; }
+	.review-status--approved { color: var(--color-signal-green); }
+	.review-status--rejected { color: var(--color-error); }
 </style>

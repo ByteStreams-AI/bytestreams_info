@@ -59,6 +59,22 @@ export interface Lead {
 	created_at: string;
 }
 
+export type ResearchReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface LeadResearchFinding {
+	finding_id: string;
+	run_id: string;
+	lead_id: string;
+	category: string;
+	value: string;
+	source_url: string;
+	retrieved_at: string;
+	confidence: number;
+	review_status: ResearchReviewStatus;
+	reviewed_by_email: string | null;
+	reviewed_at: string | null;
+}
+
 export interface LeadChange {
 	change_id: string;
 	lead_id: string | null;

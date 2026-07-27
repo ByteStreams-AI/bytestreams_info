@@ -33,6 +33,8 @@ Confirm as much of the following as possible:
 
 Do not state an exact savings amount until the restaurant's current costs and transaction mix have been reviewed.
 
+******START HERE******
+
 ## First 30 Seconds
 
 ### 1. Introduce Yourself
@@ -45,7 +47,7 @@ Do not state an exact savings amount until the restaurant's current costs and tr
 
 If asked why:
 
-> I am calling from DialTone.Menu. We help restaurants like [restaurant name] bring calls, walk-ins, online orders, payments, and kitchen operations into one system. I would like to set up a 15 minute demo to show you how it works.
+> I am calling from DialTone.Menu. We help restaurants like [restaurant name] bring calls, walk-ins, online orders, payments, reservations, and kitchen operations into one system. I would like to set up a 15 minute demo to show you how it works.
 
 ### 3. Once Right Person Is On Phone Repeat Step 1
 
@@ -63,7 +65,7 @@ Choose one opener. Do not stack several pitches together.
 
 ### DoorDash or Marketplace Reliance
 
-> I noticed customers are directed to DoorDash for online orders. Are you looking for a way to grow direct orders under your own brand while still offering delivery?
+> I noticed customers are directed to DoorDash for online orders. We can help you grow direct orders under your own brand while still offering delivery?
 
 ### Limited Direct Online Presence
 
@@ -94,6 +96,8 @@ Choose one opener. Do not stack several pitches together.
 ### Multi-Location Restaurant
 
 > DialTone.Menu gives multi-location operators one branded customer experience while allowing each kitchen to control availability, pacing, and fulfillment. It can also reduce duplicated subscriptions and fragmented vendor contracts across locations.
+
+******STOP HERE******
 
 ## Discovery Questions
 

@@ -29,6 +29,6 @@ export default ts.config(
 		}
 	},
 	{
-		ignores: ['build/', '.svelte-kit/', 'dist/', 'node_modules/', 'developer/', 'coverage/']
+		ignores: ['build/', '.svelte-kit/', '.wrangler/', 'dist/', 'node_modules/', 'developer/', 'coverage/']
 	}
 );

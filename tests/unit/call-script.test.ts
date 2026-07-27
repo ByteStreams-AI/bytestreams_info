@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCallScriptPrompt } from '$lib/server/call-script';
+import { buildCallScriptPrompt, extractCallScriptContent } from '$lib/server/call-script';
 import type { Lead } from '$lib/types';
 
 function lead(overrides: Partial<Lead> = {}): Lead {
@@ -54,5 +54,59 @@ describe('buildCallScriptPrompt', () => {
 		expect(prompt).toContain('Do not invent');
 		expect(prompt).toContain('Do not promise exact savings');
 		expect(prompt).toContain('Do not claim DialTone operates a delivery network');
+	});
+
+	it('requires the canonical content markers', () => {
+		const prompt = buildCallScriptPrompt(lead());
+
+		expect(prompt).toContain('******START HERE******');
+		expect(prompt).toContain('******STOP HERE******');
+	});
+
+	it('includes approved sourced research and prohibits absence-based claims', () => {
+		const prompt = buildCallScriptPrompt(lead(), [{
+			finding_id: 'finding-1',
+			run_id: 'run-1',
+			lead_id: 'lead-1',
+			category: 'social_instagram',
+			value: 'https://instagram.com/samplekitchen',
+			source_url: 'https://sample.example/',
+			retrieved_at: '2026-07-27T00:00:00Z',
+			confidence: 0.95,
+			review_status: 'approved',
+			reviewed_by_email: 'reviewer@bytestreams.ai',
+			reviewed_at: '2026-07-27T00:01:00Z'
+		}]);
+
+		expect(prompt).toContain('"category": "social_instagram"');
+		expect(prompt).toContain('"source_url": "https://sample.example/"');
+		expect(prompt).toContain('Do not treat the absence of a finding as evidence');
+	});
+});
+
+describe('extractCallScriptContent', () => {
+	it('returns only content between the markers', () => {
+		const response = `Planning notes
+******START HERE******
+## First 30 Seconds
+Call-ready copy
+******STOP HERE******
+Internal guidance`;
+
+		expect(extractCallScriptContent(response)).toBe(
+			'## First 30 Seconds\nCall-ready copy'
+		);
+	});
+
+	it('preserves an unmarked response', () => {
+		expect(extractCallScriptContent('  ## First 30 Seconds\nCall-ready copy  ')).toBe(
+			'## First 30 Seconds\nCall-ready copy'
+		);
+	});
+
+	it('preserves the response when the stop marker is missing', () => {
+		const response = '******START HERE******\n## First 30 Seconds\nCall-ready copy';
+
+		expect(extractCallScriptContent(response)).toBe(response);
 	});
 });
