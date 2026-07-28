@@ -63,11 +63,11 @@ describe('Dashboard Page', () => {
 		).toBeInTheDocument();
 	});
 
-	it('renders all three product cards', () => {
+	it('renders product cards with Documentation linked to Files', () => {
 		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.getByText('DialTone.Menu')).toBeInTheDocument();
 		expect(screen.getByText('DialTone.Med')).toBeInTheDocument();
-		expect(screen.getByText('Documentation')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', '/files');
 	});
 
 	it('renders product status badges', () => {

@@ -36,7 +36,8 @@
 		{
 			name: 'Documentation',
 			description: 'Internal docs, API references, runbooks, and compliance policies.',
-			status: 'Internal'
+			status: 'Internal',
+			href: '/files'
 		}
 	]);
 </script>

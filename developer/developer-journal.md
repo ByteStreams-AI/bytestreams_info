@@ -1,5 +1,18 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-28 — Documentation Dashboard Link
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Restored the **Documentation** dashboard card link to `/files`, the Supabase-backed file store
+- Added component coverage that verifies the card links to the Files route
+
+### Validation
+
+- `pnpm exec vitest run tests/components/pages.test.ts`
+
 ## 2026-07-27 — CRM Call-Script Boundary Enforcement
 
 **Participants:** Scott Thornton, GitHub Copilot
