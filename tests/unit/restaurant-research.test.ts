@@ -174,7 +174,7 @@ describe('researchRestaurantWebsite', () => {
 			.rejects.toThrow('too large');
 	});
 
-	it('applies a timeout signal to outbound requests', async () => {
+	it('applies a browser-compatible request profile and timeout to outbound requests', async () => {
 		const fetcher = vi.fn().mockResolvedValue(new Response('<html></html>', {
 			status: 200,
 			headers: { 'content-type': 'text/html' }
@@ -184,7 +184,21 @@ describe('researchRestaurantWebsite', () => {
 
 		expect(fetcher).toHaveBeenCalledWith(
 			expect.any(URL),
-			expect.objectContaining({ signal: expect.any(AbortSignal) })
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					accept: 'text/html,application/xhtml+xml',
+					'accept-language': 'en-US,en;q=0.9',
+					'user-agent': expect.stringContaining('ByteStreamsRestaurantResearch')
+				}),
+				signal: expect.any(AbortSignal)
+			})
 		);
+	});
+
+	it('includes the requested URL in upstream HTTP errors', async () => {
+		const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+
+		await expect(researchRestaurantWebsite('https://sample.example/menu', fetcher))
+			.rejects.toThrow('HTTP 404 for https://sample.example/menu');
 	});
 });

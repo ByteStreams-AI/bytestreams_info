@@ -119,8 +119,20 @@
 	const pageStart = $derived((currentPage - 1) * PAGE_SIZE);
 	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, filteredLeads.length));
 	const paginatedLeads = $derived(filteredLeads.slice(pageStart, pageEnd));
+	const hasActiveFilters = $derived(Boolean(
+		search || filterStatus || filterCity || filterDelivery || filterPickup
+	));
 
 	function resetPage() {
+		currentPage = 1;
+	}
+
+	function resetFilters() {
+		search = '';
+		filterStatus = '';
+		filterCity = '';
+		filterDelivery = '';
+		filterPickup = '';
 		currentPage = 1;
 	}
 
@@ -257,6 +269,14 @@
 			oninput={resetPage}
 			aria-label="Search by business name"
 		/>
+		<button
+			type="button"
+			class="btn-reset-filters"
+			disabled={!hasActiveFilters}
+			onclick={resetFilters}
+		>
+			Reset
+		</button>
 	</div>
 
 	<div class="crm-table-wrap">
@@ -764,6 +784,9 @@
 	}
 
 	.crm-toolbar {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
 		margin-bottom: var(--space-lg);
 	}
 
@@ -781,6 +804,29 @@
 	.crm-search:focus {
 		outline: none;
 		border-color: var(--color-stream-blue);
+	}
+
+	.btn-reset-filters {
+		min-height: 36px;
+		padding: 0 var(--space-md);
+		border: 1px solid var(--border-edge);
+		border-radius: 4px;
+		background: var(--bg-slate);
+		color: var(--text-bright);
+		font: inherit;
+		font-size: 0.8125rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-reset-filters:hover:not(:disabled) {
+		border-color: var(--color-stream-blue);
+		color: var(--color-stream-blue);
+	}
+
+	.btn-reset-filters:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 
 	.crm-header h1 {

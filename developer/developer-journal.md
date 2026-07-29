@@ -1,5 +1,36 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-29 — CRM Filter Reset
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added a Reset button beside the restaurant search field
+- Clear business search, city, status, delivery, and pickup filters in one action
+- Return the restaurant table to page 1 and disable Reset when no filters are active
+- Added component coverage for applying and clearing every filter
+
+### Validation
+
+- `pnpm exec vitest run tests/components/pages.test.ts` — 26 tests passed
+
+## 2026-07-29 — Restaurant Research Request Compatibility
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Diagnosed restaurant research 404s as upstream website responses rather than missing CRM or intranet routes
+- Added a stable HTML-capable user agent and language preference to initial and redirected website requests for CDN compatibility
+- Included the fetched URL in upstream HTTP errors so failures identify the exact URL that responded
+- Added focused coverage for the outbound request profile and 404 diagnostics
+
+### Validation
+
+- Confirmed `https://www.dcitysmokehouse.com/` currently returns HTTP 200 with both generic and researcher-style requests
+- `pnpm exec vitest run tests/unit/restaurant-research.test.ts` — 18 tests passed
+
 ## 2026-07-29 — Canonical Value-Statement Enforcement
 
 **Participants:** Scott Thornton, GitHub Copilot

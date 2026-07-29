@@ -3,6 +3,11 @@ import { Parser } from 'htmlparser2';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const REQUEST_TIMEOUT_MS = 10_000;
+const REQUEST_HEADERS = {
+	accept: 'text/html,application/xhtml+xml',
+	'accept-language': 'en-US,en;q=0.9',
+	'user-agent': 'Mozilla/5.0 (compatible; ByteStreamsRestaurantResearch/1.0; +https://bytestreams.info)'
+};
 
 const SOCIAL_HOSTS: Record<string, string> = {
 	'facebook.com': 'facebook',
@@ -164,7 +169,7 @@ async function fetchPage(url: URL, fetcher: Fetch): Promise<Response> {
 
 	for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
 		const response = await fetcher(currentUrl, {
-			headers: { accept: 'text/html,application/xhtml+xml' },
+			headers: REQUEST_HEADERS,
 			redirect: 'manual',
 			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 		});
@@ -186,7 +191,10 @@ export async function researchRestaurantWebsite(
 ): Promise<RestaurantResearchResult> {
 	const requestedUrl = validateResearchUrl(websiteUrl);
 	const response = await fetchPage(requestedUrl, fetcher);
-	if (!response.ok) throw new Error(`The restaurant website returned HTTP ${response.status}.`);
+	if (!response.ok) {
+		const responseUrl = response.url || requestedUrl.toString();
+		throw new Error(`The restaurant website returned HTTP ${response.status} for ${responseUrl}.`);
+	}
 
 	const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
 	if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {

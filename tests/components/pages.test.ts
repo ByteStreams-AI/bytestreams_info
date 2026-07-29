@@ -160,6 +160,47 @@ describe('CRM Page', () => {
 		);
 	});
 
+	it('resets all restaurant table filters', async () => {
+		const secondLead = {
+			...lead,
+			lead_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+			business_name: 'Austin Smokehouse',
+			city: 'Austin',
+			status: 'researched',
+			offers_delivery: true,
+			offers_pickup: true
+		};
+		render(CrmPage, {
+			props: { data: { user, leads: [lead, secondLead], researchFindings: [] } }
+		});
+
+		const resetButton = screen.getByRole('button', { name: 'Reset' });
+		expect(resetButton).toBeDisabled();
+
+		await fireEvent.input(screen.getByLabelText('Search by business name'), {
+			target: { value: 'Austin' }
+		});
+		await fireEvent.change(screen.getByLabelText('Filter by city'), { target: { value: 'austin' } });
+		await fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'researched' } });
+		await fireEvent.change(screen.getByLabelText('Filter by delivery'), { target: { value: 'yes' } });
+		await fireEvent.change(screen.getByLabelText('Filter by pickup'), { target: { value: 'yes' } });
+
+		expect(screen.getByText('Austin Smokehouse')).toBeInTheDocument();
+		expect(screen.queryByText('Dialable Cafe')).not.toBeInTheDocument();
+		expect(resetButton).toBeEnabled();
+
+		await fireEvent.click(resetButton);
+
+		expect(screen.getByLabelText('Search by business name')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by city')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by status')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by delivery')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by pickup')).toHaveValue('');
+		expect(screen.getByText('Dialable Cafe')).toBeInTheDocument();
+		expect(screen.getByText('Austin Smokehouse')).toBeInTheDocument();
+		expect(resetButton).toBeDisabled();
+	});
+
 	it('edits contact phone between contact name and email', async () => {
 		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
