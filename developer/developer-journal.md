@@ -1,5 +1,21 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-29 — Streamlined Call Opening Contract
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Updated canonical value-statement restoration to recognize `### 1. Deliver the Value Statement`
+- Synchronized the bundled call template with the streamlined first-30-seconds structure
+- Updated the Workers AI regression fixture to use the new canonical heading
+- Resolve a missing CRM contact name to `Hi, this is [Your Name] with DialTone.Menu` before AI generation
+- Prevent unresolved `[contact_name]` placeholders from appearing in generated scripts
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 17 tests passed
+
 ## 2026-07-29 — CRM Filter Reset
 
 **Participants:** Scott Thornton, GitHub Copilot

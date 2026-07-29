@@ -53,7 +53,7 @@ describe('buildCallScriptPrompt', () => {
 
 		expect(prompt).toContain('Use only the CRM facts');
 		expect(prompt).toContain('all text outside square-bracketed placeholders verbatim');
-		expect(prompt).toContain('caller and contact placeholders have already been resolved');
+		expect(prompt).toContain('caller and greeting placeholders have already been resolved');
 		expect(prompt).toContain('Do not invent');
 		expect(prompt).toContain('Do not promise exact savings');
 		expect(prompt).toContain('Do not claim DialTone operates a delivery network');
@@ -137,10 +137,11 @@ describe('buildCallScriptPrompt', () => {
 		expect(prompt).not.toContain('[Your Name]');
 	});
 
-	it('preserves the contact placeholder when the business contact is unknown', () => {
+	it('uses a generic greeting when the business contact is unknown', () => {
 		const prompt = buildCallScriptPrompt(lead(), 'Alex');
 
-		expect(prompt).toContain('> Hi [contact_name], this is Alex with DialTone.Menu');
+		expect(prompt).toContain('> Hi, this is Alex with DialTone.Menu');
+		expect(prompt).not.toContain('[contact_name]');
 	});
 
 	it('rejects a missing caller name', () => {
@@ -191,7 +192,7 @@ describe('generateCallScript', () => {
 ******START HERE******
 ## First 30 Seconds
 
-### 4. Deliver the Value Statement
+### 1. Deliver the Value Statement
 
 > I noticed you use Toast for your POS and online ordering. Lets have a conference call sometime next week so that we can walk you through how DialTone.Menu can help you connect your in-store orders, direct online orders, kitchen flow, and customer loyalty.
 

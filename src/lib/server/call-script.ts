@@ -5,7 +5,7 @@ const START_MARKER = '******START HERE******';
 const STOP_MARKER = '******STOP HERE******';
 const RANKED_VALUE_HEADING = '## Ranked Value Statement Selection';
 const VALUE_STATEMENT_PLACEHOLDER = '[Selected ranked value statement]';
-const VALUE_STATEMENT_HEADING = '### 4. Deliver the Value Statement';
+const VALUE_STATEMENT_HEADING = '### 1. Deliver the Value Statement';
 const VALUE_STATEMENT_STOP = 'Stop and let the prospect respond.';
 
 interface RankedValueStatement {
@@ -82,6 +82,7 @@ function boundedCallTemplate(
 		.replaceAll('[Your Name]', () => normalizedCallerName);
 	const contactName = lead.contact_name?.trim();
 	if (contactName) template = template.replaceAll('[contact_name]', () => contactName);
+	else template = template.replaceAll('Hi [contact_name],', 'Hi,');
 
 	const researchEvidence = approvedFindings
 		.map((finding) => `${finding.category} ${finding.value}`)
@@ -120,7 +121,7 @@ Create a concise, call-ready script by personalizing only the bounded DialTone.M
 Requirements:
 - Preserve the bounded template's section order and heading structure.
 - Treat the bounded template as authoritative copy: reproduce all headings and all text outside square-bracketed placeholders verbatim without paraphrasing, correcting, or substituting words.
-- Personalize only text inside square-bracketed placeholders. The caller and contact placeholders have already been resolved from configuration and CRM data when available.
+- Personalize only text inside square-bracketed placeholders. The caller and greeting placeholders have already been resolved from configuration and CRM data.
 - Include only sections represented in the bounded template. Do not reproduce instructions, research notes, findings lists, or content from outside the boundaries.
 - Replace optional placeholders only when supplied facts support the replacement; otherwise preserve them. The required value statement has already been resolved from approved evidence or known business segment and must remain unchanged.
 - Resolve the value statement from the case-insensitive note triggers and numbered priorities in the pre-call guidance. When several triggers match, the lowest priority number wins.

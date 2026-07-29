@@ -93,27 +93,16 @@ Select exactly one value statement using the restaurant's `note` field:
 
 ## First 30 Seconds
 
-### 1. Introduce Yourself
+### 1. Deliver the Value Statement
 
 > Hi [contact_name], this is [Your Name] with DialTone.Menu. How are you? (Use downward inflection.)
-
-### 2. If This Is Not the Right Person
-
-> Thanks. Who handles your POS, online ordering, and restaurant technology decisions?
-
-If asked why:
-
-> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage orders and payments from every order source, including voice, and send them directly into one kitchen operations system. I would like to set up a 15-minute demo to show you how it works.
-
-### 3. Once the Right Person Is on the Phone, Repeat Step 1
-
-> Hi [contact_name], this is [Your Name] with DialTone.Menu. How are you? (Use downward inflection.)
-
-### 4. Deliver the Value Statement
-
 > [Selected ranked value statement] Let's have a conference call sometime next week so that we can walk you through how it works.
 
 Stop and let the prospect respond.
+
+If asked who:
+
+> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage orders and payments from every order source, including voice, and send them directly into one kitchen operations system. I would like to set up a 15-minute demo to show you how it works.
 
 ## Observation-Based Openers
 
