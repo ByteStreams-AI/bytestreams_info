@@ -4,13 +4,23 @@ import callTemplate from '$lib/server/prompts/DialTone_Cold_Call_Template.md?raw
 const START_MARKER = '******START HERE******';
 const STOP_MARKER = '******STOP HERE******';
 
-function boundedCallTemplate(): string {
+function boundedCallTemplate(lead: Lead, callerName: string): string {
 	const start = callTemplate.indexOf(START_MARKER);
 	const stop = callTemplate.indexOf(STOP_MARKER, start + START_MARKER.length);
 	if (start === -1 || stop === -1) {
 		throw new Error('Canonical call template is missing its generation boundaries');
 	}
-	return callTemplate.slice(start + START_MARKER.length, stop).trim();
+
+	const normalizedCallerName = callerName?.trim();
+	if (!normalizedCallerName) throw new Error('CALLER_NAME is not configured');
+
+	let template = callTemplate
+		.slice(start + START_MARKER.length, stop)
+		.trim()
+		.replaceAll('[Your Name]', () => normalizedCallerName);
+	const contactName = lead.contact_name?.trim();
+	if (contactName) template = template.replaceAll('[contact_name]', () => contactName);
+	return template;
 }
 
 const GENERATION_RULES = `
@@ -18,6 +28,8 @@ Create a concise, call-ready script by personalizing only the bounded DialTone.M
 
 Requirements:
 - Preserve the bounded template's section order and heading structure.
+- Treat the bounded template as authoritative copy: reproduce all headings and all text outside square-bracketed placeholders verbatim without paraphrasing, correcting, or substituting words.
+- Personalize only text inside square-bracketed placeholders. The caller and contact placeholders have already been resolved from configuration and CRM data when available.
 - Include only sections represented in the bounded template. Do not reproduce instructions, research notes, findings lists, or content from outside the boundaries.
 - Replace placeholders only when the supplied facts support the replacement; otherwise preserve the placeholder.
 - Use approved findings to personalize the value statement and choose a relevant observation-based opener without listing the findings separately.
@@ -26,7 +38,6 @@ Requirements:
 - Do not invent a decision-maker, current provider, pain point, savings amount, fee, contract, or operational problem.
 - Do not claim DialTone operates a delivery network.
 - Do not promise exact savings. Position the meeting as a personalized comparison.
-- Use placeholders such as [Your Name], [Day/Time A], and [Day/Time B] where needed.
 - Keep the spoken first-30-seconds portion under 90 words.
 - Start the response with ${START_MARKER} and end it with ${STOP_MARKER}. Include each marker exactly once.
 - Return plain text with clear section headings. Do not include analysis or explain your choices.
@@ -50,7 +61,11 @@ export function extractCallScriptContent(response: string): string {
 	return script;
 }
 
-export function buildCallScriptPrompt(lead: Lead, approvedFindings: LeadResearchFinding[] = []): string {
+export function buildCallScriptPrompt(
+	lead: Lead,
+	callerName: string,
+	approvedFindings: LeadResearchFinding[] = []
+): string {
 	const facts = Object.fromEntries(
 		Object.entries({
 			business_name: lead.business_name,
@@ -85,16 +100,17 @@ export function buildCallScriptPrompt(lead: Lead, approvedFindings: LeadResearch
 		retrieved_at: finding.retrieved_at
 	}));
 
-	return `${GENERATION_RULES}\n\nBounded canonical call template:\n${START_MARKER}\n${boundedCallTemplate()}\n${STOP_MARKER}\n\nCRM facts:\n${JSON.stringify(facts, null, 2)}\n\nApproved sourced research:\n${JSON.stringify(research, null, 2)}`;
+	return `${GENERATION_RULES}\n\nBounded canonical call template:\n${START_MARKER}\n${boundedCallTemplate(lead, callerName)}\n${STOP_MARKER}\n\nCRM facts:\n${JSON.stringify(facts, null, 2)}\n\nApproved sourced research:\n${JSON.stringify(research, null, 2)}`;
 }
 
 export async function generateCallScript(
 	ai: Ai,
 	lead: Lead,
+	callerName: string,
 	approvedFindings: LeadResearchFinding[] = []
 ): Promise<string> {
 	const result = await ai.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
-		prompt: buildCallScriptPrompt(lead, approvedFindings),
+		prompt: buildCallScriptPrompt(lead, callerName, approvedFindings),
 		max_tokens: 2400,
 		temperature: 0.2,
 		repetition_penalty: 1.05

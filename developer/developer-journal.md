@@ -1,5 +1,28 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-29 — Call-Script Template Fidelity
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+The bundled call-script template predated edits to the canonical `dialtone_sm` source, and the Workers AI prompt allowed fixed template wording to be paraphrased during personalization.
+
+### Changes
+
+- Synchronized the bundled template byte for byte with the current canonical DialTone cold-call template
+- Required generated scripts to preserve all headings and fixed text outside square-bracketed placeholders verbatim
+- Replaced the hardcoded caller name with `[Your Name]`, populated from the required `CALLER_NAME` Cloudflare environment variable
+- Declared `CALLER_NAME` as a non-secret Wrangler variable and verify its production binding during template updates
+- Standardized the prospect placeholder as `[contact_name]` and populate it from the lead's `contact_name` database field when available
+- Preserve `[contact_name]` when the business contact is unknown, rather than inventing a contact
+- Added focused regression assertions for caller configuration, CRM contact personalization, and the stricter generation contract
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts tests/unit/crm-research.test.ts` — 19 tests passed
+- `/usr/local/bin/update-call-script` — all 11 checks passed, including byte equality, lint, typecheck, 120 tests, production build, Wrangler dry run, and `env.AI`/`env.CALLER_NAME` binding validation
+
 ## 2026-07-28 — Documentation Dashboard Link
 
 **Participants:** Scott Thornton, GitHub Copilot

@@ -136,9 +136,17 @@ export const actions: Actions = {
 			if (!platform?.env.AI) {
 				return fail(503, { message: 'AI generation is not available in this environment.' });
 			}
+			if (!platform.env.CALLER_NAME?.trim()) {
+				return fail(503, { message: 'Call-script caller name is not configured in this environment.' });
+			}
 
 			const approvedFindings = await fetchApprovedLeadResearchFindings(leadId);
-			const callScript = await generateCallScript(platform.env.AI, lead, approvedFindings);
+			const callScript = await generateCallScript(
+				platform.env.AI,
+				lead,
+				platform.env.CALLER_NAME,
+				approvedFindings
+			);
 			await updateLeadSalesFields(leadId, locals.user.email, { call_script: callScript });
 			return { success: true, call_script: callScript };
 		} catch (generationError) {

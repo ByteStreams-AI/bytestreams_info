@@ -12,6 +12,9 @@ CF_ACCESS_AUD=                # Application Audience (AUD) tag from CF Access
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=   # service_role secret from Supabase project settings
 
+# --- Call Script ---
+CALLER_NAME=Steve
+
 # --- Development Mock Auth ---
 # Used by vite dev to bypass CF Access JWT validation
 DEV_MOCK_EMAIL=dev@bytestreams.ai

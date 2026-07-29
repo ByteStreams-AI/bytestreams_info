@@ -155,15 +155,31 @@ describe('CRM restaurant research actions', () => {
 		await actions.generateScript({
 			request: request({ lead_id: 'lead-1' }),
 			locals: { user },
-			platform: { env: { AI: ai } }
+			platform: { env: { AI: ai, CALLER_NAME: 'Alex' } }
 		} as never);
 
 		expect(mocks.fetchApprovedLeadResearchFindings).toHaveBeenCalledWith('lead-1');
 		expect(mocks.generateCallScript).toHaveBeenCalledWith(
 			ai,
 			lead,
+			'Alex',
 			[expect.objectContaining({ review_status: 'approved' })]
 		);
+	});
+
+	it('rejects script generation when the caller name is not configured', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.generateScript({
+			request: request({ lead_id: 'lead-1' }),
+			locals: { user },
+			platform: { env: { AI: { run: vi.fn() } } }
+		} as never);
+
+		expect(result).toMatchObject({
+			status: 503,
+			data: { message: 'Call-script caller name is not configured in this environment.' }
+		});
+		expect(mocks.generateCallScript).not.toHaveBeenCalled();
 	});
 
 	it('normalizes contact phone when updating a lead', async () => {

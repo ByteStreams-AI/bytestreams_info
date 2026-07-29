@@ -51,6 +51,7 @@ The prompt builder combines:
 3. Known CRM facts for the selected lead.
 
 Unknown CRM values are omitted. They are not treated as false.
+The caller's name comes from the `CALLER_NAME` environment variable. The prospect's name comes from the lead's `contact_name` database field when available; otherwise the call script retains the `[contact_name]` placeholder.
 
 ### Database Migration
 
@@ -111,6 +112,18 @@ The deployment job requires these repository Actions secrets:
 - `CLOUDFLARE_ACCOUNT_ID`
 
 Do not store these values in source control or application environment files.
+
+### 4. Configure the Call-Script Caller Name
+
+Set the non-secret `CALLER_NAME` environment variable to the representative's spoken name.
+
+For local development, add it to `.dev.vars`:
+
+```text
+CALLER_NAME=Steve
+```
+
+For production, set `CALLER_NAME` under `vars` in `wrangler.jsonc` and redeploy. Script generation returns a configuration error when it is missing or blank.
 
 ## Updating the Canonical Call Template
 

@@ -39,7 +39,7 @@ function lead(overrides: Partial<Lead> = {}): Lead {
 
 describe('buildCallScriptPrompt', () => {
 	it('includes known CRM facts and omits unknown values', () => {
-		const prompt = buildCallScriptPrompt(lead());
+		const prompt = buildCallScriptPrompt(lead(), 'Alex');
 
 		expect(prompt).toContain('"business_name": "Sample Kitchen"');
 		expect(prompt).toContain('"uses_pos": "Toast"');
@@ -49,23 +49,25 @@ describe('buildCallScriptPrompt', () => {
 	});
 
 	it('prohibits invented facts and unsupported savings claims', () => {
-		const prompt = buildCallScriptPrompt(lead());
+		const prompt = buildCallScriptPrompt(lead(), 'Alex');
 
 		expect(prompt).toContain('Use only the CRM facts');
+		expect(prompt).toContain('all text outside square-bracketed placeholders verbatim');
+		expect(prompt).toContain('caller and contact placeholders have already been resolved');
 		expect(prompt).toContain('Do not invent');
 		expect(prompt).toContain('Do not promise exact savings');
 		expect(prompt).toContain('Do not claim DialTone operates a delivery network');
 	});
 
 	it('requires the canonical content markers', () => {
-		const prompt = buildCallScriptPrompt(lead());
+		const prompt = buildCallScriptPrompt(lead(), 'Alex');
 
 		expect(prompt).toContain('******START HERE******');
 		expect(prompt).toContain('******STOP HERE******');
 	});
 
 	it('includes only the bounded canonical template', () => {
-		const prompt = buildCallScriptPrompt(lead());
+		const prompt = buildCallScriptPrompt(lead(), 'Alex');
 
 		expect(prompt).toContain('## First 30 Seconds');
 		expect(prompt).toContain('## Observation-Based Openers');
@@ -75,7 +77,7 @@ describe('buildCallScriptPrompt', () => {
 	});
 
 	it('includes approved sourced research and prohibits absence-based claims', () => {
-		const prompt = buildCallScriptPrompt(lead(), [{
+		const prompt = buildCallScriptPrompt(lead(), 'Alex', [{
 			finding_id: 'finding-1',
 			run_id: 'run-1',
 			lead_id: 'lead-1',
@@ -92,6 +94,24 @@ describe('buildCallScriptPrompt', () => {
 		expect(prompt).toContain('"category": "social_instagram"');
 		expect(prompt).toContain('"source_url": "https://sample.example/"');
 		expect(prompt).toContain('Do not treat the absence of a finding as evidence');
+	});
+
+	it('uses the configured caller and the business contact name when available', () => {
+		const prompt = buildCallScriptPrompt(lead({ contact_name: 'Diana' }), 'Alex');
+
+		expect(prompt).toContain('> Hi Diana, this is Alex with DialTone.Menu');
+		expect(prompt).not.toContain('[contact_name]');
+		expect(prompt).not.toContain('[Your Name]');
+	});
+
+	it('preserves the contact placeholder when the business contact is unknown', () => {
+		const prompt = buildCallScriptPrompt(lead(), 'Alex');
+
+		expect(prompt).toContain('> Hi [contact_name], this is Alex with DialTone.Menu');
+	});
+
+	it('rejects a missing caller name', () => {
+		expect(() => buildCallScriptPrompt(lead(), '  ')).toThrow('CALLER_NAME is not configured');
 	});
 });
 
@@ -134,7 +154,7 @@ Do not save this footer`
 			})
 		};
 
-		const script = await generateCallScript(ai as unknown as Ai, lead());
+		const script = await generateCallScript(ai as unknown as Ai, lead(), 'Alex');
 
 		expect(script).toBe('## First 30 Seconds\nCall-ready copy');
 		expect(ai.run).toHaveBeenCalledWith(

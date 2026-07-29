@@ -13,6 +13,7 @@ declare global {
 		interface Platform {
 			env: {
 				AI: Ai;
+				CALLER_NAME: string;
 				CF_ACCESS_AUD: string;
 				CF_ACCESS_TEAM_DOMAIN: string;
 				SUPABASE_URL: string;

@@ -99,6 +99,10 @@ grep -Eq 'env\.AI[[:space:]]+AI' "$DRY_RUN_OUTPUT" || fail "Wrangler dry run did
 pass "Wrangler dry run completed"
 pass "env.AI binding is present"
 
+CURRENT_STEP="verifying the env.CALLER_NAME binding"
+grep -Eq 'env\.CALLER_NAME.*Environment Variable' "$DRY_RUN_OUTPUT" || fail "Wrangler dry run did not list the env.CALLER_NAME binding"
+pass "env.CALLER_NAME binding is present"
+
 print_heading "Verification summary"
 for check in "${PASSED_CHECKS[@]}"; do
 	printf 'PASS: %s\n' "$check"

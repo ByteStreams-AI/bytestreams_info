@@ -6,6 +6,9 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"vars": {
+		"CALLER_NAME": "Steve"
+	},
 	"assets": {
 		"directory": ".svelte-kit/cloudflare"
 	},
