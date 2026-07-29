@@ -13,6 +13,7 @@ import {
 } from '$lib/server/supabase';
 import { generateCallScript } from '$lib/server/call-script';
 import { researchRestaurantWebsite } from '$lib/server/restaurant-research';
+import { normalizePhoneUri } from '$lib/phone';
 import type { PageServerLoad, Actions } from './$types';
 
 /** Editable status values — all valid lead statuses. */
@@ -85,6 +86,17 @@ export const actions: Actions = {
 			const val = form.get(field);
 			if (val !== null) {
 				payload[field] = typeof val === 'string' && val.trim() === '' ? null : (val as string);
+			}
+		}
+
+		const contactPhone = form.get('contact_phone');
+		if (typeof contactPhone === 'string') {
+			try {
+				payload.contact_phone = contactPhone.trim() ? normalizePhoneUri(contactPhone) : null;
+			} catch (phoneError) {
+				return fail(400, {
+					message: phoneError instanceof Error ? phoneError.message : 'Contact phone number is invalid.'
+				});
 			}
 		}
 
@@ -217,7 +229,29 @@ export const actions: Actions = {
 
 		const row: Record<string, string | null> = { business_name, city, state };
 
-		for (const field of ['phone', 'address', 'contact_name', 'email', 'website_url', 'notes', 'business_type'] as const) {
+		const phone = (form.get('phone') as string | null)?.trim();
+		if (phone) {
+			try {
+				row.phone = normalizePhoneUri(phone);
+			} catch (phoneError) {
+				return fail(400, {
+					message: phoneError instanceof Error ? phoneError.message : 'Phone number is invalid.'
+				});
+			}
+		}
+
+		const contactPhone = (form.get('contact_phone') as string | null)?.trim();
+		if (contactPhone) {
+			try {
+				row.contact_phone = normalizePhoneUri(contactPhone);
+			} catch (phoneError) {
+				return fail(400, {
+					message: phoneError instanceof Error ? phoneError.message : 'Contact phone number is invalid.'
+				});
+			}
+		}
+
+		for (const field of ['address', 'contact_name', 'email', 'website_url', 'notes', 'business_type'] as const) {
 			const val = (form.get(field) as string | null)?.trim() || null;
 			if (val) row[field] = val;
 		}

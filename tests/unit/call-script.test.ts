@@ -7,6 +7,7 @@ function lead(overrides: Partial<Lead> = {}): Lead {
 		lead_id: 'lead-1',
 		business_name: 'Sample Kitchen',
 		phone: null,
+		contact_phone: null,
 		address: null,
 		city: 'Austin',
 		state: 'TX',

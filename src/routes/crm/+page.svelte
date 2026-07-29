@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Nav from '$lib/components/Nav.svelte';
+	import { phoneHref } from '$lib/phone';
 	import type { Lead, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
 	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -306,6 +307,7 @@
 						</div>
 					</th>
 					<th>Contact</th>
+					<th>Contact Phone</th>
 					<th></th>
 				</tr>
 			</thead>
@@ -314,7 +316,13 @@
 					<tr class="crm-row" class:crm-row--selected={selectedLead?.lead_id === lead.lead_id}>
 						<td class="crm-name">{lead.business_name}</td>
 						<td>{lead.city ?? '—'}</td>
-						<td>{lead.phone ?? '—'}</td>
+						<td>
+							{#if lead.phone && phoneHref(lead.phone)}
+								<a class="phone-link" href={phoneHref(lead.phone)}>{lead.phone}</a>
+							{:else}
+								{lead.phone ?? '—'}
+							{/if}
+						</td>
 						<td>
 							<span class="badge {STATUS_CLASS[lead.status] ?? ''}">
 								{STATUS_LABELS[lead.status] ?? lead.status}
@@ -324,11 +332,18 @@
 						<td>{flag(lead.offers_pickup)}</td>
 						<td>{lead.contact_name ?? '—'}</td>
 						<td>
+							{#if lead.contact_phone && phoneHref(lead.contact_phone)}
+								<a class="phone-link" href={phoneHref(lead.contact_phone)}>{lead.contact_phone}</a>
+							{:else}
+								{lead.contact_phone ?? '—'}
+							{/if}
+						</td>
+						<td>
 							<button class="btn-edit" onclick={() => openPanel(lead)}>Edit</button>
 						</td>
 					</tr>
 				{:else}
-					<tr><td colspan="8" class="crm-empty">No leads match the current filters.</td></tr>
+					<tr><td colspan="9" class="crm-empty">No leads match the current filters.</td></tr>
 				{/each}
 			</tbody>
 		</table>
@@ -413,6 +428,11 @@
 			</label>
 
 			<label class="field-row">
+				<span>Contact Phone</span>
+				<input type="tel" name="contact_phone" />
+			</label>
+
+			<label class="field-row">
 				<span>Email</span>
 				<input type="email" name="email" />
 			</label>
@@ -471,7 +491,14 @@
 		<section class="panel-section">
 			<h3>Lead Info <span class="readonly-tag">read-only</span></h3>
 			<dl class="field-list">
-				<dt>Phone</dt><dd>{selectedLead.phone ?? '—'}</dd>
+				<dt>Phone</dt>
+				<dd>
+					{#if selectedLead.phone && phoneHref(selectedLead.phone)}
+						<a class="phone-link" href={phoneHref(selectedLead.phone)}>{selectedLead.phone}</a>
+					{:else}
+						{selectedLead.phone ?? '—'}
+					{/if}
+				</dd>
 				<dt>Address</dt><dd>{selectedLead.address ?? '—'}</dd>
 				<dt>City</dt><dd>{selectedLead.city ?? '—'}</dd>
 				<dt>Price</dt><dd>{selectedLead.price_range ?? '—'}</dd>
@@ -564,6 +591,20 @@
 					<span>Contact name</span>
 					<input type="text" name="contact_name" bind:value={selectedLead.contact_name} />
 				</label>
+
+				<div class="field-row contact-phone-field">
+					<label class="field-row" style="margin-bottom:0">
+						<span>Contact phone</span>
+						<input type="tel" name="contact_phone" bind:value={selectedLead.contact_phone} />
+					</label>
+					{#if selectedLead.contact_phone && phoneHref(selectedLead.contact_phone)}
+						<a
+							href={phoneHref(selectedLead.contact_phone)}
+							class="phone-action"
+							aria-label="Call contact"
+						>Call</a>
+					{/if}
+				</div>
 
 				<label class="field-row">
 					<span>Email</span>
@@ -1076,6 +1117,39 @@
 
 	.website-link:hover {
 		text-decoration: underline;
+	}
+
+	.phone-action {
+		display: inline-flex;
+		align-items: center;
+		width: fit-content;
+		min-height: 32px;
+		padding: 0 var(--space-md);
+		border: 1px solid var(--color-stream-blue);
+		border-radius: 4px;
+		color: var(--color-stream-blue);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		text-decoration: none;
+	}
+
+	.phone-action:hover {
+		background: color-mix(in srgb, var(--color-stream-blue) 10%, transparent);
+	}
+
+	.contact-phone-field {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: end;
+		gap: var(--space-sm);
+	}
+
+	.contact-phone-field > label {
+		min-width: 0;
+	}
+
+	.contact-phone-field .phone-action {
+		min-height: 37px;
 	}
 
 	.btn-add-lead {

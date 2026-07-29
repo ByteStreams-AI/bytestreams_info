@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import LoginPage from '$lib/../routes/login/+page.svelte';
 import DashboardPage from '$lib/../routes/+page.svelte';
+import CrmPage from '$lib/../routes/crm/+page.svelte';
 import CrmAdminPage from '$lib/../routes/crm-admin/+page.svelte';
 
 describe('Login Page', () => {
@@ -103,6 +104,101 @@ describe('Dashboard Page', () => {
 
 		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.queryByText('CRM Admin')).not.toBeInTheDocument();
+	});
+});
+
+describe('CRM Page', () => {
+	const user = {
+		email: 'sales@bytestreams.ai',
+		sub: 'cf-sales',
+		displayName: 'Sales',
+		iat: 1700000000,
+		exp: 1700086400
+	};
+	const lead = {
+		lead_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+		business_name: 'Dialable Cafe',
+		phone: 'tel:+17135550101',
+		contact_phone: 'tel:+17135550102',
+		address: null,
+		city: 'Houston',
+		status: 'new',
+		business_type: null,
+		offers_delivery: null,
+		offers_pickup: null,
+		uses_doordash_mktg: null,
+		uses_chownow: null,
+		price_range: null,
+		yelp_rating: null,
+		yelp_review_count: null,
+		state: 'TX',
+		contact_name: null,
+		email: null,
+		website_url: null,
+		notes: null,
+		call_script: null,
+		num_locations: null,
+		michelin_rating: null,
+		has_website: null,
+		has_app: null,
+		uses_pos: null,
+		uses_kds: null,
+		uses_sms: null,
+		created_at: '2026-07-28T00:00:00.000Z'
+	};
+
+	it('renders a dialable phone link in the leads table', () => {
+		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
+
+		expect(screen.getByRole('link', { name: 'tel:+17135550101' })).toHaveAttribute(
+			'href',
+			'tel:+17135550101'
+		);
+		expect(screen.getByRole('link', { name: 'tel:+17135550102' })).toHaveAttribute(
+			'href',
+			'tel:+17135550102'
+		);
+	});
+
+	it('edits contact phone between contact name and email', async () => {
+		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+		const contactName = screen.getByLabelText('Contact name');
+		const contactPhone = screen.getByLabelText('Contact phone');
+		const email = screen.getByLabelText('Email');
+		expect(contactPhone).toHaveAttribute('type', 'tel');
+		expect(contactPhone).toHaveValue('tel:+17135550102');
+		expect(screen.getByRole('link', { name: 'Call contact' })).toHaveAttribute(
+			'href',
+			'tel:+17135550102'
+		);
+		expect(contactName.compareDocumentPosition(contactPhone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(contactPhone.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it('makes a legacy formatted phone dialable before migration', () => {
+		render(CrmPage, {
+			props: {
+				data: { user, leads: [{ ...lead, phone: '(713) 555-0101' }], researchFindings: [] }
+			}
+		});
+
+		expect(screen.getByRole('link', { name: '(713) 555-0101' })).toHaveAttribute(
+			'href',
+			'tel:+17135550101'
+		);
+	});
+
+	it('renders malformed legacy phone text without crashing', () => {
+		render(CrmPage, {
+			props: {
+				data: { user, leads: [{ ...lead, phone: 'unknown' }], researchFindings: [] }
+			}
+		});
+
+		expect(screen.getByText('unknown')).toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: 'unknown' })).not.toBeInTheDocument();
 	});
 });
 

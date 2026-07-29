@@ -31,6 +31,7 @@ export interface Lead {
 	lead_id: string;
 	business_name: string;
 	phone: string | null;
+	contact_phone: string | null;
 	address: string | null;
 	city: string | null;
 	status: string;

@@ -10,7 +10,7 @@ import type { ResearchFindingDraft } from '$lib/server/restaurant-research';
 
 type InsertRow = Record<string, string | number | boolean | null>;
 
-const LEAD_FIELDS = `lead_id, business_name, phone, address, city, state, status, business_type, michelin_rating,
+const LEAD_FIELDS = `lead_id, business_name, phone, contact_phone, address, city, state, status, business_type, michelin_rating,
 	offers_delivery, offers_pickup, uses_doordash_mktg, uses_chownow,
 	price_range, yelp_rating, yelp_review_count,
 	contact_name, email, website_url, notes, call_script, num_locations, has_website, has_app,
@@ -18,7 +18,7 @@ const LEAD_FIELDS = `lead_id, business_name, phone, address, city, state, status
 const LEAD_PAGE_SIZE = 1000;
 
 const RESTORABLE_LEAD_FIELDS = new Set([
-	'lead_id', 'business_name', 'contact_name', 'phone', 'email', 'address', 'city', 'state',
+	'lead_id', 'business_name', 'contact_name', 'contact_phone', 'phone', 'email', 'address', 'city', 'state',
 	'source_url', 'scrape_source', 'status', 'business_type', 'michelin_rating', 'num_locations',
 	'has_website', 'has_app', 'offers_delivery', 'offers_pickup', 'delivery_platforms',
 	'uses_doordash_mktg', 'uses_chownow', 'uses_pos', 'uses_kds', 'uses_sms', 'notes',
@@ -77,6 +77,7 @@ export async function updateLeadSalesFields(
 	fields: {
 		status?: string;
 		contact_name?: string | null;
+		contact_phone?: string | null;
 		email?: string | null;
 		website_url?: string | null;
 		notes?: string | null;

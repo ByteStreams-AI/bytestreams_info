@@ -165,4 +165,43 @@ describe('CRM restaurant research actions', () => {
 			[expect.objectContaining({ review_status: 'approved' })]
 		);
 	});
+
+	it('normalizes contact phone when updating a lead', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.update({
+			request: request({ lead_id: 'lead-1', contact_phone: '(713) 555-0102' }),
+			locals: { user }
+		} as never);
+
+		expect(mocks.updateLeadSalesFields).toHaveBeenCalledWith(
+			'lead-1',
+			'sales@bytestreams.ai',
+			{ contact_phone: 'tel:+17135550102' }
+		);
+		expect(result).toEqual({ success: true });
+	});
+
+	it('normalizes contact phone when creating a lead', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.create({
+			request: request({
+				business_name: 'New Cafe',
+				city: 'Houston',
+				state: 'TX',
+				contact_phone: '(713) 555-0102'
+			}),
+			locals: { user }
+		} as never);
+
+		expect(mocks.insertLead).toHaveBeenCalledWith(
+			{
+				business_name: 'New Cafe',
+				city: 'Houston',
+				state: 'TX',
+				contact_phone: 'tel:+17135550102'
+			},
+			'sales@bytestreams.ai'
+		);
+		expect(result).toEqual({ success: true });
+	});
 });
