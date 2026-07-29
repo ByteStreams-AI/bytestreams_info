@@ -1,6 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildCallScriptPrompt, extractCallScriptContent, generateCallScript } from '$lib/server/call-script';
+import callTemplate from '$lib/server/prompts/DialTone_Cold_Call_Template.md?raw';
 import type { Lead } from '$lib/types';
+
+function boundedTemplate(prompt: string): string {
+	return prompt.slice(
+		prompt.indexOf('Bounded canonical call template:'),
+		prompt.indexOf('CRM facts:')
+	);
+}
+
+function canonicalStatement(priority: number, businessName = 'Sample Kitchen'): string {
+	const statement = callTemplate.match(
+		new RegExp(`^### Priority ${priority}:[^\\n]*\\n\\s*\\n>\\s*(.+)$`, 'm')
+	)?.[1];
+	if (!statement) throw new Error(`Missing canonical priority ${priority} statement`);
+	return statement.replaceAll('[restaurant name]', businessName);
+}
+
+function canonicalSectionStatement(heading: string): string {
+	const statement = callTemplate.match(
+		new RegExp(`^### ${heading}\\s*$\\n\\s*>\\s*(.+)$`, 'm')
+	)?.[1];
+	if (!statement) throw new Error(`Missing canonical ${heading} statement`);
+	return statement;
+}
 
 function lead(overrides: Partial<Lead> = {}): Lead {
 	return {
@@ -79,34 +103,35 @@ describe('buildCallScriptPrompt', () => {
 
 	it('matches note triggers case-insensitively', () => {
 		const prompt = buildCallScriptPrompt(lead({ notes: 'Advertising through uberEats' }), 'Alex');
+		const generatedTemplate = boundedTemplate(prompt);
 
-		expect(prompt).toContain('> I noticed customers are directed to Uber Eats for online orders.');
-		expect(prompt).not.toContain('[Selected ranked value statement]');
+		expect(generatedTemplate).toContain(`> ${canonicalStatement(2)}`);
+		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
 	});
 
 	it('uses the lowest priority number when several note triggers match', () => {
 		const prompt = buildCallScriptPrompt(lead({ notes: 'Uses Square and DOORDASH' }), 'Alex');
-		const boundedTemplate = prompt.slice(
-			prompt.indexOf('Bounded canonical call template:'),
-			prompt.indexOf('CRM facts:')
-		);
+		const generatedTemplate = boundedTemplate(prompt);
 
-		expect(boundedTemplate).toContain('> I noticed customers are directed to DoorDash Marketplace for online orders.');
-		expect(boundedTemplate).not.toContain('> I saw that you use Square.');
+		expect(generatedTemplate).toContain(`> ${canonicalStatement(1)}`);
+		expect(generatedTemplate).not.toContain(`> ${canonicalStatement(6)}`);
 	});
 
 	it('selects the Square value statement from a mixed-case note', () => {
 		const prompt = buildCallScriptPrompt(lead({ notes: 'Current POS: sqUAre' }), 'Alex');
+		const generatedTemplate = boundedTemplate(prompt);
 
-		expect(prompt).toContain('> I saw that you use Square.');
-		expect(prompt).not.toContain('[Selected ranked value statement]');
+		expect(generatedTemplate).toContain(`> ${canonicalStatement(6)}`);
+		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
+		expect(generatedTemplate).not.toContain('[restaurant name]');
 	});
 
 	it('uses the known business segment when no approved priority finding is available', () => {
 		const prompt = buildCallScriptPrompt(lead({ business_type: 'single_location' }), 'Alex');
+		const generatedTemplate = boundedTemplate(prompt);
 
-		expect(prompt).toContain('> DialTone.Menu helps independent restaurants connect dine-in and online ordering');
-		expect(prompt).not.toContain('[Selected ranked value statement]');
+		expect(generatedTemplate).toContain(`> ${canonicalSectionStatement('Single-Location Restaurant')}`);
+		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
 	});
 
 	it('includes approved sourced research and prohibits absence-based claims', () => {
@@ -210,8 +235,9 @@ Do not save this footer`
 			'Alex'
 		);
 
-		expect(script).toContain('> I saw that you use Toast. DialTone.Menu can provide comparable restaurant functionality at a better value. In addition, our voice system answers every call and takes orders and reservations.');
+		expect(script).toContain(`> ${canonicalStatement(5)}`);
 		expect(script).not.toContain('I noticed you use Toast for your POS and online ordering');
+		expect(script).not.toContain('[restaurant name]');
 		expect(ai.run).toHaveBeenCalledWith(
 			'@cf/meta/llama-3.3-70b-instruct-fp8-fast',
 			expect.objectContaining({ max_tokens: 2400 })

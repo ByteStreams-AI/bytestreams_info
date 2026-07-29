@@ -1,5 +1,21 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-29 — Restaurant-Name Value Statements
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Synchronized restaurant-specific ranked value statements from the canonical template
+- Resolve `[restaurant name]` from the CRM business name before Workers AI generation and canonical restoration
+- Updated exact-statement regressions for revised Square and Toast copy
+- Derive expected ranked and segment statements from the synchronized canonical template so prose-only edits do not require test rewrites
+- Continue validating priority selection, template boundaries, placeholder resolution, and exact post-AI restoration
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 17 tests passed
+
 ## 2026-07-29 — Streamlined Call Opening Contract
 
 **Participants:** Scott Thornton, GitHub Copilot

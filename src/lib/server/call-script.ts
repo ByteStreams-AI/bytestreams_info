@@ -93,7 +93,9 @@ function boundedCallTemplate(
 	if (!valueStatement) {
 		throw new Error('No supported value statement could be selected from approved research or CRM business type');
 	}
-	template = template.replace(VALUE_STATEMENT_PLACEHOLDER, () => valueStatement);
+	template = template
+		.replace(VALUE_STATEMENT_PLACEHOLDER, () => valueStatement)
+		.replaceAll('[restaurant name]', () => lead.business_name);
 	return template;
 }
 
