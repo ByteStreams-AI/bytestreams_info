@@ -1,5 +1,80 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-07-29 — Canonical Value-Statement Enforcement
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Restore the complete canonical `Deliver the Value Statement` block after Workers AI responds
+- Prevent the model from paraphrasing an already selected ranked statement before the generated script is saved
+- Added regression coverage using a Toast note and the observed incorrect paraphrase
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 17 tests passed
+- `pnpm test` — 129 tests passed
+- `pnpm check` — 0 errors and 0 warnings
+
+## 2026-07-29 — Ranked Note-Driven Value Statements
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Replaced the earlier five-item pre-call mapping with the canonical template's ranked value-statement table
+- Parse triggers and statement copy directly from the synchronized Markdown template so it remains the source of truth
+- Match the CRM `notes` field case-insensitively and select the lowest priority number when several triggers appear
+- Fall back to approved research and then the known restaurant segment when the note has no matching trigger
+- Updated the resolved-placeholder contract and added coverage for `uberEats`, mixed-case `Square`, and DoorDash-over-Square precedence
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 17 tests passed
+- `pnpm test` — 129 tests passed
+- `pnpm check` — 0 errors and 0 warnings
+- `pnpm update:call-script` — all 11 verification gates passed, including template equality, production build, Wrangler dry run, and required bindings
+
+## 2026-07-29 — Persistent CRM Detail Pane
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Keep the CRM lead detail pane open after a successful sales-info save
+- Reset the dirty state and display `Saved` without triggering an unnecessary page-level action update
+- Added an explicit orange **Close** button beside **Save** while retaining the header close control and backdrop behavior
+- Prompt with `Discard unsaved changes?` when any close control is used with dirty sales fields; Cancel keeps editing and OK discards
+- Added component coverage for explicit close, successful-save persistence, and both discard-confirmation outcomes
+
+### Validation
+
+- `pnpm exec vitest run tests/components/pages.test.ts` — 25 tests passed
+- `pnpm check` — 0 errors and 0 warnings
+- `pnpm test` — 125 tests passed
+
+## 2026-07-29 — Pre-Call Priority Mapping
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Include the canonical `Before the Call` section in the Workers AI prompt as guidance without including it in generated output
+- Rank supported observations using the template's numbered priorities and map each observation to the DialTone.Menu solution with the same number
+- Explicitly map verified `No phone automation` findings to the voice-agent value statement
+- Resolve the value statement before Workers AI runs so the model cannot preserve the template placeholder
+- Fall back to the canonical food-truck, single-location, or multi-location statement when no approved priority finding is available and the CRM segment is known
+- Reject any AI response that still contains the unresolved value-statement placeholder instead of saving it to CRM
+- Continue requiring CRM facts or approved research support; absence of a finding is not evidence that a restaurant lacks phone automation
+- Added regression coverage for extracting the mapping and applying the `1 → 1` phone-automation solution
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 15 tests passed
+- `/usr/local/bin/update-call-script` — all 11 checks passed, including byte equality, lint, typecheck, 121 tests, production build, Wrangler dry run, and both required bindings
+- `pnpm check` — 0 errors and 0 warnings
+- `pnpm test` — 127 tests passed
+
 ## 2026-07-29 — Call-Script Template Fidelity
 
 **Participants:** Scott Thornton, GitHub Copilot

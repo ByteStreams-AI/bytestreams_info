@@ -71,9 +71,42 @@ describe('buildCallScriptPrompt', () => {
 
 		expect(prompt).toContain('## First 30 Seconds');
 		expect(prompt).toContain('## Observation-Based Openers');
-		expect(prompt).not.toContain('## Objective');
+		expect(prompt).toContain('Ranked value-statement guidance (do not include in the response)');
+		expect(prompt).toContain('## Ranked Value Statement Selection');
 		expect(prompt).not.toContain('## Research and Business Metadata Requirements');
 		expect(prompt).not.toContain('## Discovery Questions');
+	});
+
+	it('matches note triggers case-insensitively', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Advertising through uberEats' }), 'Alex');
+
+		expect(prompt).toContain('> I noticed customers are directed to Uber Eats for online orders.');
+		expect(prompt).not.toContain('[Selected ranked value statement]');
+	});
+
+	it('uses the lowest priority number when several note triggers match', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Uses Square and DOORDASH' }), 'Alex');
+		const boundedTemplate = prompt.slice(
+			prompt.indexOf('Bounded canonical call template:'),
+			prompt.indexOf('CRM facts:')
+		);
+
+		expect(boundedTemplate).toContain('> I noticed customers are directed to DoorDash Marketplace for online orders.');
+		expect(boundedTemplate).not.toContain('> I saw that you use Square.');
+	});
+
+	it('selects the Square value statement from a mixed-case note', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Current POS: sqUAre' }), 'Alex');
+
+		expect(prompt).toContain('> I saw that you use Square.');
+		expect(prompt).not.toContain('[Selected ranked value statement]');
+	});
+
+	it('uses the known business segment when no approved priority finding is available', () => {
+		const prompt = buildCallScriptPrompt(lead({ business_type: 'single_location' }), 'Alex');
+
+		expect(prompt).toContain('> DialTone.Menu helps independent restaurants connect dine-in and online ordering');
+		expect(prompt).not.toContain('[Selected ranked value statement]');
 	});
 
 	it('includes approved sourced research and prohibits absence-based claims', () => {
@@ -139,24 +172,45 @@ Internal guidance`;
 
 		expect(() => extractCallScriptContent(response)).toThrow('incomplete call script');
 	});
+
+	it('rejects an unresolved value statement', () => {
+		const response = `******START HERE******
+## First 30 Seconds
+> [Selected ranked value statement]
+******STOP HERE******`;
+
+		expect(() => extractCallScriptContent(response)).toThrow('unresolved value statement');
+	});
 });
 
 describe('generateCallScript', () => {
-	it('requests enough output tokens and returns only bounded content', async () => {
+	it('requests enough output tokens and restores the canonical value statement', async () => {
 		const ai = {
 			run: vi.fn().mockResolvedValue({
 				response: `Do not save this preamble
 ******START HERE******
 ## First 30 Seconds
-Call-ready copy
+
+### 4. Deliver the Value Statement
+
+> I noticed you use Toast for your POS and online ordering. Lets have a conference call sometime next week so that we can walk you through how DialTone.Menu can help you connect your in-store orders, direct online orders, kitchen flow, and customer loyalty.
+
+Stop and let the prospect respond.
+
+## Observation-Based Openers
 ******STOP HERE******
 Do not save this footer`
 			})
 		};
 
-		const script = await generateCallScript(ai as unknown as Ai, lead(), 'Alex');
+		const script = await generateCallScript(
+			ai as unknown as Ai,
+			lead({ notes: 'Vietnamese kitchen\n\nToast\nResi' }),
+			'Alex'
+		);
 
-		expect(script).toBe('## First 30 Seconds\nCall-ready copy');
+		expect(script).toContain('> I saw that you use Toast. DialTone.Menu can provide comparable restaurant functionality at a better value. In addition, our voice system answers every call and takes orders and reservations.');
+		expect(script).not.toContain('I noticed you use Toast for your POS and online ordering');
 		expect(ai.run).toHaveBeenCalledWith(
 			'@cf/meta/llama-3.3-70b-instruct-fp8-fast',
 			expect.objectContaining({ max_tokens: 2400 })

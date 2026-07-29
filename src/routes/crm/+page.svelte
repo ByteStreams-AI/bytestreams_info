@@ -133,6 +133,7 @@
 	}
 
 	function closePanel() {
+		if (salesFormDirty && !window.confirm('Discard unsaved changes?')) return;
 		selectedLead = null;
 		salesFormDirty = false;
 		saveMessage = null;
@@ -568,10 +569,11 @@
 							if (idx !== -1) {
 								data.leads[idx] = { ...data.leads[idx], ...selectedLead! };
 							}
-							selectedLead = null;
-						} else {
-							saveMessage = 'Error saving';
+							salesFormDirty = false;
+							saveMessage = 'Saved';
+							return;
 						}
+						saveMessage = 'Error saving';
 						await update({ reset: false });
 					};
 				}}
@@ -735,6 +737,7 @@
 					<button type="submit" class="btn-save" disabled={saving || !salesFormDirty}>
 						{saving ? 'Saving…' : 'Save'}
 					</button>
+					<button type="button" class="btn-panel-close" onclick={closePanel}>Close</button>
 					{#if saveMessage}
 						<span class="save-message" class:save-message--error={saveMessage === 'Error saving'}>
 							{saveMessage}
@@ -1099,6 +1102,19 @@
 
 	.btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
 	.btn-save:not(:disabled):hover { background: var(--color-deep-stream); }
+
+	.btn-panel-close {
+		padding: var(--space-sm) var(--space-lg);
+		background: #e56b1f;
+		color: #fff;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.btn-panel-close:hover { background: #bd4f12; }
 
 	.save-message {
 		font-size: 0.8125rem;

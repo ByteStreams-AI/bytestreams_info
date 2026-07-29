@@ -21,36 +21,7 @@ Confirm as much of the following as possible:
 - Whether the restaurant has direct ordering on its own website
 - Whether it has a branded mobile app
 - Whether staff must re-enter online orders
-- One specific detail that makes the call relevant ranked in this order (most important first# DialTone.Menu Cold Call Template
-
-## Objective
-
-The goal of the call is not to explain the entire platform. It is to:
-
-1. Reach the person responsible for restaurant technology, operations, or ownership.
-2. Propose a solution for friction points found during the research.
-3. Schedule a 15-minute savings review or product demonstration.
-
-Keep the call simple, repeatable, and specific to what you observed about the restaurant.
-
-## Before the Call
-
-Confirm as much of the following as possible:
-
-- Restaurant type: food truck, single location, or multi-location
-- Current POS or payment provider
-- Current online-ordering provider
-- Use of DoorDash, Uber Eats, or another marketplace
-- Whether the restaurant has direct ordering on its own website
-- Whether it has a branded mobile app
-- Whether staff must re-enter online orders
-- One specific detail that makes the call relevant ranked in this order (most important first) 1. No phone automation 2. Menu lives in 10 places. 3. Orders scattered (different process for different channels - phone, kiosk, walk-ins, reservations) 4. Thin margins 5. Where's my Truck? - Customers have no idea where the food truck is
-  - Dialtone.Menu solutions for each
-    1. A voice agent answers every call, 24 - 7. Takes orders that go straight to the kitchen, reservations, messages, provides meta info such as parking and location
-    2. A dynamic menu edited in the admin module is updated in the app, website, voice agent within seconds. This includes pricing, specials, and modifiers
-    3. Orders from the voice agent, kiosk, app, dine-in, all land in the KDS with the same format and source noted.
-    4. Restaurants only pay 1.5% per order transaction. No hardware fees, no web order fees, no app fees.
-    5. Food Trucks can send location alerts to loyalty customers within 1 - 10 miles (range set by the operator in the admin screen)
+- The complete contents of the restaurant's `note` field
 
 ## Research and Business Metadata Requirements
 
@@ -62,7 +33,7 @@ Before generating the call script, review all available "Research Restaurant" fi
 - Current POS, payment, ordering, reservation, loyalty, and delivery providers
 - Phone-ordering experience and evidence of phone automation
 - Menu consistency, availability, pricing, specials, and modifiers
-- Ordering channels and whether orders appear to use separate workflows
+- Order sources and whether orders appear to use separate workflows
 - Marketplace reliance and direct-ordering availability
 - Ratings, reviews, business hours, location details, parking, and service area
 - Food-truck location communication, where applicable
@@ -70,20 +41,53 @@ Before generating the call script, review all available "Research Restaurant" fi
 
 Use only verified findings. Do not invent or infer facts that are not supported by the supplied data.
 
-Rank the five most relevant findings according to the priorities in this template. For each finding:
+## Ranked Value Statement Selection
 
-## Value Statement
+Select exactly one value statement using the restaurant's `note` field:
 
-1. State the verified restaurant observation.
-2. Identify the corresponding DialTone.Menu capability.
-3. Explain why the capability is relevant to this restaurant.
-4. Use the highest-priority finding to create the opening value statement.
-5. Use the remaining findings to select discovery questions, objection responses, voicemail wording, and follow-up email content.
-Place the ranked restaurant findings and corresponding DialTone.Menu solutions at the top of the generated call script under a section labeled "FINDINGS."
+1. Treat the entire `note` value as case-insensitive. For example, `DoorDash`, `DOORDASH`, and `doordash` are equivalent.
+2. Evaluate the numbered value statements below in ascending priority order.
+3. Use the first statement whose trigger appears anywhere in the `note` field. If several triggers appear, the statement with the lowest priority number wins.
+4. Use the selected statement verbatim. Do not combine multiple value statements.
+5. If no trigger matches, use the highest-ranked statement supported by other verified research. If no statement is supported, label the value statement `Unknown` and ask a discovery question instead.
 
-If a required field is missing or uncertain, label it `Unknown` and use a discovery question instead of presenting it as fact.
+| Priority | Case-insensitive `note` trigger |
+| :---: | --- |
+| 1 | `DoorDash` or `Door Dash` |
+| 2 | `Uber Eats` or `UberEats` |
+| 3 | `static website`, `no online ordering`, or `no direct ordering` |
+| 4 | `orders scattered`, `disconnected ordering`, `separate tablets`, or `separate workflows` |
+| 5 | `Toast` |
+| 6 | `Square` |
+| 7 | `Resy` |
 
-Do not state an exact savings amount until the restaurant's current costs and transaction mix have been reviewed.
+### Priority 1: DoorDash Marketplace Reliance
+
+> I noticed customers are directed to DoorDash Marketplace for online orders. We can help you grow direct orders under your own brand while keeping your DoorDash delivery at a lower rate. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 2: Uber Eats Marketplace Reliance
+
+> I noticed customers are directed to Uber Eats for online orders. We can help you grow direct orders under your own brand while keeping your Uber Eats delivery at a lower rate. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 3: Limited Direct Online Presence
+
+> I noticed your website does not appear to offer a complete direct-ordering experience. We can implement a dynamic online presence with ordering and a loyalty program. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 4: Disconnected Ordering Systems
+
+> I noticed you offer several ways to order. DialTone.Menu can bring all of your order sources into one unified kitchen workflow. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 5: Existing Toast POS Provider
+
+> I saw that you use Toast. DialTone.Menu can provide comparable restaurant functionality at a better value. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 6: Existing Square POS Provider
+
+> I saw that you use Square. DialTone.Menu can provide broader restaurant functionality at a better value. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 7: Existing Resy Reservation Provider
+
+> I saw that you use Resy. DialTone.Menu adds ordering, payments, kitchen operations, loyalty, and voice ordering to the reservation capabilities you use today.
 
 ******START HERE******
 
@@ -91,49 +95,29 @@ Do not state an exact savings amount until the restaurant's current costs and tr
 
 ### 1. Introduce Yourself
 
-> Hi [contact_name], this is [Your Name] with DialTone.Menu, how are you ? (with downward inflection)
+> Hi [contact_name], this is [Your Name] with DialTone.Menu. How are you? (Use downward inflection.)
 
-### 2. If Not the Right Person
+### 2. If This Is Not the Right Person
 
-> Thanks, who handles your POS, online ordering, and restaurant technology decisions?
+> Thanks. Who handles your POS, online ordering, and restaurant technology decisions?
 
 If asked why:
 
-> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage your orders - payments and all channels including voice straight into your kitchen operations within one system. I would like to set up a 15 minute demo to show you how it works.
+> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage orders and payments from every order source, including voice, and send them directly into one kitchen operations system. I would like to set up a 15-minute demo to show you how it works.
 
-### 3. Once Right Person Is On Phone Repeat Step 1
+### 3. Once the Right Person Is on the Phone, Repeat Step 1
 
-> Hi [contact_name], this is [Your Name] with DialTone.Menu, how are you ? (with downward inflection)
+> Hi [contact_name], this is [Your Name] with DialTone.Menu. How are you? (Use downward inflection.)
 
 ### 4. Deliver the Value Statement
 
-> I noticed [Value Statement from "Before Call: Section ]. Lets have a conference call sometime next week so that we can walk you through how it works.
+> [Selected ranked value statement] Let's have a conference call sometime next week so that we can walk you through how it works.
 
 Stop and let the prospect respond.
 
 ## Observation-Based Openers
 
-Choose one opener based on the highest-priority verified finding. Do not stack several pitches together.
-
-### DoorDash, Uber Eats, or Marketplace Reliance
-
-> I noticed customers are directed to DoorDash or Uber Eats for online orders. We can help you grow direct orders under your own brand while still offering delivery at a lower rate.
-
-### Limited Direct Online Presence
-
-> I noticed your website does not appear to offer a complete direct-ordering experience. Is improving direct online ordering something you are considering this year?
-
-### Disconnected Ordering Systems
-
-> I noticed you offer several ways to order. Do those orders all reach the same kitchen flow, or does your staff manage separate tablets and tickets?
-
-### Existing POS Provider
-
-> I saw that you use [Toast/Square/Other]. How well does it connect your in-store orders, direct online orders, kitchen flow, and customer loyalty today?
-
-### Branded Customer Experience
-
-> When customers order online, do they stay in your branded experience, and does your restaurant retain the customer relationship and first-party data?
+After the ranked value statement, choose one opener based on the verified restaurant type. These openers are not part of the value-statement ranking. Do not use more than one.
 
 ### Food Truck
 
@@ -151,7 +135,7 @@ Choose one opener based on the highest-priority verified finding. Do not stack s
 
 ## Discovery Questions
 
-Ask one or two questions, The goal is to book a demo, not have a long conversation. It should be less than 5 minutes.
+Ask one or two questions. The goal is to book a demo, not have a long conversation. Keep the call under five minutes.
 
 1. What are you currently using for POS and payment processing?
 2. How do online orders reach the kitchen today?
@@ -178,15 +162,15 @@ Use these as questions and positioning prompts, not as attacks on a competitor.
 
 ### ChowNow
 
-> ChowNow is strong in direct ordering and branded channels. DialTone.Menu is worth comparing if you also want native staff POS, payments, kitchen operations, and voice ordering in the same platform.
+> ChowNow is strong in direct ordering and branded order sources. DialTone.Menu is worth comparing if you also want native staff POS, payments, kitchen operations, and voice ordering in the same platform.
 
 ### DoorDash or Uber Eats
 
-> DoorDash and Uber Eats are strong in marketplace demand and delivery. DialTone.Menu helps a restaurant build a direct branded ordering channel and retain first-party customer relationships while still supporting delivery through either provider. DialTone.Menu chooses based first on availability and then on cost, and the operator can always use a preferred provider.
+> DoorDash and Uber Eats are strong in marketplace demand and delivery. DialTone.Menu helps a restaurant build a direct, branded order source and retain first-party customer relationships while still supporting delivery through either provider. DialTone.Menu chooses based first on availability and then on cost, and the operator can always use a preferred provider.
 
 ### Resy or OpenTable
 
-> Resy and OpenTable specialize in reservations and guest management. While DialTone.Menu has a competitive addresses the broader order-to-kitchen workflow, including POS, direct ordering, payments, loyalty, and voice ordering.
+> Resy and OpenTable specialize in reservations and guest management. DialTone.Menu addresses the broader order-to-kitchen workflow, including POS, direct ordering, payments, loyalty, and voice ordering.
 
 ## Close for the Meeting
 
@@ -196,7 +180,7 @@ Use these as questions and positioning prompts, not as attacks on a competitor.
 
 ### Product-Focused Close
 
-> It sounds like the kitchen workflow is the bigger issue. Let us show you how orders move from your branded ordering channels into the Kitchen Command System. Is [Day/Time A] or [Day/Time B] better?
+> It sounds like the kitchen workflow is the bigger issue. Let us show you how orders move from your branded order sources into the Kitchen Command System. Is [Day/Time A] or [Day/Time B] better?
 
 ### Multi-Location Close
 
@@ -216,11 +200,11 @@ Always offer two specific times. Confirm the email address and send the invitati
 
 ### "Send me information."
 
-> Absolutely. To send the right information, I will send you information based on your current model (Food Truck, Single Location, Multi-Location) and a cost matrix so you can understand our value?
+> Absolutely. To send the most relevant information, which operating model best describes your business: food truck, single location, or multi-location?
 
 After the answer:
 
-> I will send the relevant overview. Let us also reserve 15 minutes so you can see how it applies to your restaurant. Is [Day/Time A] or [Day/Time B] better?
+> I will send the relevant overview and a cost matrix. Let us also reserve 15 minutes so that you can see how it applies to your restaurant. Is [Day/Time A] or [Day/Time B] better?
 
 ### "We do not want to replace our POS."
 
@@ -260,275 +244,9 @@ Based on [relevant discovery point], a 15-minute review could show whether conso
 
 Would [Day/Time A] or [Day/Time B] work better?
 
-[Your Name]<br>
-DialTone.Menu<br>
-[Phone] | [Email]<br>
-[dialtone.menu](https://dialtone.menu)
-
-## CRM Disposition
-
-Record the following immediately after the call:
-
-- Decision-maker name, title, phone, and email
-- Current POS, ordering, delivery, and loyalty providers
-- Primary pain point or priority
-- Number of locations
-- Marketplace usage
-- Contract or renewal timing
-- Objection or reason for no interest
-- Agreed next step and meeting time
-- Status: Researched, Prospect, Contacted, Follow-up Required, Demo Scheduled, Customer, Closed Won, or Closed Lost
-
-## Call Standards
-
-- Lead with one verified observation.
-- Ask short questions and let the prospect speak.
-- Do not disparage competitors.
-- Do not promise exact savings without reviewing current costs.
-- Do not claim DialTone operates its own delivery network; delivery is available through partners such as DoorDash Drive and Uber Eats. By default, DialTone.Menu chooses a provider based first on availability and then on cost; the operator can always use a preferred provider.
-- Treat the flat 1.5% processing rate and no-hardware-lease offer as subject to qualification and final agreement.
-- End every viable call with a specific next step.
-
----
-
-*Internal sales template. Verify current features, pricing, qualification requirements, and competitor capabilities before making representations to a prospect.*
-) 1. No phone automation 2. Menu lives in 10 places. 3. Orders scattered (different process for different channels - phone, kiosk, walk-ins, reservations) 4. Thin margins 5. Where's my Truck? - Customers have no idea where the food truck is
-  - Dialtone.Menu solutions for each
-    1. A voice agent answers every call, 24 - 7. Takes orders that go straight to the kitchen, reservations, messages, provides meta info such as parking and location
-    2. A dynamic menu edited in the admin module is updated in the app, website, voice agent within seconds. This includes pricing, specials, and modifiers
-    3. Orders from the voice agent, kiosk, app, dine-in, all land in the KDS with the same format and source noted.
-    4. Restaurants only pay 1.5% per order transaction. No hardware fees, no web order fees, no app fees.
-    5. Food Trucks can send location alerts to loyalty customers within 1 - 10 miles (range set by the operator in the admin screen)
-
-## Research and Business Metadata Requirements
-
-Before generating the call script, review all available "Research Restaurant" findings and business metadata, including:
-
-- Restaurant name, type, cuisine, and number of locations
-- Owner, decision-maker, and contact information
-- Website, ordering links, social profiles, and mobile app
-- Current POS, payment, ordering, reservation, loyalty, and delivery providers
-- Phone-ordering experience and evidence of phone automation
-- Menu consistency, availability, pricing, specials, and modifiers
-- Ordering channels and whether orders appear to use separate workflows
-- Marketplace reliance and direct-ordering availability
-- Ratings, reviews, business hours, location details, parking, and service area
-- Food-truck location communication, where applicable
-- Any other verified operational detail relevant to DialTone.Menu
-
-Use only verified findings. Do not invent or infer facts that are not supported by the supplied data.
-
-Rank the five most relevant findings according to the priorities in this template. For each finding:
-
-1. State the verified restaurant observation.
-2. Identify the corresponding DialTone.Menu capability.
-3. Explain why the capability is relevant to this restaurant.
-4. Use the highest-priority finding to create the opening value statement.
-5. Use the remaining findings to select discovery questions, objection responses, voicemail wording, and follow-up email content.
-i S
-Place the ranked restaurant findings and corresponding DialTone.Menu solutions at the top of the generated call script under a section labeled "FINDINGS."
-
-If a required field is missing or uncertain, label it `Unknown` and use a discovery question instead of presenting it as fact.
-
-Do not state an exact savings amount until the restaurant's current costs and transaction mix have been reviewed.
-
-******START HERE******
-
-## First 30 Seconds
-
-### 1. Introduce Yourself
-
-> Hi, this is Steve with DialTone.Menu, how are you ? (with downward inflection)
-
-### 2. If Not the Right Person
-
-> Thanks, who handles your POS, online ordering, and restaurant technology decisions?
-
-If asked why:
-
-> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage your orders - payments and all channels including voice straight into your kitchen operations within one system. I would like to set up a 15 minute demo to show you how it works.
-
-### 3. Once Right Person Is On Phone Repeat Step 1
-
-> Hi, this is Steve with DialTone.Menu, how are you ? (with downward inflection)
-
-### 4. Deliver the Value Statement
-
-> I noticed [Value Statement from "Before Call: Section ]. Lets have a conference call sometime next week so that we can walk you through how it works.
-
-Stop and let the prospect respond.
-
-## Observation-Based Openers
-
-Choose one opener based on the highest-priority verified finding. Do not stack several pitches together.
-
-### DoorDash, Uber Eats, or Marketplace Reliance
-
-> I noticed customers are directed to DoorDash or Uber Eats for online orders. We can help you grow direct orders under your own brand while still offering delivery at a lower rate.
-
-### Limited Direct Online Presence
-
-> I noticed your website does not appear to offer a complete direct-ordering experience. Is improving direct online ordering something you are considering this year?
-
-### Disconnected Ordering Systems
-
-> I noticed you offer several ways to order. Do those orders all reach the same kitchen flow, or does your staff manage separate tablets and tickets?
-
-### Existing POS Provider
-
-> I saw that you use [Toast/Square/Other]. How well does it connect your in-store orders, direct online orders, kitchen flow, and customer loyalty today?
-
-### Branded Customer Experience
-
-> When customers order online, do they stay in your branded experience, and does your restaurant retain the customer relationship and first-party data?
-
-## Segment-Specific Value Statements
-
-### Food Truck
-
-> DialTone.Menu gives food trucks one flow for walk-up and online orders, instant sold-out controls, pickup pacing, branded ordering, loyalty, and optional delivery through DoorDash Drive or Uber Eats. It is designed to reduce extra tablets and hardware burden during a rush.
-
-### Single-Location Restaurant
-
-> DialTone.Menu helps independent restaurants connect dine-in and online ordering, payments, kitchen tickets, loyalty, and delivery access. The goal is to replace a patchwork of subscriptions, hardware leases, and manual order entry with one operating platform.
-
-### Multi-Location Restaurant
-
-> DialTone.Menu gives multi-location operators one branded customer experience while allowing each kitchen to control availability, pacing, and fulfillment. It can also reduce duplicated subscriptions and fragmented vendor contracts across locations.
-
-******STOP HERE******
-
-## Discovery Questions
-
-Ask one or two questions, The goal is to book a demo, not have a long conversation. It should be less than 5 minutes.
-
-1. What are you currently using for POS and payment processing?
-2. How do online orders reach the kitchen today?
-3. Does anyone re-enter orders from a tablet into the POS or kitchen system?
-4. What do you use for direct online ordering?
-5. Roughly how much of your order volume comes through marketplaces?
-6. Do you have a branded website or app where customers can order directly?
-7. Who owns the customer information from your online orders?
-8. Are loyalty, gift cards, and ordering managed in one system or separately?
-9. Are hardware leases, subscriptions, or per-transaction charges a concern?
-10. For multiple locations, are the same systems and contracts used everywhere?
-
-## Recommended Pivot by Current Provider
-
-Use these as questions and positioning prompts, not as attacks on a competitor.
-
-### Toast
-
-> Toast is a broad restaurant POS. The useful comparison is whether your current package gives you the direct branded ordering, voice ordering, kitchen flow, loyalty, and cost structure you want without additional tools or hardware commitments.
-
-### Square
-
-> Square provides broad POS and restaurant capabilities. DialTone.Menu is worth comparing if you want a restaurant-specific platform that also includes a branded customer app and voice ordering.
-
-### ChowNow
-
-> ChowNow is strong in direct ordering and branded channels. DialTone.Menu is worth comparing if you also want native staff POS, payments, kitchen operations, and voice ordering in the same platform.
-
-### DoorDash or Uber Eats
-
-> DoorDash and Uber Eats are strong in marketplace demand and delivery. DialTone.Menu helps a restaurant build a direct branded ordering channel and retain first-party customer relationships while still supporting delivery through either provider. DialTone.Menu chooses based first on availability and then on cost, and the operator can always use a preferred provider.
-
-### Resy or OpenTable
-
-> Resy and OpenTable specialize in reservations and guest management. While DialTone.Menu has a competitive addresses the broader order-to-kitchen workflow, including POS, direct ordering, payments, loyalty, and voice ordering.
-
-## Close for the Meeting
-
-### Standard Close
-
-> Based on what you shared, the next useful step is a 15-minute savings review. We can compare your current processing, software, hardware, and delivery costs and show you the workflow. Would [Day/Time A] or [Day/Time B] work better?
-
-### Product-Focused Close
-
-> It sounds like the kitchen workflow is the bigger issue. Let us show you how orders move from your branded ordering channels into the Kitchen Command System. Is [Day/Time A] or [Day/Time B] better?
-
-### Multi-Location Close
-
-> A short review would let us map the duplicated systems and costs across your locations. Who else should join that conversation, and is [Day/Time A] or [Day/Time B] better?
-
-Always offer two specific times. Confirm the email address and send the invitation before ending the call.
-
-## Objection Responses
-
-### "We are happy with our current system."
-
-> That makes sense. I am not asking you to change anything on this call. The review simply shows whether consolidating any of your ordering, payments, kitchen, or loyalty tools would improve the operation or cost. If there is no meaningful advantage, you will know quickly.
-
-### "We are under contract."
-
-> Understood. When does the agreement renew? A comparison before renewal can give you useful numbers and enough time to evaluate your options.
-
-### "Send me information."
-
-> Absolutely. To send the right information, I will send you information based on your current model (Food Truck, Single Location, Multi-Location) and a cost matrix so you can understand our value?
-
-After the answer:
-
-> I will send the relevant overview. Let us also reserve 15 minutes so you can see how it applies to your restaurant. Is [Day/Time A] or [Day/Time B] better?
-
-### "We do not want to replace our POS."
-
-> Understood. What is the main reason you want to keep it? That will tell us whether there is a useful comparison or whether we should leave things where they are.
-
-### "We already use DoorDash or Uber Eats."
-
-> You can continue offering delivery through DoorDash or Uber Eats. The question is whether you also want more customers ordering directly through your brand, with your customer relationship and ordering experience under your control while reducing marketplace transaction costs.
-
-### "How much does it cost?"
-
-> Pricing depends on the services and the operation. DialTone.Menu offers flat 1.5% processing with no hardware lease, subject to merchant qualification and the final agreement. The savings review compares that with what you pay today so the answer is specific to your restaurant.
-
-### "I am too busy."
-
-> I understand. That is why we keep the first review to 15 minutes. Is there a quieter time before service on [Day], or would [Alternative Day] be better?
-
-### "Not interested."
-
-> Understood. Before I let you go, is that because the timing is wrong, or because your current ordering and POS setup already does everything you need?
-
-Do not argue with a firm no. Record the reason and end professionally.
-
-## Voicemail
-
-> Hi [Name], this is [Your Name] with DialTone.Menu at [Phone Number]. I noticed [specific observation] at [Restaurant Name]. We help restaurants connect direct ordering, payments, kitchen flow, loyalty, delivery access, and voice ordering in one platform. I would like to offer a 15-minute comparison of your current setup. Again, this is [Your Name] at [Phone Number]. I will also send a short email.
-
-## Follow-Up Email
-
-**Subject:** A direct-ordering and cost comparison for [Restaurant Name]
-
-Hi [Name],
-
-I called because I noticed [specific observation]. DialTone.Menu brings staff POS, direct online ordering, payments, kitchen flow, loyalty, delivery access, and voice ordering into one restaurant platform.
-
-Based on [relevant discovery point], a 15-minute review could show whether consolidating any of your current systems would simplify operations or reduce costs.
-
-Would [Day/Time A] or [Day/Time B] work better?
-
-[Your Name]<br>
-DialTone.Menu<br>
-[Phone] | [Email]<br>
-[dialtone.menu](https://dialtone.menu)
-
-## Introduction Email (Cold Outreach)
-
-**Subject:** A simpler order-to-kitchen flow for [Restaurant Name]
-
-Hi [Name],
-
-I am [Your Name] with DialTone.Menu. I noticed [specific verified observation about Restaurant Name].
-
-DialTone.Menu helps restaurants bring phone, walk-in, online, kiosk, and dine-in orders into one consistent kitchen flow. It also connects payments, live menus, loyalty, and delivery access without requiring separate systems for every ordering channel.
-
-Based on [specific verified observation], I would like to show you how this could apply to [Restaurant Name]. Would [Day/Time A] or [Day/Time B] work for a 15-minute introduction?
-
-[Your Name]<br>
-DialTone.Menu<br>
-[Phone] | [Email]<br>
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
 [dialtone.menu](https://dialtone.menu)
 
 ## CRM Disposition

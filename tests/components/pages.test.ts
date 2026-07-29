@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import LoginPage from '$lib/../routes/login/+page.svelte';
 import DashboardPage from '$lib/../routes/+page.svelte';
 import CrmPage from '$lib/../routes/crm/+page.svelte';
@@ -175,6 +175,72 @@ describe('CRM Page', () => {
 		);
 		expect(contactName.compareDocumentPosition(contactPhone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		expect(contactPhone.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it('keeps the detail pane open until the explicit close button is used', async () => {
+		const confirmMock = vi.spyOn(window, 'confirm');
+		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+		const panel = screen.getByRole('complementary', { name: 'Edit lead' });
+		expect(panel).toBeInTheDocument();
+		const closeButton = within(panel).getByText('Close', { selector: 'button' });
+		expect(closeButton).toHaveClass('btn-panel-close');
+
+		await fireEvent.click(closeButton);
+		expect(screen.queryByRole('complementary', { name: 'Edit lead' })).not.toBeInTheDocument();
+		expect(confirmMock).not.toHaveBeenCalled();
+		confirmMock.mockRestore();
+	});
+
+	it('keeps unsaved edits when discard confirmation is cancelled', async () => {
+		const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(false);
+		try {
+			render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
+			await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+			await fireEvent.input(screen.getByLabelText('Contact name'), { target: { value: 'Diana' } });
+			await fireEvent.click(within(screen.getByRole('complementary', { name: 'Edit lead' })).getByText('Close', { selector: 'button' }));
+
+			expect(confirmMock).toHaveBeenCalledWith('Discard unsaved changes?');
+			expect(screen.getByRole('complementary', { name: 'Edit lead' })).toBeInTheDocument();
+			expect(screen.getByLabelText('Contact name')).toHaveValue('Diana');
+		} finally {
+			confirmMock.mockRestore();
+		}
+	});
+
+	it('discards unsaved edits when discard confirmation is accepted', async () => {
+		const confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		try {
+			render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
+			await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+			await fireEvent.input(screen.getByLabelText('Contact name'), { target: { value: 'Diana' } });
+			await fireEvent.click(within(screen.getByRole('complementary', { name: 'Edit lead' })).getByText('Close', { selector: 'button' }));
+
+			expect(confirmMock).toHaveBeenCalledWith('Discard unsaved changes?');
+			expect(screen.queryByRole('complementary', { name: 'Edit lead' })).not.toBeInTheDocument();
+		} finally {
+			confirmMock.mockRestore();
+		}
+	});
+
+	it('keeps the detail pane open after a successful save', async () => {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+			JSON.stringify({ type: 'success', status: 200 }),
+			{ status: 200 }
+		));
+		try {
+			render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
+			await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+			await fireEvent.input(screen.getByLabelText('Contact name'), { target: { value: 'Diana' } });
+			await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+			await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument());
+			expect(screen.getByRole('complementary', { name: 'Edit lead' })).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+		} finally {
+			fetchMock.mockRestore();
+		}
 	});
 
 	it('makes a legacy formatted phone dialable before migration', () => {
