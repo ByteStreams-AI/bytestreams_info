@@ -109,11 +109,17 @@ export const actions: Actions = {
 		for (const boolField of ['uses_kds', 'uses_sms', 'has_app'] as const) {
 			const val = form.get(boolField);
 			if (val !== null) {
-				payload[boolField] = val === 'true';
+				payload[boolField] = val === '' ? null : val === 'true';
 			}
 		}
 
-		await updateLeadSalesFields(leadId, locals.user.email, payload);
+		try {
+			await updateLeadSalesFields(leadId, locals.user.email, payload);
+		} catch (saveError) {
+			const message = saveError instanceof Error ? saveError.message : 'Failed to save.';
+			console.error(JSON.stringify({ message: 'crm update failed', leadId, error: message }));
+			return fail(500, { message });
+		}
 
 		return { success: true };
 	},

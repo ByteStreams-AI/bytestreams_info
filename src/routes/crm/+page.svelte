@@ -577,6 +577,7 @@
 			<form
 				method="POST"
 				action="?/update"
+				novalidate
 				oninput={() => { salesFormDirty = true; }}
 				use:enhance={() => {
 					saving = true;

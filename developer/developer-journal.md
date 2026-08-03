@@ -1,5 +1,58 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-03 — Fix Local Dev Environment (Wrangler v4 Remote Proxy)
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+`pnpm dev` was failing silently for all CRM requests (GET and POST). The Cloudflare adapter calls Wrangler's `getPlatformProxy()` on every request to emulate the Workers runtime. In Wrangler v4, the implementation tries to start a remote proxy session whenever a `wrangler.jsonc` is found in the project — even without `--remote` — and fails with:
+
+> "Failed to start the remote proxy session. You must be logged in to use wrangler dev in remote mode."
+
+This left `$env/dynamic/private` empty, so `getClient()` in `supabase.ts` threw "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set", returning a 500 on every request.
+
+### Root Cause (Code)
+
+The Wrangler v4 `getPlatformProxy` source shows:
+```javascript
+if (config.configPath && options.remoteBindings !== false) {
+    remoteProxySession = await maybeStartOrUpdateRemoteProxySession(...)
+```
+
+Without `remoteBindings: false`, the adapter always attempts a remote session.
+
+### Changes
+
+- `svelte.config.js`: added `platformProxy: { configPath: 'wrangler.jsonc', remoteBindings: false }` to adapter options — forces Miniflare local simulation
+- `.dev.vars`: created (gitignored) by copying `.env` — Wrangler/Miniflare reads secrets from this file, NOT from `.env`
+
+### Validation
+
+- `GET /crm` returned 200 locally (was 500 before) — confirms `$env/dynamic/private` now resolves correctly
+
+
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+CRM save button was not working reliably. Root causes identified:
+
+1. **Missing try-catch in `update` action** — if `updateLeadSalesFields` threw for any reason (Supabase error, missing credentials, etc.), the form action propagated a 500. The `enhance` callback received `result.type === 'error'`, and calling `update({ reset: false })` on an error result navigates SvelteKit to the error page. Users experienced "clicked Save, got taken to an error page."
+
+2. **Null boolean bug** — `<select>` options with `value={null}` render as `value=""` in HTML. The server action was doing `val === 'true'` for boolean fields, which maps `""` to `false` instead of `null`. Selecting "Unknown" for Has App / Uses KDS / Uses SMS would silently overwrite `null` with `false` in the database.
+
+### Changes
+
+- `src/routes/crm/+page.server.ts`: wrapped `updateLeadSalesFields` in try-catch; `fail(500, { message })` is returned on error, so the enhance callback shows "Error saving" instead of navigating away. Added structured error logging.
+- `src/routes/crm/+page.server.ts`: boolean field parsing now uses `val === '' ? null : val === 'true'` to correctly preserve null.
+- `src/routes/crm/+page.svelte`: added `novalidate` to the update form to prevent browser HTML5 validation (e.g., `<input type="email">`, `<input type="url">`) from silently blocking form submission if a field contains data that fails the browser's format check.
+
+### Validation
+
+- All 131 tests passed (`pnpm test`)
+
 ## 2026-07-29 — Restaurant-Name Value Statements
 
 **Participants:** Scott Thornton, GitHub Copilot

@@ -83,11 +83,11 @@ Select exactly one value statement using the restaurant's `note` field:
 
 ### Priority 6: Existing Square POS Provider
 
-> I noticed that [restaurant name] uses Square. DialTone.Menu can bring all of its order sources into one kitchen workflow at a better value. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed that [restaurant name] uses Square. DialTone.Menu can bring all of your order sources into one kitchen workflow at a better value. In addition, our voice system answers every call and takes orders and reservations.
 
 ### Priority 7: Existing Resy Reservation Provider
 
-> I noticed that [restaurant name] uses Resy. DialTone.Menu can bring all of its order sources into one kitchen workflow and manage reservations as well. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed that [restaurant name] uses Resy. DialTone.Menu can bring all of your order sources into one kitchen workflow and manage reservations as well. In addition, our voice system answers every call and takes orders and reservations.
 
 ******START HERE******
 

@@ -5,7 +5,9 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: vitePreprocess(),
 	kit: {
-		adapter: adapter(),
+		adapter: adapter({
+			platformProxy: { configPath: 'wrangler.jsonc', remoteBindings: false }
+		}),
 		alias: {
 			$components: 'src/lib/components'
 		}
