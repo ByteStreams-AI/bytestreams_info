@@ -38,8 +38,8 @@ export interface Lead {
 	business_type: string | null;
 	offers_delivery: boolean | null;
 	offers_pickup: boolean | null;
-	uses_doordash_mktg: boolean | null;
-	uses_chownow: boolean | null;
+	marketplace_providers: string | null;
+	first_party_ordering: string | null;
 	price_range: string | null;
 	yelp_rating: number | null;
 	yelp_review_count: number | null;

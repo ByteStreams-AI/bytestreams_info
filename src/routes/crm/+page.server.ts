@@ -41,8 +41,8 @@ const READONLY_FIELDS = new Set([
 	'offers_delivery',
 	'offers_pickup',
 	'delivery_platforms',
-	'uses_doordash_mktg',
-	'uses_chownow',
+	'marketplace_providers',
+	'first_party_ordering',
 	'created_at'
 ]);
 

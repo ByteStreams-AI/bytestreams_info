@@ -526,8 +526,8 @@
 				<dt>Yelp Rating</dt><dd>{selectedLead.yelp_rating != null ? `${selectedLead.yelp_rating} ★ (${selectedLead.yelp_review_count ?? 0} reviews)` : '—'}</dd>
 				<dt>Delivery</dt><dd>{flag(selectedLead.offers_delivery)}</dd>
 				<dt>Pickup</dt><dd>{flag(selectedLead.offers_pickup)}</dd>
-				<dt>DoorDash Mktg</dt><dd>{flag(selectedLead.uses_doordash_mktg)}</dd>
-				<dt>ChowNow</dt><dd>{flag(selectedLead.uses_chownow)}</dd>
+				<dt>Marketplace</dt><dd>{selectedLead.marketplace_providers ?? '—'}</dd>
+				<dt>First-Party</dt><dd>{selectedLead.first_party_ordering ?? '—'}</dd>
 			</dl>
 		</section>
 
