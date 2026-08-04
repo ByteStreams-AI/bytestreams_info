@@ -245,6 +245,21 @@
 		if (val === null || val === undefined) return '—';
 		return val ? 'Yes' : 'No';
 	}
+
+	// Try local KDE Connect bridge; if unreachable, let the tel: href fall through
+	async function dialPhone(e: MouseEvent, telHref: string) {
+		const number = encodeURIComponent(telHref.replace('tel:', ''));
+		const controller = new AbortController();
+		const tid = setTimeout(() => controller.abort(), 2000);
+		try {
+			const res = await fetch(`http://localhost:8765/dial?number=${number}`, { signal: controller.signal });
+			if (res.ok) e.preventDefault();
+		} catch {
+			// bridge not running — browser will handle tel: naturally
+		} finally {
+			clearTimeout(tid);
+		}
+	}
 </script>
 
 <svelte:head>
@@ -339,7 +354,7 @@
 						<td>{lead.city ?? '—'}</td>
 						<td>
 							{#if lead.phone && phoneHref(lead.phone)}
-								<a class="phone-link" href={phoneHref(lead.phone)}>{lead.phone}</a>
+								<a class="phone-link" href={phoneHref(lead.phone)} onclick={(e) => dialPhone(e, phoneHref(lead.phone)!)}>{lead.phone}</a>
 							{:else}
 								{lead.phone ?? '—'}
 							{/if}
@@ -354,7 +369,7 @@
 						<td>{lead.contact_name ?? '—'}</td>
 						<td>
 							{#if lead.contact_phone && phoneHref(lead.contact_phone)}
-								<a class="phone-link" href={phoneHref(lead.contact_phone)}>{lead.contact_phone}</a>
+								<a class="phone-link" href={phoneHref(lead.contact_phone)} onclick={(e) => dialPhone(e, phoneHref(lead.contact_phone)!)}>{lead.contact_phone}</a>
 							{:else}
 								{lead.contact_phone ?? '—'}
 							{/if}
@@ -515,7 +530,7 @@
 				<dt>Phone</dt>
 				<dd>
 					{#if selectedLead.phone && phoneHref(selectedLead.phone)}
-						<a class="phone-link" href={phoneHref(selectedLead.phone)}>{selectedLead.phone}</a>
+						<a class="phone-link" href={phoneHref(selectedLead.phone)} onclick={(e) => dialPhone(e, phoneHref(selectedLead.phone)!)}>{selectedLead.phone}</a>
 					{:else}
 						{selectedLead.phone ?? '—'}
 					{/if}
@@ -621,6 +636,7 @@
 							href={phoneHref(selectedLead.contact_phone)}
 							class="phone-action"
 							aria-label="Call contact"
+							onclick={(e) => dialPhone(e, phoneHref(selectedLead.contact_phone)!)}
 						>Call</a>
 					{/if}
 				</div>
