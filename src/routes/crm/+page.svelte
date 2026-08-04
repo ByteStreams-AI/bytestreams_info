@@ -354,7 +354,8 @@
 						<td>{lead.city ?? '—'}</td>
 						<td>
 							{#if lead.phone && phoneHref(lead.phone)}
-								<a class="phone-link" href={phoneHref(lead.phone)} onclick={(e) => dialPhone(e, phoneHref(lead.phone)!)}>{lead.phone}</a>
+								{@const tel = phoneHref(lead.phone)!}
+								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{lead.phone}</a>
 							{:else}
 								{lead.phone ?? '—'}
 							{/if}
@@ -369,7 +370,8 @@
 						<td>{lead.contact_name ?? '—'}</td>
 						<td>
 							{#if lead.contact_phone && phoneHref(lead.contact_phone)}
-								<a class="phone-link" href={phoneHref(lead.contact_phone)} onclick={(e) => dialPhone(e, phoneHref(lead.contact_phone)!)}>{lead.contact_phone}</a>
+								{@const tel = phoneHref(lead.contact_phone)!}
+								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{lead.contact_phone}</a>
 							{:else}
 								{lead.contact_phone ?? '—'}
 							{/if}
@@ -530,7 +532,8 @@
 				<dt>Phone</dt>
 				<dd>
 					{#if selectedLead.phone && phoneHref(selectedLead.phone)}
-						<a class="phone-link" href={phoneHref(selectedLead.phone)} onclick={(e) => dialPhone(e, phoneHref(selectedLead.phone)!)}>{selectedLead.phone}</a>
+						{@const tel = phoneHref(selectedLead.phone)!}
+						<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{selectedLead.phone}</a>
 					{:else}
 						{selectedLead.phone ?? '—'}
 					{/if}
@@ -632,11 +635,12 @@
 						<input type="tel" name="contact_phone" bind:value={selectedLead.contact_phone} />
 					</label>
 					{#if selectedLead.contact_phone && phoneHref(selectedLead.contact_phone)}
+						{@const contactTel = phoneHref(selectedLead.contact_phone)!}
 						<a
-							href={phoneHref(selectedLead.contact_phone)}
+							href={contactTel}
 							class="phone-action"
 							aria-label="Call contact"
-							onclick={(e) => dialPhone(e, phoneHref(selectedLead.contact_phone)!)}
+							onclick={(e) => dialPhone(e, contactTel)}
 						>Call</a>
 					{/if}
 				</div>
