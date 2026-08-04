@@ -585,13 +585,9 @@
 					return async ({ result, update }) => {
 						saving = false;
 						if (result.type === 'success') {
-							// Reflect changes back into the table row
-							const idx = data.leads.findIndex((l) => l.lead_id === selectedLead!.lead_id);
-							if (idx !== -1) {
-								data.leads[idx] = { ...data.leads[idx], ...selectedLead! };
-							}
 							salesFormDirty = false;
 							saveMessage = 'Saved';
+							await invalidateAll();
 							return;
 						}
 						saveMessage = 'Error saving';

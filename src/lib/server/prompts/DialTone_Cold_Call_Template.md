@@ -63,11 +63,11 @@ Select exactly one value statement using the restaurant's `note` field:
 
 ### Priority 1: DoorDash Marketplace Reliance
 
-> I noticed customers are directed to DoorDash Marketplace for online orders. We can help you grow direct orders under your own brand while keeping your DoorDash delivery at a lower rate. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed customers your are directed to DoorDash Marketplace for online orders. We can help you grow direct orders under your own brand while keeping your DoorDash delivery at a lower rate. In addition, our voice system answers every call and takes orders and reservations.
 
-### Priority 2: Uber Eats Marketplace Reliance
+### Priority 2: Uber Eats Commerce Reliance
 
-> I noticed customers are directed to Uber Eats for online orders. DialTone.Menu can help [restaurant name] grow direct orders under its own brand while keeping Uber Eats delivery at a lower rate. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed your customers are directed to Uber Eats for online orders. DialTone.Menu can help [restaurant name] grow direct orders under its own brand while keeping Uber Eats delivery at a lower rate. In addition, our voice system answers every call and takes orders and reservations.
 
 ### Priority 3: Limited Direct Online Presence
 
@@ -75,15 +75,15 @@ Select exactly one value statement using the restaurant's `note` field:
 
 ### Priority 4: Disconnected Ordering Systems
 
-> I noticed [restaurant name] offers several ways to order. DialTone.Menu can bring all of its order sources into one kitchen workflow. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed [restaurant name] offers several ways to order. DialTone.Menu can bring all of its order sources into one kitchen workflow. also, our voice system answers every call and takes orders and reservations.
 
 ### Priority 5: Existing Toast POS Provider
 
-> I noticed that [restaurant name] uses Toast. DialTone.Menu can provide better restaurant functionality at a better value. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed that [restaurant name] uses Toast. DialTone.Menu can provide better restaurant functionality at a better value. also, our voice system answers every call and takes orders and reservations.
 
 ### Priority 6: Existing Square POS Provider
 
-> I noticed that [restaurant name] uses Square. DialTone.Menu can bring all of your order sources into one kitchen workflow at a better value. In addition, our voice system answers every call and takes orders and reservations.
+> I noticed that [restaurant name] uses Square. DialTone.Menu can bring all of your order sources into one kitchen workflow at a better value. also, our voice system answers every call and takes orders and reservations.
 
 ### Priority 7: Existing Resy Reservation Provider
 
@@ -102,7 +102,7 @@ Stop and let the prospect respond.
 
 If asked who:
 
-> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage orders and payments from every order source, including voice, and send them directly into one kitchen operations system. I would like to set up a 15-minute demo to show you how it works.
+> I am calling from DialTone.Menu. We help restaurants like [restaurant name] manage orders and payments from every order source, including voice, and send them directly into kitchen. I would like to set up a 15-minute demo to show you how it works.
 
 ## Observation-Based Openers
 
