@@ -5,7 +5,7 @@
 	let { data } = $props();
 
 	onMount(() => {
-		const getEl = (id: string) => document.getElementById(id) as HTMLElement;
+		const getEl = <T = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
 		function fmtDate(iso: string | null | undefined) {
 			if (!iso) return '—';
@@ -51,11 +51,11 @@
 		async function loadCustomers() {
 			try {
 				const res = await fetch(`${API}/customers`);
-				const payload = await res.json();
+				const payload = await res.json() as unknown;
 				getEl('customers-loading').classList.add('hidden');
 
 				if (!res.ok) {
-					throw new Error(payload?.error ?? 'Failed to load customers');
+					throw new Error((payload as { error?: string } | null)?.error ?? 'Failed to load customers');
 				}
 				if (!Array.isArray(payload)) {
 					throw new Error('Invalid customers response');
@@ -64,10 +64,10 @@
 
 				if (!data.length) { getEl('customers-empty').classList.remove('hidden'); return; }
 
-				getEl('stat-total').textContent   = data.length;
-				getEl('stat-active').textContent  = data.filter((r: any) => r.status === 'active').length;
-				getEl('stat-pending').textContent = data.filter((r: any) => r.status === 'setup_pending').length;
-				getEl('stat-churned').textContent = data.filter((r: any) => r.status === 'churned').length;
+				getEl('stat-total').textContent = String(data.length);
+				getEl('stat-active').textContent = String(data.filter((r: any) => r.status === 'active').length);
+				getEl('stat-pending').textContent = String(data.filter((r: any) => r.status === 'setup_pending').length);
+				getEl('stat-churned').textContent = String(data.filter((r: any) => r.status === 'churned').length);
 
 				const tbody = getEl('customers-tbody');
 				tbody.innerHTML = data.map((r: any) => `
@@ -113,8 +113,8 @@
 					method: 'POST', headers: authHeaders(),
 					body: JSON.stringify({ account_id: accountId, email })
 				});
-				const data = await res.json();
-				if (!res.ok) throw new Error(data.error);
+				const data = await res.json() as { error?: string };
+				if (!res.ok) throw new Error(data.error ?? 'Failed');
 				btn.innerHTML = '<i class="fa-solid fa-check"></i> Sent';
 			} catch {
 				btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Failed';
@@ -135,11 +135,11 @@
 
 			try {
 				const res = await fetch(`${API}/billing`);
-				const payload = await res.json();
+				const payload = await res.json() as unknown;
 				getEl('billing-loading').classList.add('hidden');
 
 				if (!res.ok) {
-					throw new Error(payload?.error ?? 'Failed to load billing');
+					throw new Error((payload as { error?: string } | null)?.error ?? 'Failed to load billing');
 				}
 				if (!Array.isArray(payload)) {
 					throw new Error('Invalid billing response');
@@ -169,34 +169,34 @@
 		}
 
 		getEl('gen-billing-btn').addEventListener('click', async () => {
-			const btn    = getEl('gen-billing-btn') as HTMLButtonElement;
+			const btn = getEl<HTMLButtonElement>('gen-billing-btn');
 			const status = getEl('gen-status');
-			(btn as HTMLButtonElement).disabled = true;
+			btn.disabled = true;
 			status.className = 'hidden';
 
 			try {
 				const res  = await fetch(`${API}/generate-billing`, { method: 'POST', headers: authHeaders() });
-				const data = await res.json();
+				const data = await res.json() as { error?: string; created?: number };
 				if (!res.ok) throw new Error(data.error ?? 'Failed');
 				status.className = 'status-msg success';
-				status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Created ${data.created} billing record(s).`;
+				status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Created ${data.created ?? 0} billing record(s).`;
 				await loadBilling();
 			} catch (err: any) {
 				status.className = 'status-msg error';
 				status.textContent = err.message;
 			}
 			status.classList.remove('hidden');
-			(btn as HTMLButtonElement).disabled = false;
+			btn.disabled = false;
 		});
 
 		// ── Messages ─────────────────────────────────────────────────────────────
 		async function loadBusinessesForMsgDropdown() {
 			try {
 				const res = await fetch(`${API}/customers`);
-				const payload = await res.json();
+				const payload = await res.json() as unknown;
 				if (!res.ok || !Array.isArray(payload)) return;
 				const data = payload;
-				const sel  = getEl('msg-target') as HTMLSelectElement;
+				const sel = getEl<HTMLSelectElement>('msg-target');
 				data.forEach((r: any) => {
 					const opt = document.createElement('option');
 					opt.value = r.business_id ?? '';
@@ -206,9 +206,9 @@
 			} catch {}
 		}
 
-		(getEl('msg-form') as HTMLFormElement).addEventListener('submit', async e => {
+		getEl<HTMLFormElement>('msg-form').addEventListener('submit', async e => {
 			e.preventDefault();
-			const btn      = getEl('msg-btn') as HTMLButtonElement;
+			const btn = getEl<HTMLButtonElement>('msg-btn');
 			const statusEl = getEl('msg-status');
 			btn.disabled = true;
 			statusEl.className = 'hidden';
@@ -217,16 +217,16 @@
 				const res = await fetch(`${API}/message`, {
 					method: 'POST', headers: authHeaders(),
 					body: JSON.stringify({
-						business_id: (getEl('msg-target') as HTMLSelectElement).value || null,
-						body:        (getEl('msg-body') as HTMLTextAreaElement).value.trim(),
-						is_active:   (getEl('msg-active') as HTMLInputElement).checked
+						business_id: getEl<HTMLSelectElement>('msg-target').value || null,
+						body: getEl<HTMLTextAreaElement>('msg-body').value.trim(),
+						is_active: getEl<HTMLInputElement>('msg-active').checked
 					})
 				});
-				const data = await res.json();
+				const data = await res.json() as { error?: string };
 				if (!res.ok) throw new Error(data.error ?? 'Failed');
 				statusEl.className = 'status-msg success';
 				statusEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Message posted.';
-				(getEl('msg-body') as HTMLTextAreaElement).value = '';
+				getEl<HTMLTextAreaElement>('msg-body').value = '';
 			} catch (err: any) {
 				statusEl.className = 'status-msg error';
 				statusEl.textContent = err.message;
@@ -242,51 +242,51 @@
 
 		function closeModal() {
 			getEl('invite-modal').classList.add('hidden');
-			(getEl('invite-form') as HTMLFormElement).reset();
+			getEl<HTMLFormElement>('invite-form').reset();
 			getEl('invite-error').classList.add('hidden');
 			getEl('invite-success').classList.add('hidden');
 			getEl('invite-submit-label').textContent = 'Create & Send Invite';
-			(getEl('invite-submit-btn') as HTMLButtonElement).disabled = false;
+			getEl<HTMLButtonElement>('invite-submit-btn').disabled = false;
 			getEl('invite-form').classList.remove('hidden');
 		}
 
 		function syncProductFields() {
-			const p = (getEl('inv-product') as HTMLSelectElement).value;
+			const p = getEl<HTMLSelectElement>('inv-product').value;
 			getEl('inv-slug-wrap').classList.toggle('hidden', p !== 'dialtone_menu');
 			getEl('inv-other-wrap').classList.toggle('hidden', p !== 'other');
 		}
 		getEl('inv-product').addEventListener('change', syncProductFields);
 		syncProductFields();
 
-		(getEl('invite-form') as HTMLFormElement).addEventListener('submit', async e => {
+		getEl<HTMLFormElement>('invite-form').addEventListener('submit', async e => {
 			e.preventDefault();
-			const btn   = getEl('invite-submit-btn') as HTMLButtonElement;
+			const btn = getEl<HTMLButtonElement>('invite-submit-btn');
 			const label = getEl('invite-submit-label');
 			const errEl = getEl('invite-error');
 			btn.disabled = true;
 			label.textContent = 'Creating…';
 			errEl.classList.add('hidden');
 
-			const amountCents = Math.round(parseFloat((getEl('inv-amount') as HTMLInputElement).value) * 100);
-			const product     = (getEl('inv-product') as HTMLSelectElement).value;
+			const amountCents = Math.round(parseFloat(getEl<HTMLInputElement>('inv-amount').value) * 100);
+			const product = getEl<HTMLSelectElement>('inv-product').value;
 			const bizTypeMap: Record<string, string> = { dialtone_menu: 'restaurant', dialtone_med: 'clinic' };
-			const bizType     = bizTypeMap[product] ?? ((getEl('inv-biz-desc') as HTMLTextAreaElement).value.trim().slice(0, 110) || 'other');
+			const bizType = bizTypeMap[product] ?? (getEl<HTMLTextAreaElement>('inv-biz-desc').value.trim().slice(0, 110) || 'other');
 
 			try {
 				const res = await fetch(`${API}/invite`, {
 					method: 'POST', headers: authHeaders(),
 					body: JSON.stringify({
-						business_name:        (getEl('inv-biz-name') as HTMLInputElement).value.trim(),
-						business_type:        bizType,
-						dialtone_slug:        (getEl('inv-slug') as HTMLInputElement).value.trim() || null,
+						business_name: getEl<HTMLInputElement>('inv-biz-name').value.trim(),
+						business_type: bizType,
+						dialtone_slug: getEl<HTMLInputElement>('inv-slug').value.trim() || null,
 						product,
-						ein:                  (getEl('inv-ein') as HTMLInputElement).value.trim() || null,
-						email:                (getEl('inv-email') as HTMLInputElement).value.trim(),
-						full_name:            (getEl('inv-name') as HTMLInputElement).value.trim() || null,
+						ein: getEl<HTMLInputElement>('inv-ein').value.trim() || null,
+						email: getEl<HTMLInputElement>('inv-email').value.trim(),
+						full_name: getEl<HTMLInputElement>('inv-name').value.trim() || null,
 						monthly_amount_cents: amountCents
 					})
 				});
-				const data = await res.json();
+				const data = await res.json() as { error?: string; ein_verified?: boolean };
 				if (!res.ok) throw new Error(data.error ?? 'Failed');
 
 				getEl('invite-success').innerHTML =
@@ -398,7 +398,7 @@
 								</select>
 							</div>
 							<div class="form-group">
-								<label>&nbsp;</label>
+								<div aria-hidden="true" style="height:20px;"></div>
 								<div style="display:flex;align-items:center;gap:8px;height:41px;">
 									<input type="checkbox" id="msg-active" checked style="width:auto;">
 									<label for="msg-active" style="text-transform:none;letter-spacing:0;font-size:0.875rem;color:var(--bright);margin:0;">Active (visible in portal)</label>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
+import { env as publicEnv } from '$env/dynamic/public';
 import { canAccessPortalAdmin } from '$lib/server/authorization';
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -224,7 +225,10 @@ async function handleGenerateBilling(): Promise<Response> {
 
 async function sendInviteEmail(email: string): Promise<boolean> {
 	if (!env.RESEND_API_KEY) return false;
-	const portalUrl = `${env.PUBLIC_BASE_URL?.trim() || 'https://bytestreams.info'}/portal.html`;
+	const baseUrl = typeof publicEnv.PUBLIC_BASE_URL === 'string' && publicEnv.PUBLIC_BASE_URL.trim()
+		? publicEnv.PUBLIC_BASE_URL.trim()
+		: 'https://bytestreams.info';
+	const portalUrl = `${baseUrl}/portal.html`;
 
 	const response = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
@@ -256,7 +260,7 @@ async function ensureSupabaseAuthUser(email: string): Promise<string | null> {
 		body: JSON.stringify({ email, email_confirm: true })
 	});
 
-	const createBody = await createRes.json();
+	const createBody = await createRes.json() as { msg?: string; id?: string; user?: { id?: string } };
 	if (
 		!createRes.ok &&
 		createBody?.msg !== 'A user with this email address has already been registered'
@@ -275,12 +279,12 @@ async function ensureSupabaseAuthUser(email: string): Promise<string | null> {
 	});
 
 	if (!listRes.ok) return null;
-	const listBody = await listRes.json();
+	const listBody = await listRes.json() as { users?: Array<{ id?: string }> };
 	return listBody?.users?.[0]?.id ?? null;
 }
 
 async function handleInvite(request: Request): Promise<Response> {
-	const body = await request.json().catch(() => null);
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
 	if (!body) return jsonResponse({ error: 'Invalid body' }, 400);
 
 	const businessName = normalizeText(body.business_name, 200);
@@ -366,7 +370,7 @@ async function handleInvite(request: Request): Promise<Response> {
 }
 
 async function handleResendInvite(request: Request): Promise<Response> {
-	const body = await request.json().catch(() => null);
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
 	if (!body) return jsonResponse({ error: 'Invalid body' }, 400);
 
 	const email = normalizeText(body.email, 254);
@@ -390,7 +394,7 @@ async function handleResendInvite(request: Request): Promise<Response> {
 }
 
 async function handleMessage(request: Request): Promise<Response> {
-	const body = await request.json().catch(() => null);
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
 	if (!body) return jsonResponse({ error: 'Invalid body' }, 400);
 
 	const messageBody = normalizeText(body.body, 1000);

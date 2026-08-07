@@ -1,5 +1,35 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — CI Recovery: Portal Admin TypeScript Strictness
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+GitHub Actions failed on `pnpm run check` after the portal-admin backend/UI migration due to strict TypeScript issues in:
+
+- `src/routes/portal-admin/+page.svelte`
+- `src/routes/portal-admin/api/[...path]/+server.ts`
+- `tests/components/pages.test.ts`
+
+### Changes
+
+- Hardened frontend payload handling in portal-admin page scripts:
+  - Typed `res.json()` payloads as `unknown` and narrowed before property access.
+  - Cast numeric stat values to strings before assigning to `textContent`.
+  - Reworked DOM helper usage to avoid invalid element generic constraints under strict checks.
+  - Replaced unlabeled placeholder label in Messages tab layout with a non-label spacer to satisfy a11y checks.
+- Hardened backend request/response typing in portal-admin API handler:
+  - Added explicit JSON body/result shapes for Supabase Auth admin user create/list flows.
+  - Typed inbound request bodies as `Record<string, unknown> | null` before normalization.
+  - Switched `PUBLIC_BASE_URL` lookup to `$env/dynamic/public` (instead of private env) for SvelteKit-correct typing.
+- Updated dashboard component test fixtures to include `canAccessPortalAdmin` in `DashboardPage` props where required.
+
+### Validation
+
+- `pnpm run check` now passes with zero diagnostics:
+  - `svelte-check found 0 errors and 0 warnings`
+
 ## 2026-08-07 — Portal Admin Dev Compile Fix
 
 **Participants:** Scott Thornton, GitHub Copilot

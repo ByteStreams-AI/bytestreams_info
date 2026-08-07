@@ -50,7 +50,7 @@ describe('Dashboard Page', () => {
 		iat: 1700000000,
 		exp: 1700086400
 	};
-	const dashboardData = { user: mockUser, canAccessCrmAdmin: false };
+	const dashboardData = { user: mockUser, canAccessCrmAdmin: false, canAccessPortalAdmin: false };
 
 	it('renders welcome message with user name', () => {
 		render(DashboardPage, { props: { data: dashboardData } });
@@ -91,13 +91,13 @@ describe('Dashboard Page', () => {
 
 	it('renders greeting with displayName', () => {
 		const customUser = { ...mockUser, displayName: 'Jane' };
-		render(DashboardPage, { props: { data: { user: customUser, canAccessCrmAdmin: false } } });
+		render(DashboardPage, { props: { data: { user: customUser, canAccessCrmAdmin: false, canAccessPortalAdmin: false } } });
 		expect(screen.getByText(/Welcome back, Jane/)).toBeInTheDocument();
 	});
 
 	it('renders CRM Admin only when access is granted', () => {
 		const { unmount } = render(DashboardPage, {
-			props: { data: { user: mockUser, canAccessCrmAdmin: true } }
+			props: { data: { user: mockUser, canAccessCrmAdmin: true, canAccessPortalAdmin: false } }
 		});
 		expect(screen.getByRole('link', { name: 'CRM Admin' })).toHaveAttribute('href', '/crm-admin');
 		unmount();
