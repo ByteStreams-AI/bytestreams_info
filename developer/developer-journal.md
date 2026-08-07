@@ -1,5 +1,131 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — Portal Admin Dev Compile Fix
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+`pnpm dev` failed to compile the portal admin page with:
+
+`The $ name is reserved, and cannot be used for variables and imports`
+
+The script in `src/routes/portal-admin/+page.svelte` defined `const $ = (...)`, which is invalid in Svelte.
+
+### Changes
+
+- Renamed the DOM helper from `$` to `getEl`.
+- Updated all helper call sites in `src/routes/portal-admin/+page.svelte` from `$(...)` to `getEl(...)`.
+
+### Validation
+
+- Confirmed there are no remaining `$(...)` helper calls in `src/routes/portal-admin/+page.svelte`.
+- `pnpm run check` now proceeds past the reserved-name compile failure; remaining diagnostics are TypeScript strictness issues and existing test typing mismatches.
+
+## 2026-08-07 — Portal Admin Backend Migration (In-Repo)
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Portal admin UI and route guard were already in `bytestreams_info`, but API logic still proxied to `https://bytestreams.ai/api/admin/*`.
+Goal: keep portal-admin fully in this repo.
+
+### Changes
+
+- Replaced proxy implementation in `src/routes/portal-admin/api/[...path]/+server.ts` with local handlers backed by Supabase service-role access.
+- Added local endpoint support for all UI calls:
+  - `GET /portal-admin/api/customers`
+  - `GET /portal-admin/api/billing`
+  - `POST /portal-admin/api/generate-billing`
+  - `POST /portal-admin/api/invite`
+  - `POST /portal-admin/api/resend-invite`
+  - `POST /portal-admin/api/message`
+- Preserved admin access guard using existing `canAccessPortalAdmin` check.
+- Added legacy data normalization during customer load: `portal_accounts.is_admin` NULL values are updated to `false`.
+- Updated `.env.example`: removed cross-repo `ADMIN_SECRET` proxy secret note and documented `RESEND_API_KEY` for invite email delivery.
+
+### Validation
+
+- `get_errors` reports no errors in:
+  - `src/routes/portal-admin/api/[...path]/+server.ts`
+  - `.env.example`
+
+## 2026-08-07 — Portal Admin Empty-Customer Diagnosis
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+Portal Admin showed “No customers yet” even when a customer existed in the database.
+
+### Root Cause
+
+This repo’s configured Supabase project (`SUPABASE_URL=https://hltmzafywzqajjzjpqva.supabase.co`) does not contain the portal tables (`portal_accounts`, `businesses`).
+The backend returned table-not-found errors, but the frontend interpreted non-array payloads as empty lists.
+
+### Changes
+
+- Updated `src/routes/portal-admin/+page.svelte` API handling for Customers and Billing to:
+  - check `res.ok`
+  - verify response shape is an array
+  - show backend error text in the empty-state area when requests fail
+- Updated message-recipient loader to ignore invalid/non-array customer responses.
+
+### Outcome
+
+Portal Admin now surfaces real backend errors instead of silently showing an empty customer list, making environment/schema mismatches immediately visible.
+
+## 2026-08-07 — Dual Supabase Support For Portal Admin
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+The intranet app may need one Supabase project for CRM data and a separate Supabase project for portal-admin tables.
+
+### Changes
+
+- Updated `src/routes/portal-admin/api/[...path]/+server.ts` to support a dedicated portal DB config:
+  - Primary (preferred for portal-admin): `PORTAL_SUPABASE_URL` + `PORTAL_SUPABASE_SERVICE_ROLE_KEY`
+  - Fallback (existing behavior): `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+- Added strict validation that portal override vars must be set together (no partial config).
+- Updated auth-user provisioning (`ensureSupabaseAuthUser`) to use the same resolved portal DB config.
+- Updated `.env.example` with optional portal-specific Supabase variables.
+
+### Outcome
+
+Portal-admin can now run against its own Supabase project without impacting CRM data access paths.
+
+## 2026-08-07 — Script: Add Existing Auth User To Portal Accounts
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Need a non-invite path to add portal access when an auth user already exists (including non-real/test email addresses) and has staff linkage.
+
+### Changes
+
+- Added `developer/add-portal-account.mjs`.
+- Added npm script alias: `pnpm portal:add-account`.
+- Script behavior:
+  - Validates existing `auth.users` record via Supabase Admin API (`--auth-user-id` required)
+  - Derives `business_id` from `staff.user_id -> staff.restaurant_id -> businesses.dialtone_location_id` when `--business-id` is omitted
+  - Inserts `portal_accounts` row (or updates existing row with `--update-existing`)
+  - Supports `--dry-run`, `--email`, `--full-name`, `--product`, `--role`, `--status`, `--admin`
+  - Uses portal DB override vars if present (`PORTAL_SUPABASE_*`), else falls back to `SUPABASE_*`
+
+### Validation
+
+- `node developer/add-portal-account.mjs --help` prints expected usage.
+- `get_errors` reports no errors in `developer/add-portal-account.mjs` and `package.json`.
+
+### Follow-up
+
+- Updated `developer/add-portal-account.mjs` to allow `business_id = null` by default when no staff/business mapping exists.
+- Added `--require-business-id` for strict mode when mapping must be enforced.
+
 ## 2026-08-03 — Fix Local Dev Environment (Wrangler v4 Remote Proxy)
 
 **Participants:** Scott Thornton, GitHub Copilot

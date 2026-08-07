@@ -5,7 +5,7 @@
 	let { data } = $props();
 
 	onMount(() => {
-		const $ = (id: string) => document.getElementById(id) as HTMLElement;
+		const getEl = (id: string) => document.getElementById(id) as HTMLElement;
 
 		function fmtDate(iso: string | null | undefined) {
 			if (!iso) return '—';
@@ -41,8 +41,8 @@
 			btn.addEventListener('click', () => {
 				document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
 				(btn as HTMLElement).classList.add('active');
-				['customers','billing','messages'].forEach(t => $(`tab-${t}`).classList.add('hidden'));
-				$(`tab-${(btn as HTMLElement).dataset.tab}`).classList.remove('hidden');
+				['customers','billing','messages'].forEach(t => getEl(`tab-${t}`).classList.add('hidden'));
+				getEl(`tab-${(btn as HTMLElement).dataset.tab}`).classList.remove('hidden');
 				if ((btn as HTMLElement).dataset.tab === 'billing') loadBilling();
 			});
 		});
@@ -50,18 +50,26 @@
 		// ── Customers ────────────────────────────────────────────────────────────
 		async function loadCustomers() {
 			try {
-				const res  = await fetch(`${API}/customers`);
-				const data = await res.json();
-				$('customers-loading').classList.add('hidden');
+				const res = await fetch(`${API}/customers`);
+				const payload = await res.json();
+				getEl('customers-loading').classList.add('hidden');
 
-				if (!data.length) { $('customers-empty').classList.remove('hidden'); return; }
+				if (!res.ok) {
+					throw new Error(payload?.error ?? 'Failed to load customers');
+				}
+				if (!Array.isArray(payload)) {
+					throw new Error('Invalid customers response');
+				}
+				const data = payload;
 
-				$('stat-total').textContent   = data.length;
-				$('stat-active').textContent  = data.filter((r: any) => r.status === 'active').length;
-				$('stat-pending').textContent = data.filter((r: any) => r.status === 'setup_pending').length;
-				$('stat-churned').textContent = data.filter((r: any) => r.status === 'churned').length;
+				if (!data.length) { getEl('customers-empty').classList.remove('hidden'); return; }
 
-				const tbody = $('customers-tbody');
+				getEl('stat-total').textContent   = data.length;
+				getEl('stat-active').textContent  = data.filter((r: any) => r.status === 'active').length;
+				getEl('stat-pending').textContent = data.filter((r: any) => r.status === 'setup_pending').length;
+				getEl('stat-churned').textContent = data.filter((r: any) => r.status === 'churned').length;
+
+				const tbody = getEl('customers-tbody');
 				tbody.innerHTML = data.map((r: any) => `
 					<tr>
 						<td>
@@ -85,13 +93,16 @@
 					</tr>
 				`).join('');
 
-				$('customers-table').classList.remove('hidden');
+				getEl('customers-table').classList.remove('hidden');
 
-				$('customers-tbody').querySelectorAll('.resend-btn').forEach(btn => {
+				getEl('customers-tbody').querySelectorAll('.resend-btn').forEach(btn => {
 					btn.addEventListener('click', () => resendInvite((btn as HTMLElement).dataset.id!, (btn as HTMLElement).dataset.email!, btn as HTMLButtonElement));
 				});
-			} catch (err) {
+			} catch (err: unknown) {
 				console.error('Load customers:', err);
+				const empty = getEl('customers-empty');
+				empty.textContent = err instanceof Error ? err.message : 'Failed to load customers';
+				empty.classList.remove('hidden');
 			}
 		}
 
@@ -117,19 +128,27 @@
 		// ── Billing ───────────────────────────────────────────────────────────────
 		async function loadBilling() {
 			const now = new Date();
-			$('billing-month-label').textContent = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-			$('billing-loading').classList.remove('hidden');
-			$('billing-table').classList.add('hidden');
-			$('billing-empty').classList.add('hidden');
+			getEl('billing-month-label').textContent = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+			getEl('billing-loading').classList.remove('hidden');
+			getEl('billing-table').classList.add('hidden');
+			getEl('billing-empty').classList.add('hidden');
 
 			try {
-				const res  = await fetch(`${API}/billing`);
-				const rows = await res.json();
-				$('billing-loading').classList.add('hidden');
+				const res = await fetch(`${API}/billing`);
+				const payload = await res.json();
+				getEl('billing-loading').classList.add('hidden');
 
-				if (!rows.length) { $('billing-empty').classList.remove('hidden'); return; }
+				if (!res.ok) {
+					throw new Error(payload?.error ?? 'Failed to load billing');
+				}
+				if (!Array.isArray(payload)) {
+					throw new Error('Invalid billing response');
+				}
+				const rows = payload;
 
-				const tbody = $('billing-tbody');
+				if (!rows.length) { getEl('billing-empty').classList.remove('hidden'); return; }
+
+				const tbody = getEl('billing-tbody');
 				tbody.innerHTML = rows.map((r: any) => `
 					<tr>
 						<td class="cell-name">${escHtml(r.business_name ?? '—')}</td>
@@ -140,15 +159,18 @@
 						<td>${r.paid_at ? fmtDate(r.paid_at) : '—'}</td>
 					</tr>
 				`).join('');
-				$('billing-table').classList.remove('hidden');
-			} catch (err) {
+				getEl('billing-table').classList.remove('hidden');
+			} catch (err: unknown) {
 				console.error('Load billing:', err);
+				const empty = getEl('billing-empty');
+				empty.textContent = err instanceof Error ? err.message : 'Failed to load billing';
+				empty.classList.remove('hidden');
 			}
 		}
 
-		$('gen-billing-btn').addEventListener('click', async () => {
-			const btn    = $('gen-billing-btn') as HTMLButtonElement;
-			const status = $('gen-status');
+		getEl('gen-billing-btn').addEventListener('click', async () => {
+			const btn    = getEl('gen-billing-btn') as HTMLButtonElement;
+			const status = getEl('gen-status');
 			(btn as HTMLButtonElement).disabled = true;
 			status.className = 'hidden';
 
@@ -170,9 +192,11 @@
 		// ── Messages ─────────────────────────────────────────────────────────────
 		async function loadBusinessesForMsgDropdown() {
 			try {
-				const res  = await fetch(`${API}/customers`);
-				const data = await res.json();
-				const sel  = $('msg-target') as HTMLSelectElement;
+				const res = await fetch(`${API}/customers`);
+				const payload = await res.json();
+				if (!res.ok || !Array.isArray(payload)) return;
+				const data = payload;
+				const sel  = getEl('msg-target') as HTMLSelectElement;
 				data.forEach((r: any) => {
 					const opt = document.createElement('option');
 					opt.value = r.business_id ?? '';
@@ -182,10 +206,10 @@
 			} catch {}
 		}
 
-		($('msg-form') as HTMLFormElement).addEventListener('submit', async e => {
+		(getEl('msg-form') as HTMLFormElement).addEventListener('submit', async e => {
 			e.preventDefault();
-			const btn      = $('msg-btn') as HTMLButtonElement;
-			const statusEl = $('msg-status');
+			const btn      = getEl('msg-btn') as HTMLButtonElement;
+			const statusEl = getEl('msg-status');
 			btn.disabled = true;
 			statusEl.className = 'hidden';
 
@@ -193,16 +217,16 @@
 				const res = await fetch(`${API}/message`, {
 					method: 'POST', headers: authHeaders(),
 					body: JSON.stringify({
-						business_id: ($('msg-target') as HTMLSelectElement).value || null,
-						body:        ($('msg-body') as HTMLTextAreaElement).value.trim(),
-						is_active:   ($('msg-active') as HTMLInputElement).checked
+						business_id: (getEl('msg-target') as HTMLSelectElement).value || null,
+						body:        (getEl('msg-body') as HTMLTextAreaElement).value.trim(),
+						is_active:   (getEl('msg-active') as HTMLInputElement).checked
 					})
 				});
 				const data = await res.json();
 				if (!res.ok) throw new Error(data.error ?? 'Failed');
 				statusEl.className = 'status-msg success';
 				statusEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Message posted.';
-				($('msg-body') as HTMLTextAreaElement).value = '';
+				(getEl('msg-body') as HTMLTextAreaElement).value = '';
 			} catch (err: any) {
 				statusEl.className = 'status-msg error';
 				statusEl.textContent = err.message;
@@ -212,64 +236,64 @@
 		});
 
 		// ── New Customer Modal ────────────────────────────────────────────────────
-		$('invite-btn').addEventListener('click',    () => { $('invite-modal').classList.remove('hidden'); });
-		$('invite-cancel').addEventListener('click', () => closeModal());
-		$('invite-modal').addEventListener('click',  e => { if (e.target === $('invite-modal')) closeModal(); });
+		getEl('invite-btn').addEventListener('click',    () => { getEl('invite-modal').classList.remove('hidden'); });
+		getEl('invite-cancel').addEventListener('click', () => closeModal());
+		getEl('invite-modal').addEventListener('click',  e => { if (e.target === getEl('invite-modal')) closeModal(); });
 
 		function closeModal() {
-			$('invite-modal').classList.add('hidden');
-			($('invite-form') as HTMLFormElement).reset();
-			$('invite-error').classList.add('hidden');
-			$('invite-success').classList.add('hidden');
-			$('invite-submit-label').textContent = 'Create & Send Invite';
-			($('invite-submit-btn') as HTMLButtonElement).disabled = false;
-			$('invite-form').classList.remove('hidden');
+			getEl('invite-modal').classList.add('hidden');
+			(getEl('invite-form') as HTMLFormElement).reset();
+			getEl('invite-error').classList.add('hidden');
+			getEl('invite-success').classList.add('hidden');
+			getEl('invite-submit-label').textContent = 'Create & Send Invite';
+			(getEl('invite-submit-btn') as HTMLButtonElement).disabled = false;
+			getEl('invite-form').classList.remove('hidden');
 		}
 
 		function syncProductFields() {
-			const p = ($('inv-product') as HTMLSelectElement).value;
-			$('inv-slug-wrap').classList.toggle('hidden', p !== 'dialtone_menu');
-			$('inv-other-wrap').classList.toggle('hidden', p !== 'other');
+			const p = (getEl('inv-product') as HTMLSelectElement).value;
+			getEl('inv-slug-wrap').classList.toggle('hidden', p !== 'dialtone_menu');
+			getEl('inv-other-wrap').classList.toggle('hidden', p !== 'other');
 		}
-		$('inv-product').addEventListener('change', syncProductFields);
+		getEl('inv-product').addEventListener('change', syncProductFields);
 		syncProductFields();
 
-		($('invite-form') as HTMLFormElement).addEventListener('submit', async e => {
+		(getEl('invite-form') as HTMLFormElement).addEventListener('submit', async e => {
 			e.preventDefault();
-			const btn   = $('invite-submit-btn') as HTMLButtonElement;
-			const label = $('invite-submit-label');
-			const errEl = $('invite-error');
+			const btn   = getEl('invite-submit-btn') as HTMLButtonElement;
+			const label = getEl('invite-submit-label');
+			const errEl = getEl('invite-error');
 			btn.disabled = true;
 			label.textContent = 'Creating…';
 			errEl.classList.add('hidden');
 
-			const amountCents = Math.round(parseFloat(($('inv-amount') as HTMLInputElement).value) * 100);
-			const product     = ($('inv-product') as HTMLSelectElement).value;
+			const amountCents = Math.round(parseFloat((getEl('inv-amount') as HTMLInputElement).value) * 100);
+			const product     = (getEl('inv-product') as HTMLSelectElement).value;
 			const bizTypeMap: Record<string, string> = { dialtone_menu: 'restaurant', dialtone_med: 'clinic' };
-			const bizType     = bizTypeMap[product] ?? (($('inv-biz-desc') as HTMLTextAreaElement).value.trim().slice(0, 110) || 'other');
+			const bizType     = bizTypeMap[product] ?? ((getEl('inv-biz-desc') as HTMLTextAreaElement).value.trim().slice(0, 110) || 'other');
 
 			try {
 				const res = await fetch(`${API}/invite`, {
 					method: 'POST', headers: authHeaders(),
 					body: JSON.stringify({
-						business_name:        ($('inv-biz-name') as HTMLInputElement).value.trim(),
+						business_name:        (getEl('inv-biz-name') as HTMLInputElement).value.trim(),
 						business_type:        bizType,
-						dialtone_slug:        ($('inv-slug') as HTMLInputElement).value.trim() || null,
+						dialtone_slug:        (getEl('inv-slug') as HTMLInputElement).value.trim() || null,
 						product,
-						ein:                  ($('inv-ein') as HTMLInputElement).value.trim() || null,
-						email:                ($('inv-email') as HTMLInputElement).value.trim(),
-						full_name:            ($('inv-name') as HTMLInputElement).value.trim() || null,
+						ein:                  (getEl('inv-ein') as HTMLInputElement).value.trim() || null,
+						email:                (getEl('inv-email') as HTMLInputElement).value.trim(),
+						full_name:            (getEl('inv-name') as HTMLInputElement).value.trim() || null,
 						monthly_amount_cents: amountCents
 					})
 				});
 				const data = await res.json();
 				if (!res.ok) throw new Error(data.error ?? 'Failed');
 
-				$('invite-success').innerHTML =
+				getEl('invite-success').innerHTML =
 					`<i class="fa-solid fa-circle-check"></i> Customer created and invite sent!` +
 					(data.ein_verified ? ' <span class="badge badge-success" style="margin-left:6px;"><i class="fa-solid fa-shield-check"></i> EIN Verified</span>' : '');
-				$('invite-form').classList.add('hidden');
-				$('invite-success').classList.remove('hidden');
+				getEl('invite-form').classList.add('hidden');
+				getEl('invite-success').classList.remove('hidden');
 				setTimeout(() => { closeModal(); loadCustomers(); }, 2500);
 			} catch (err: any) {
 				errEl.textContent = err.message;

@@ -161,6 +161,14 @@ Use these as questions and positioning prompts, not as attacks on a competitor.
 
 > Resy and OpenTable specialize in reservations and guest management. DialTone.Menu addresses the broader order-to-kitchen workflow, including POS, direct ordering, payments, loyalty, and voice ordering.
 
+### Static Web
+
+> A static website is a good starting point for a restaurant. DialTone.Menu can provide a dynamic online presence with branded ordering, loyalty, and voice ordering in one platform.
+
+### No Web
+
+> If a restaurant has no web presence, DialTone.Menu can provide a dynamic online presence with branded ordering, loyalty, and voice ordering in one platform.
+
 ## Close for the Meeting
 
 ### Standard Close
