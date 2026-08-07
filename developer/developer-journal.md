@@ -1,5 +1,35 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — CRM Lead Pipeline Table Update
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Request
+
+In the CRM Lead Pipeline table, remove Delivery and Pickup columns, add Business Type, and make it sortable.
+
+### Changes
+
+- Updated `src/routes/crm/+page.svelte`:
+  - Removed Delivery and Pickup table columns from the Lead Pipeline grid.
+  - Added a new Business Type column.
+  - Added click-to-toggle sorting on Business Type with three states:
+    - none
+    - ascending
+    - descending
+  - Updated filter-reset behavior to also reset Business Type sorting back to none.
+  - Kept existing Status and City filters intact.
+
+- Updated `tests/components/pages.test.ts`:
+  - Reworked table-reset test to align with the removed Delivery/Pickup controls.
+  - Added a new test validating Business Type sort ordering in both ascending and descending modes.
+
+### Validation
+
+- `pnpm run lint` passed.
+- `pnpm run check` passed.
+- `pnpm exec vitest run tests/components/pages.test.ts` passed (27/27).
+
 ## 2026-08-07 — Portal Admin Runtime Config Diagnostics
 
 **Participants:** Scott Thornton, GitHub Copilot

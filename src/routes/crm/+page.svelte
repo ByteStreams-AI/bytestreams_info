@@ -75,10 +75,17 @@
 	let search = $state('');
 	let filterStatus = $state('');
 	let filterCity = $state('');
-	let filterDelivery = $state('');
-	let filterPickup = $state('');
+	let businessTypeSort = $state<'none' | 'asc' | 'desc'>('none');
 	let currentPage = $state(1);
 	const PAGE_SIZE = 50;
+
+	const BUSINESS_TYPE_LABELS: Record<string, string> = {
+		food_truck: 'Food Truck',
+		single_location: 'Single Location',
+		multi_configuration: 'Multi-Configuration',
+		multi_location: 'Multi-Location',
+		enterprise: 'Enterprise'
+	};
 
 	const cities = $derived.by(() => {
 		return data.leads
@@ -98,29 +105,47 @@
 			.sort((left, right) => left.label.localeCompare(right.label));
 	});
 
-	const filteredLeads = $derived(
-		data.leads.filter((lead) => {
+	function businessTypeLabel(value: string | null): string {
+		if (!value) return '—';
+		return BUSINESS_TYPE_LABELS[value] ?? value.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+	}
+
+	function toggleBusinessTypeSort() {
+		businessTypeSort =
+			businessTypeSort === 'none' ? 'asc' : businessTypeSort === 'asc' ? 'desc' : 'none';
+		resetPage();
+	}
+
+	const filteredLeads = $derived.by(() => {
+		const leads = data.leads.filter((lead) => {
 			if (search && !lead.business_name.toLowerCase().includes(search.toLowerCase())) return false;
 			if (filterStatus && lead.status !== filterStatus) return false;
 			if (filterCity && lead.city?.trim().toLocaleLowerCase() !== filterCity) return false;
-			if (filterDelivery !== '') {
-				const want = filterDelivery === 'yes';
-				if ((lead.offers_delivery ?? false) !== want) return false;
-			}
-			if (filterPickup !== '') {
-				const want = filterPickup === 'yes';
-				if ((lead.offers_pickup ?? false) !== want) return false;
-			}
 			return true;
-		})
-	);
+		});
+
+		if (businessTypeSort === 'none') return leads;
+
+		return [...leads].sort((left, right) => {
+			const leftType = left.business_type ?? '';
+			const rightType = right.business_type ?? '';
+			const leftEmpty = leftType.length === 0;
+			const rightEmpty = rightType.length === 0;
+			if (leftEmpty && rightEmpty) return 0;
+			if (leftEmpty) return 1;
+			if (rightEmpty) return -1;
+
+			const result = businessTypeLabel(leftType).localeCompare(businessTypeLabel(rightType));
+			return businessTypeSort === 'asc' ? result : -result;
+		});
+	});
 	const totalPages = $derived(Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE)));
 	const pageNumbers = $derived(Array.from({ length: totalPages }, (_, index) => index + 1));
 	const pageStart = $derived((currentPage - 1) * PAGE_SIZE);
 	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, filteredLeads.length));
 	const paginatedLeads = $derived(filteredLeads.slice(pageStart, pageEnd));
 	const hasActiveFilters = $derived(Boolean(
-		search || filterStatus || filterCity || filterDelivery || filterPickup
+		search || filterStatus || filterCity || businessTypeSort !== 'none'
 	));
 
 	function resetPage() {
@@ -131,8 +156,7 @@
 		search = '';
 		filterStatus = '';
 		filterCity = '';
-		filterDelivery = '';
-		filterPickup = '';
+		businessTypeSort = 'none';
 		currentPage = 1;
 	}
 
@@ -300,6 +324,23 @@
 				<tr>
 					<th>Business</th>
 					<th>
+						<button
+							type="button"
+							class="th-sort-btn"
+							onclick={toggleBusinessTypeSort}
+							aria-label="Sort by business type"
+						>
+							Business Type
+							{#if businessTypeSort === 'asc'}
+								<span aria-hidden="true"> ▲</span>
+							{:else if businessTypeSort === 'desc'}
+								<span aria-hidden="true"> ▼</span>
+							{:else}
+								<span aria-hidden="true"> ↕</span>
+							{/if}
+						</button>
+					</th>
+					<th>
 						<div class="th-filter">
 							<span>City</span>
 							<select bind:value={filterCity} onchange={resetPage} aria-label="Filter by city">
@@ -322,26 +363,6 @@
 							</select>
 						</div>
 					</th>
-					<th>
-						<div class="th-filter">
-							<span>Delivery</span>
-							<select bind:value={filterDelivery} onchange={resetPage} aria-label="Filter by delivery">
-								<option value="">All</option>
-								<option value="yes">Yes</option>
-								<option value="no">No</option>
-							</select>
-						</div>
-					</th>
-					<th>
-						<div class="th-filter">
-							<span>Pickup</span>
-							<select bind:value={filterPickup} onchange={resetPage} aria-label="Filter by pickup">
-								<option value="">All</option>
-								<option value="yes">Yes</option>
-								<option value="no">No</option>
-							</select>
-						</div>
-					</th>
 					<th>Contact</th>
 					<th>Contact Phone</th>
 					<th></th>
@@ -351,6 +372,7 @@
 				{#each paginatedLeads as lead (lead.lead_id)}
 					<tr class="crm-row" class:crm-row--selected={selectedLead?.lead_id === lead.lead_id}>
 						<td class="crm-name">{lead.business_name}</td>
+						<td>{businessTypeLabel(lead.business_type)}</td>
 						<td>{lead.city ?? '—'}</td>
 						<td>
 							{#if lead.phone && phoneHref(lead.phone)}
@@ -365,8 +387,6 @@
 								{STATUS_LABELS[lead.status] ?? lead.status}
 							</span>
 						</td>
-						<td>{flag(lead.offers_delivery)}</td>
-						<td>{flag(lead.offers_pickup)}</td>
 						<td>{lead.contact_name ?? '—'}</td>
 						<td>
 							{#if lead.contact_phone && phoneHref(lead.contact_phone)}
@@ -381,7 +401,7 @@
 						</td>
 					</tr>
 				{:else}
-					<tr><td colspan="9" class="crm-empty">No leads match the current filters.</td></tr>
+					<tr><td colspan="8" class="crm-empty">No leads match the current filters.</td></tr>
 				{/each}
 			</tbody>
 		</table>
@@ -916,6 +936,26 @@
 		letter-spacing: 0.05em;
 		color: var(--text-muted);
 		border-bottom: 1px solid var(--border-edge);
+	}
+
+	.th-sort-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		font-size: inherit;
+		font-weight: inherit;
+		text-transform: inherit;
+		letter-spacing: inherit;
+		cursor: pointer;
+	}
+
+	.th-sort-btn:hover {
+		color: var(--color-stream-blue);
 	}
 
 	.th-filter {
