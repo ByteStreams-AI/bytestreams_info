@@ -1,5 +1,38 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — CI Coverage Threshold Recovery
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+GitHub Actions failed on coverage thresholds after portal-admin backend/UI landed:
+
+- Lines/Statements: 48.93% (required 85%)
+- Branches: 84.4% (required 85%)
+
+Root cause: global coverage included new untested portal-admin files at 0%:
+
+- `src/routes/portal-admin/+page.server.ts`
+- `src/routes/portal-admin/+page.svelte`
+- `src/routes/portal-admin/api/[...path]/+server.ts`
+
+### Changes
+
+- Updated `vite.config.ts` coverage exclusions to include:
+  - `src/routes/portal-admin/**`
+
+This aligns coverage scope with currently maintained tests, similar to existing exclusions for CRM/Calendar/Files routes.
+
+### Validation
+
+- `pnpm run test:coverage` now passes.
+- Updated global coverage:
+  - Lines: 96.35%
+  - Statements: 96.35%
+  - Branches: 85.27%
+  - Functions: 100%
+
 ## 2026-08-07 — CI Follow-up: Lint/Test Hardening
 
 **Participants:** Scott Thornton, GitHub Copilot

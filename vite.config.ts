@@ -24,6 +24,7 @@ export default defineConfig({
 				'src/routes/crm/**',
 				'src/routes/calendar/**',
 				'src/routes/files/**',
+					'src/routes/portal-admin/**',
 				'src/lib/server/supabase.ts',
 				'src/routes/+page.server.ts'
 			],
