@@ -33,6 +33,14 @@
 				href: '/crm-admin'
 			}]
 			: []),
+		...(data.canAccessPortalAdmin
+			? [{
+				name: 'Portal Admin',
+				description: 'Manage customers, billing, and messages for the ByteStreams customer portal.',
+				status: 'Internal' as const,
+				href: '/portal-admin'
+			}]
+			: []),
 		{
 			name: 'Documentation',
 			description: 'Internal docs, API references, runbooks, and compliance policies.',
