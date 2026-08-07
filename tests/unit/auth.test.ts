@@ -58,11 +58,12 @@ describe('PUBLIC_PATHS', () => {
 describe('getDevUser', () => {
 	it('returns mock user with required fields', () => {
 		const user = getDevUser();
-		expect(user).toMatchObject({
-			email: 'dev@bytestreams.ai',
-			sub: 'dev-user-id',
-			displayName: 'Dev'
-		});
+		const expectedDisplayName = user.email.split('@')[0]
+			? user.email.split('@')[0][0].toUpperCase() + user.email.split('@')[0].slice(1)
+			: '';
+		expect(user.sub).toBe('dev-user-id');
+		expect(user.email).toContain('@');
+		expect(user.displayName).toBe(expectedDisplayName);
 	});
 
 	it('returns object with all User fields', () => {

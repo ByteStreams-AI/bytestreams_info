@@ -109,7 +109,7 @@ async function handleCustomers(): Promise<Response> {
 	}
 
 	const businessIds = [...new Set(accounts.map((a) => a.business_id).filter((id): id is string => Boolean(id)))];
-	let businessesById: Record<string, BusinessRow> = {};
+	const businessesById: Record<string, BusinessRow> = {};
 
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
@@ -160,7 +160,7 @@ async function handleBilling(): Promise<Response> {
 
 	const billingRows = rows ?? [];
 	const businessIds = [...new Set(billingRows.map((r) => r.business_id).filter((id): id is string => Boolean(id)))];
-	let nameById: Record<string, string> = {};
+	const nameById: Record<string, string> = {};
 
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
@@ -268,7 +268,7 @@ async function ensureSupabaseAuthUser(email: string): Promise<string | null> {
 		throw new Error(`Auth user creation failed: ${createBody?.msg ?? createRes.status}`);
 	}
 
-	let authUserId = createBody?.id ?? createBody?.user?.id ?? null;
+	const authUserId = createBody?.id ?? createBody?.user?.id ?? null;
 	if (authUserId) return authUserId;
 
 	const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}&per_page=1`, {

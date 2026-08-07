@@ -7,6 +7,33 @@
 	onMount(() => {
 		const getEl = <T = HTMLElement>(id: string) => document.getElementById(id) as unknown as T;
 
+		type PortalCustomerRow = {
+			id: string;
+			email: string;
+			full_name: string | null;
+			business_id: string | null;
+			business_name: string | null;
+			business_type: string | null;
+			product: string | null;
+			status: string | null;
+			ein: string | null;
+			ein_verified: boolean;
+			monthly_amount_cents: number | null;
+			invited_at: string | null;
+			activated_at: string | null;
+		};
+
+		type BillingRow = {
+			id: string;
+			business_id: string | null;
+			business_name: string | null;
+			billing_month: string;
+			amount_cents: number;
+			due_date: string;
+			status: string;
+			paid_at: string | null;
+		};
+
 		function fmtDate(iso: string | null | undefined) {
 			if (!iso) return '—';
 			return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -60,17 +87,17 @@
 				if (!Array.isArray(payload)) {
 					throw new Error('Invalid customers response');
 				}
-				const data = payload;
+				const data = payload as PortalCustomerRow[];
 
 				if (!data.length) { getEl('customers-empty').classList.remove('hidden'); return; }
 
 				getEl('stat-total').textContent = String(data.length);
-				getEl('stat-active').textContent = String(data.filter((r: any) => r.status === 'active').length);
-				getEl('stat-pending').textContent = String(data.filter((r: any) => r.status === 'setup_pending').length);
-				getEl('stat-churned').textContent = String(data.filter((r: any) => r.status === 'churned').length);
+				getEl('stat-active').textContent = String(data.filter((r) => r.status === 'active').length);
+				getEl('stat-pending').textContent = String(data.filter((r) => r.status === 'setup_pending').length);
+				getEl('stat-churned').textContent = String(data.filter((r) => r.status === 'churned').length);
 
 				const tbody = getEl('customers-tbody');
-				tbody.innerHTML = data.map((r: any) => `
+				tbody.innerHTML = data.map((r) => `
 					<tr>
 						<td>
 							<p class="cell-name">${escHtml(r.business_name ?? '—')}</p>
@@ -81,7 +108,7 @@
 							<p class="text-mono">${escHtml(r.full_name ?? '')}</p>
 						</td>
 						<td><span class="badge badge-info">${escHtml(r.product ?? 'dialtone_menu')}</span></td>
-						<td>${statusBadge(r.status)}</td>
+						<td>${statusBadge(r.status ?? '')}</td>
 						<td>${r.ein_verified ? '<span class="badge badge-success"><i class="fa-solid fa-shield-check"></i> Verified</span>' : (r.ein ? '<span class="badge badge-warning">Unverified</span>' : '—')}</td>
 						<td>${r.monthly_amount_cents ? fmtCents(r.monthly_amount_cents) : '—'}</td>
 						<td>${fmtDate(r.invited_at)}</td>
@@ -144,12 +171,12 @@
 				if (!Array.isArray(payload)) {
 					throw new Error('Invalid billing response');
 				}
-				const rows = payload;
+				const rows = payload as BillingRow[];
 
 				if (!rows.length) { getEl('billing-empty').classList.remove('hidden'); return; }
 
 				const tbody = getEl('billing-tbody');
-				tbody.innerHTML = rows.map((r: any) => `
+				tbody.innerHTML = rows.map((r) => `
 					<tr>
 						<td class="cell-name">${escHtml(r.business_name ?? '—')}</td>
 						<td>${fmtMonth(r.billing_month)}</td>
@@ -181,9 +208,9 @@
 				status.className = 'status-msg success';
 				status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Created ${data.created ?? 0} billing record(s).`;
 				await loadBilling();
-			} catch (err: any) {
+			} catch (err: unknown) {
 				status.className = 'status-msg error';
-				status.textContent = err.message;
+				status.textContent = err instanceof Error ? err.message : 'Failed';
 			}
 			status.classList.remove('hidden');
 			btn.disabled = false;
@@ -195,15 +222,17 @@
 				const res = await fetch(`${API}/customers`);
 				const payload = await res.json() as unknown;
 				if (!res.ok || !Array.isArray(payload)) return;
-				const data = payload;
+				const data = payload as PortalCustomerRow[];
 				const sel = getEl<HTMLSelectElement>('msg-target');
-				data.forEach((r: any) => {
+				data.forEach((r) => {
 					const opt = document.createElement('option');
 					opt.value = r.business_id ?? '';
 					opt.textContent = r.business_name ?? r.email;
 					if (opt.value) sel.appendChild(opt);
 				});
-			} catch {}
+			} catch (err: unknown) {
+				console.error('Load message recipients:', err);
+			}
 		}
 
 		getEl<HTMLFormElement>('msg-form').addEventListener('submit', async e => {
@@ -227,9 +256,9 @@
 				statusEl.className = 'status-msg success';
 				statusEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Message posted.';
 				getEl<HTMLTextAreaElement>('msg-body').value = '';
-			} catch (err: any) {
+			} catch (err: unknown) {
 				statusEl.className = 'status-msg error';
-				statusEl.textContent = err.message;
+				statusEl.textContent = err instanceof Error ? err.message : 'Failed';
 			}
 			statusEl.classList.remove('hidden');
 			btn.disabled = false;
@@ -295,8 +324,8 @@
 				getEl('invite-form').classList.add('hidden');
 				getEl('invite-success').classList.remove('hidden');
 				setTimeout(() => { closeModal(); loadCustomers(); }, 2500);
-			} catch (err: any) {
-				errEl.textContent = err.message;
+			} catch (err: unknown) {
+				errEl.textContent = err instanceof Error ? err.message : 'Failed';
 				errEl.classList.remove('hidden');
 				btn.disabled = false;
 				label.textContent = 'Create & Send Invite';

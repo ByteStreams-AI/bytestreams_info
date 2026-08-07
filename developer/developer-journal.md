@@ -1,5 +1,39 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — CI Follow-up: Lint/Test Hardening
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Problem
+
+After TypeScript fixes, local CI simulation still failed in later stages:
+
+- `eslint` failures in portal-admin UI/API (`no-explicit-any`, `no-empty`, `prefer-const`)
+- One unit test in `tests/unit/auth.test.ts` hardcoded dev user identity and failed when `DEV_USER_EMAIL` was overridden in local env.
+
+### Changes
+
+- `src/routes/portal-admin/+page.svelte`
+  - Introduced explicit row types for customers and billing payloads.
+  - Removed `any` usage in filters/maps/catches.
+  - Replaced empty catch block with logged error.
+  - Added null-safe status fallback for badge rendering.
+- `src/routes/portal-admin/api/[...path]/+server.ts`
+  - Applied `prefer-const` fixes for map objects and auth user id.
+- `src/routes/login/+page.svelte`
+  - Removed stale/unused eslint-disable directive.
+- `tests/unit/auth.test.ts`
+  - Updated `getDevUser` assertion to validate required shape and derived display-name behavior without hardcoding a specific email.
+
+### Validation
+
+- Ran full local CI path successfully:
+  - `pnpm run lint`
+  - `pnpm run check`
+  - `pnpm test --run`
+  - `pnpm run build`
+- Result: all checks pass, 131/131 tests passing, production build succeeds.
+
 ## 2026-08-07 — CI Recovery: Portal Admin TypeScript Strictness
 
 **Participants:** Scott Thornton, GitHub Copilot
