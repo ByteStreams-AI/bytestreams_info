@@ -1,5 +1,29 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — Portal Admin Runtime Config Diagnostics
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+Production still reported `portal_accounts` missing, indicating possible fallback to the app Supabase project instead of portal-specific Supabase bindings.
+
+### Changes
+
+- Added an admin-only diagnostics endpoint in portal-admin API:
+  - `GET /portal-admin/api/config-debug`
+- Endpoint response includes:
+  - `source`: `portal` or `app` (which config path is active)
+  - `supabase_host`: resolved host from selected Supabase URL
+  - `has_portal_override`: boolean derived from selected config source
+- Endpoint is protected by existing portal-admin auth guard and does not expose any keys.
+
+### Validation
+
+- `pnpm run lint` passed.
+- `pnpm run check` passed.
+- `pnpm test --run` passed (131/131).
+
 ## 2026-08-07 — CI Coverage Threshold Recovery
 
 **Participants:** Scott Thornton, GitHub Copilot

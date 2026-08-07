@@ -38,7 +38,7 @@ function guard(locals: App.Locals): void {
 	if (!locals.user || !canAccessPortalAdmin(locals.user)) throw redirect(302, '/login');
 }
 
-function getPortalSupabaseConfig(): { url: string; key: string } {
+function getPortalSupabaseConfig(): { url: string; key: string; source: 'portal' | 'app' } {
 	const portalUrl = env.PORTAL_SUPABASE_URL?.trim();
 	const portalKey = env.PORTAL_SUPABASE_SERVICE_ROLE_KEY?.trim();
 
@@ -47,7 +47,7 @@ function getPortalSupabaseConfig(): { url: string; key: string } {
 	}
 
 	if (portalUrl && portalKey) {
-		return { url: portalUrl, key: portalKey };
+		return { url: portalUrl, key: portalKey, source: 'portal' };
 	}
 
 	const appUrl = env.SUPABASE_URL?.trim();
@@ -58,12 +58,20 @@ function getPortalSupabaseConfig(): { url: string; key: string } {
 		);
 	}
 
-	return { url: appUrl, key: appKey };
+	return { url: appUrl, key: appKey, source: 'app' };
 }
 
 function getSupabase() {
 	const { url, key } = getPortalSupabaseConfig();
 	return createClient(url, key);
+}
+
+function getSupabaseHost(url: string): string {
+	try {
+		return new URL(url).host;
+	} catch {
+		return 'invalid-url';
+	}
 }
 
 function normalizeText(value: unknown, maxLen: number): string {
@@ -414,11 +422,22 @@ async function handleMessage(request: Request): Promise<Response> {
 	return jsonResponse({ ok: true });
 }
 
+async function handleConfigDebug(): Promise<Response> {
+	const config = getPortalSupabaseConfig();
+	return jsonResponse({
+		ok: true,
+		source: config.source,
+		supabase_host: getSupabaseHost(config.url),
+		has_portal_override: config.source === 'portal'
+	});
+}
+
 export const GET: RequestHandler = async ({ params, locals }) => {
 	guard(locals);
 
 	if (params.path === 'customers') return handleCustomers();
 	if (params.path === 'billing') return handleBilling();
+	if (params.path === 'config-debug') return handleConfigDebug();
 
 	return jsonResponse({ error: 'Not found' }, 404);
 };
