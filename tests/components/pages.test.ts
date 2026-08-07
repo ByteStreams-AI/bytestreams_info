@@ -189,7 +189,7 @@ describe('CRM Page', () => {
 		});
 		await fireEvent.change(screen.getByLabelText('Filter by city'), { target: { value: 'austin' } });
 		await fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'researched' } });
-		await fireEvent.click(screen.getByRole('button', { name: 'Sort by business type' }));
+		await fireEvent.change(screen.getByLabelText('Filter by business type'), { target: { value: 'single_location' } });
 
 		expect(screen.getByText('Austin Smokehouse')).toBeInTheDocument();
 		expect(screen.queryByText('Buffalo Burger')).not.toBeInTheDocument();
@@ -201,13 +201,14 @@ describe('CRM Page', () => {
 		expect(screen.getByLabelText('Search by business name')).toHaveValue('');
 		expect(screen.getByLabelText('Filter by city')).toHaveValue('');
 		expect(screen.getByLabelText('Filter by status')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by business type')).toHaveValue('');
 		expect(screen.getByText('Dialable Cafe')).toBeInTheDocument();
 		expect(screen.getByText('Austin Smokehouse')).toBeInTheDocument();
 		expect(screen.getByText('Buffalo Burger')).toBeInTheDocument();
 		expect(resetButton).toBeDisabled();
 	});
 
-	it('sorts the lead table by business type', async () => {
+	it('filters the lead table by business type', async () => {
 		const secondLead = {
 			...lead,
 			lead_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -225,21 +226,18 @@ describe('CRM Page', () => {
 			props: { data: { user, leads: [lead, secondLead, thirdLead], researchFindings: [] } }
 		});
 
-		const sortButton = screen.getByRole('button', { name: 'Sort by business type' });
-		await fireEvent.click(sortButton);
+		await fireEvent.change(screen.getByLabelText('Filter by business type'), {
+			target: { value: 'food_truck' }
+		});
+		expect(screen.getByText('Buffalo Burger')).toBeInTheDocument();
+		expect(screen.queryByText('Austin Smokehouse')).not.toBeInTheDocument();
+		expect(screen.queryByText('Dialable Cafe')).not.toBeInTheDocument();
 
-		let rows = screen
-			.getAllByRole('row')
-			.filter((row) => row.querySelector('.crm-name'));
-		expect(within(rows[0]).getByText('Buffalo Burger')).toBeInTheDocument();
-		expect(within(rows[1]).getByText('Austin Smokehouse')).toBeInTheDocument();
-
-		await fireEvent.click(sortButton);
-		rows = screen
-			.getAllByRole('row')
-			.filter((row) => row.querySelector('.crm-name'));
-		expect(within(rows[0]).getByText('Austin Smokehouse')).toBeInTheDocument();
-		expect(within(rows[1]).getByText('Buffalo Burger')).toBeInTheDocument();
+		await fireEvent.change(screen.getByLabelText('Filter by business type'), {
+			target: { value: 'single_location' }
+		});
+		expect(screen.getByText('Austin Smokehouse')).toBeInTheDocument();
+		expect(screen.queryByText('Buffalo Burger')).not.toBeInTheDocument();
 	});
 
 	it('edits contact phone between contact name and email', async () => {

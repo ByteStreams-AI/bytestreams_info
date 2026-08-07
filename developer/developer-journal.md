@@ -30,6 +30,32 @@ Add explicit Cloudflare Access audience (`CF_ACCESS_AUD`) validation in auth han
 - `pnpm run check` passed.
 - `pnpm test --run` passed (138/138).
 
+## 2026-08-07 — CRM Business Type Behavior Correction
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Request Correction
+
+Initial implementation added **Business Type sort** in the Lead Pipeline table. Requirement was corrected to **Business Type filter**.
+
+### Changes
+
+- Updated `src/routes/crm/+page.svelte`:
+  - Removed Business Type sort toggle state/handler.
+  - Added `Filter by business type` dropdown in table header.
+  - Added business-type filtering in the lead list derivation.
+  - Updated reset logic to clear business-type filter.
+
+- Updated `tests/components/pages.test.ts`:
+  - Replaced sort behavior assertions with business-type filter assertions.
+  - Updated reset-filters test to include `Filter by business type` reset checks.
+
+### Validation
+
+- `pnpm run lint` passed.
+- `pnpm run check` passed.
+- `pnpm exec vitest run tests/components/pages.test.ts` passed (27/27).
+
 ## 2026-08-07 — CRM Lead Pipeline Table Update
 
 **Participants:** Scott Thornton, GitHub Copilot

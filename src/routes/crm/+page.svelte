@@ -75,7 +75,7 @@
 	let search = $state('');
 	let filterStatus = $state('');
 	let filterCity = $state('');
-	let businessTypeSort = $state<'none' | 'asc' | 'desc'>('none');
+	let filterBusinessType = $state('');
 	let currentPage = $state(1);
 	const PAGE_SIZE = 50;
 
@@ -105,38 +105,27 @@
 			.sort((left, right) => left.label.localeCompare(right.label));
 	});
 
+	const businessTypes = $derived.by(() => {
+		return data.leads
+			.map((lead) => lead.business_type?.trim())
+			.filter((value): value is string => Boolean(value))
+			.reduce<string[]>((values, type) => (values.includes(type) ? values : [...values, type]), [])
+			.map((value) => ({ value, label: businessTypeLabel(value) }))
+			.sort((left, right) => left.label.localeCompare(right.label));
+	});
+
 	function businessTypeLabel(value: string | null): string {
 		if (!value) return '—';
 		return BUSINESS_TYPE_LABELS[value] ?? value.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 	}
 
-	function toggleBusinessTypeSort() {
-		businessTypeSort =
-			businessTypeSort === 'none' ? 'asc' : businessTypeSort === 'asc' ? 'desc' : 'none';
-		resetPage();
-	}
-
 	const filteredLeads = $derived.by(() => {
-		const leads = data.leads.filter((lead) => {
+		return data.leads.filter((lead) => {
 			if (search && !lead.business_name.toLowerCase().includes(search.toLowerCase())) return false;
 			if (filterStatus && lead.status !== filterStatus) return false;
 			if (filterCity && lead.city?.trim().toLocaleLowerCase() !== filterCity) return false;
+			if (filterBusinessType && (lead.business_type ?? '') !== filterBusinessType) return false;
 			return true;
-		});
-
-		if (businessTypeSort === 'none') return leads;
-
-		return [...leads].sort((left, right) => {
-			const leftType = left.business_type ?? '';
-			const rightType = right.business_type ?? '';
-			const leftEmpty = leftType.length === 0;
-			const rightEmpty = rightType.length === 0;
-			if (leftEmpty && rightEmpty) return 0;
-			if (leftEmpty) return 1;
-			if (rightEmpty) return -1;
-
-			const result = businessTypeLabel(leftType).localeCompare(businessTypeLabel(rightType));
-			return businessTypeSort === 'asc' ? result : -result;
 		});
 	});
 	const totalPages = $derived(Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE)));
@@ -145,7 +134,7 @@
 	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, filteredLeads.length));
 	const paginatedLeads = $derived(filteredLeads.slice(pageStart, pageEnd));
 	const hasActiveFilters = $derived(Boolean(
-		search || filterStatus || filterCity || businessTypeSort !== 'none'
+		search || filterStatus || filterCity || filterBusinessType
 	));
 
 	function resetPage() {
@@ -156,7 +145,7 @@
 		search = '';
 		filterStatus = '';
 		filterCity = '';
-		businessTypeSort = 'none';
+		filterBusinessType = '';
 		currentPage = 1;
 	}
 
@@ -324,21 +313,15 @@
 				<tr>
 					<th>Business</th>
 					<th>
-						<button
-							type="button"
-							class="th-sort-btn"
-							onclick={toggleBusinessTypeSort}
-							aria-label="Sort by business type"
-						>
-							Business Type
-							{#if businessTypeSort === 'asc'}
-								<span aria-hidden="true"> ▲</span>
-							{:else if businessTypeSort === 'desc'}
-								<span aria-hidden="true"> ▼</span>
-							{:else}
-								<span aria-hidden="true"> ↕</span>
-							{/if}
-						</button>
+						<div class="th-filter">
+							<span>Business Type</span>
+							<select bind:value={filterBusinessType} onchange={resetPage} aria-label="Filter by business type">
+								<option value="">All</option>
+								{#each businessTypes as type (type.value)}
+									<option value={type.value}>{type.label}</option>
+								{/each}
+							</select>
+						</div>
 					</th>
 					<th>
 						<div class="th-filter">
@@ -936,26 +919,6 @@
 		letter-spacing: 0.05em;
 		color: var(--text-muted);
 		border-bottom: 1px solid var(--border-edge);
-	}
-
-	.th-sort-btn {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 0;
-		border: 0;
-		background: transparent;
-		color: inherit;
-		font: inherit;
-		font-size: inherit;
-		font-weight: inherit;
-		text-transform: inherit;
-		letter-spacing: inherit;
-		cursor: pointer;
-	}
-
-	.th-sort-btn:hover {
-		color: var(--color-stream-blue);
 	}
 
 	.th-filter {
