@@ -43,6 +43,16 @@ function mapPayloadToUser(payload: JWTPayload): User | null {
 	};
 }
 
+function isAudienceValid(payload: JWTPayload): boolean {
+	const expectedAud = env.CF_ACCESS_AUD?.trim();
+	if (!expectedAud) return true;
+
+	const aud = payload.aud;
+	if (typeof aud === 'string') return aud === expectedAud;
+	if (Array.isArray(aud)) return aud.includes(expectedAud);
+	return false;
+}
+
 /**
  * Decodes a Cloudflare Access JWT and extracts user claims.
  * Does not re-verify the signature — CF Access already verified at the edge.
@@ -60,6 +70,7 @@ export function verifyAccessJwt(
 		const parts = token.split('.');
 		if (parts.length !== 3) return null;
 		const payload = JSON.parse(atob(parts[1])) as JWTPayload;
+		if (!isAudienceValid(payload)) return null;
 		// Reject expired tokens
 		if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
 		return mapPayloadToUser(payload);

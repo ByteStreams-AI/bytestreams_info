@@ -1,5 +1,35 @@
 # Developer Journal — ByteStreams Intranet
 
+## 2026-08-07 — Cloudflare Access AUD Validation Hardening
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Request
+
+Add explicit Cloudflare Access audience (`CF_ACCESS_AUD`) validation in auth handling.
+
+### Changes
+
+- Updated `src/lib/server/auth.ts`:
+  - Added `isAudienceValid(payload)` helper.
+  - Enforces `CF_ACCESS_AUD` when configured.
+  - Supports both JWT audience forms:
+    - single string audience
+    - array audience containing expected value
+  - Maintains soft-fail behavior (`null` user) when audience check fails.
+
+- Updated tests:
+  - `tests/unit/auth.test.ts`
+  - `tests/unit/auth-edge.test.ts`
+  - Added deterministic audience-validation coverage for match/mismatch.
+  - Mocked `$env/dynamic/private` via `vi.hoisted` for stable env-driven test behavior.
+
+### Validation
+
+- `pnpm run lint` passed.
+- `pnpm run check` passed.
+- `pnpm test --run` passed (138/138).
+
 ## 2026-08-07 — CRM Lead Pipeline Table Update
 
 **Participants:** Scott Thornton, GitHub Copilot
