@@ -1386,3 +1386,9 @@ User encountered error when creating DialTone.Menu customer: `invalid input valu
 - Renamed dashboard labels from "Total Contacts" to "Contacts" and "Contacted or Beyond" to "Contacted".
 - Displayed Pilots and Customers on separate rows beneath the standard lead metrics.
 - Refined the separate rows so the label appears before the bold count, with a 1.25rem label and 0.9375rem count.
+
+### Follow-up: CI Coverage Repair
+
+- Added focused unit tests for the `/kpi` endpoint: authentication redirect, missing configuration, successful lead counts, null count fallback, and query errors.
+- Added dashboard component tests for KPI rendering and error/retry behavior.
+- Restored the global branch-coverage gate without lowering its threshold: `85.31%` branches, with 148 passing tests.

@@ -105,6 +105,49 @@ describe('Dashboard Page', () => {
 		render(DashboardPage, { props: { data: dashboardData } });
 		expect(screen.queryByText('CRM Admin')).not.toBeInTheDocument();
 	});
+
+	it('renders lead KPIs returned by the dashboard endpoint', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+			generated_at: '2026-08-09T18:00:00.000Z',
+			total_contacts: 120,
+			contacted_or_beyond: 75,
+			emailed: 45,
+			called: 31,
+			demos: 12,
+			pilots: 8,
+			customers: 5
+		}))));
+
+		render(DashboardPage, { props: { data: dashboardData } });
+		await waitFor(() => expect(screen.getByText('120')).toBeInTheDocument());
+		expect(screen.getByText('Contacts')).toBeInTheDocument();
+		expect(screen.getByText('Pilots')).toBeInTheDocument();
+		expect(screen.getByText('Customers')).toBeInTheDocument();
+		vi.unstubAllGlobals();
+	});
+
+	it('shows a KPI error and retries the request', async () => {
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response('', { status: 500 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				generated_at: '2026-08-09T18:00:00.000Z',
+				total_contacts: 1,
+				contacted_or_beyond: 1,
+				emailed: 1,
+				called: 1,
+				demos: 1,
+				pilots: 1,
+				customers: 1
+			})));
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(DashboardPage, { props: { data: dashboardData } });
+		await waitFor(() => expect(screen.getByText('HTTP 500')).toBeInTheDocument());
+		await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(screen.queryByText('HTTP 500')).not.toBeInTheDocument());
+		vi.unstubAllGlobals();
+	});
 });
 
 describe('CRM Page', () => {
