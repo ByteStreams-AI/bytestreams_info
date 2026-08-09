@@ -12,6 +12,11 @@ CF_ACCESS_AUD=                # Application Audience (AUD) tag from CF Access
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=   # service_role secret from Supabase project settings
 
+# --- Stripe Tax ---
+STRIPE_SECRET_KEY=           # Stripe restricted or secret key with Tax Calculations access
+STRIPE_TAX_CODE=txcd_10103001 # Software as a service (SaaS) for business use
+ENABLE_TAX_ASSESSMENT=true   # Set to "true" to enable tax assessment on payments, "false" to disable
+
 # --- Call Script ---
 CALLER_NAME=Steve
 

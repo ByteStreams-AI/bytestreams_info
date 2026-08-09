@@ -1,4 +1,130 @@
+## 2026-08-09 — Tax Assessment UI Toggle
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added Settings tab to portal admin interface with UI toggle for tax assessment.
+- Created `app_settings` table in Supabase for storing admin-configurable settings.
+- Added database migration `007_create_app_settings.sql`.
+- Implemented GET `/portal-admin/api/settings` endpoint to retrieve settings.
+- Implemented POST `/portal-admin/api/settings` endpoint to update settings.
+- Updated `getStripeTaxConfig()` to check database setting when environment variable is not set.
+- Environment variable `ENABLE_TAX_ASSESSMENT` now acts as an override (takes precedence over database).
+- UI displays checkbox toggle with description: "When enabled, Stripe Tax will be applied to setup fees and recurring charges. When disabled, all invoices will have $0.00 tax."
+- Settings are saved with timestamp and admin email for audit trail.
+
+### Validation
+
+- `pnpm test` — 140 tests passed
+- `pnpm check` — 0 errors, 1 pre-existing unrelated CSS warning
+
+## 2026-08-09 — Tax Assessment Toggle
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added `ENABLE_TAX_ASSESSMENT` environment variable to control whether Stripe Tax is assessed on payments.
+- When set to `"true"`, tax assessment works as before (calls Stripe Tax API, adds tax to invoices).
+- When set to `"false"` or omitted, tax is set to $0.00 without making external API calls.
+- Updated `getStripeTaxConfig()` to return `enabled: boolean` field based on env var.
+- Modified setup fee and recurring billing logic to check `stripeTax.enabled` before calling `assessStripeTax()`.
+- Updated secret key validation in `handleGenerateBilling()` to only error if tax is enabled but key is missing.
+- Added `ENABLE_TAX_ASSESSMENT` to `.dev.vars.example` with documentation.
+- Updated `app.d.ts` to include the new environment variable in type definitions.
+
+### Validation
+
+- `pnpm test` — 140 tests passed
+- `pnpm check` — 0 errors, 1 pre-existing unrelated CSS warning
+
+## 2026-08-08 — Allow unverified customer addresses
+
+- DialTone.Menu customer creation now continues when PostGrid cannot verify an otherwise complete, structurally valid address.
+- The submitted address is stored with `address_verified = false`, the success response warns the admin, and the invite confirmation displays `Address Not Verified`.
+- Onboarding remains blocked until the address is successfully re-verified.
+
+## 2026-08-08 — Allow unverified customer EINs
+
+- DialTone.Menu customer creation now continues when Cobalt cannot verify an otherwise valid nine-digit EIN input.
+- The EIN is stored with `ein_verified = false`, the success response warns the admin, and the invite confirmation displays `EIN Unverified`.
+- Onboarding remains blocked until the EIN is successfully re-verified.
+
+## 2026-08-08 — Implement proper EIN verification with business name
+
+- Updated `verifyEINWithCobalt` to use Cobalt's documented API gateway endpoint and authentication.
+- EIN verification now sends business name and EIN (without state) to match against Secretary of State records.
+- Changed from provisional `api.cobaltintelligence.com/v1/ein/` with Bearer auth to `apigateway.cobaltintelligence.com/tinVerification` with `x-api-key` header.
+- Function now checks multiple possible verification response field patterns to handle API variations.
+- State is deliberately excluded because restaurant location addresses may differ from business registration state (e.g., Delaware LLC operating Tennessee restaurant).
+- Implementation follows Cobalt's standard API pattern used by their other endpoints (Court Cases, OFAC, etc.).
+
 # Developer Journal — ByteStreams Intranet
+
+## 2026-08-08 — Structured Customer Addresses
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Replaced combined address inputs with separate Street, City, State, and ZIP Code fields for DialTone.Menu and Other customers.
+- Require a two-character US state code and a valid 5- or 9-digit ZIP in both browser and server validation.
+- Use brace-free HTML patterns so Svelte does not reinterpret regex quantifiers and reject valid values such as `TN`.
+- Send structured components to PostGrid and retain submitted components when normalization omits a value.
+- Return structured addresses to the admin so re-verification fields are prefilled without parsing display text.
+- Store Other customer city, state, and ZIP in dedicated `businesses` columns through portal migration `006_add_structured_business_address.sql`.
+- Keep DialTone.Menu address components in the existing `locations` table for geocoding, delivery, and Stripe Tax.
+
+### Validation
+
+- `pnpm run check`
+
+## 2026-08-08 — Stripe Tax Assessments For Portal Billing
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added Stripe Tax Calculations for the `$100.00` DialTone.Menu setup charge and recurring tier charges.
+- Use the PostGrid-normalized restaurant address to assess state and local tax as an exclusive charge.
+- Store billing subtotal, tax, total, Stripe calculation ID, jurisdiction breakdown, and assessment timestamp.
+- Keep recurring billing eligible for retry when Stripe assessment or billing persistence fails.
+- Added portal migration `005_add_stripe_tax_assessments.sql` and admin subtotal/tax/total columns.
+- Documented Stripe secret, SaaS tax code, tax registrations, and payment-time Tax Transaction follow-up.
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/stripe-tax.test.ts`
+- `pnpm run check`
+
+## 2026-08-08 — Other Product Charge Label
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Renamed the Other product amount field from `Monthly Charge USD` to `Charge USD`.
+- Kept the existing amount storage and billing behavior unchanged.
+
+### Validation
+
+- `pnpm run check`
+
+## 2026-08-08 — Require Explicit Customer Product Selection
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Changed the New Customer Product dropdown default to `Select Product`.
+- Keep all product-specific fields hidden until an admin selects a product.
+- Require an explicit product selection in both the browser form and portal-admin API.
+- Removed the API fallback that previously treated a missing product as DialTone.Menu.
+
+### Validation
+
+- `pnpm run check` — 0 errors; 1 pre-existing unrelated CSS warning in `src/routes/+page.svelte`.
 
 ## 2026-08-07 — Cloudflare Access AUD Validation Hardening
 
@@ -1130,3 +1256,133 @@ After confirming KPI data originates from DialTone Outreach Supabase, Task #1 ne
 ### Outcome
 
 - Task #1 now has a concrete source-of-truth document suitable for linking from project issues and implementation tasks.
+
+---
+
+## 2026-08-09 — Fix Restaurant Tier Enum Values
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Context
+
+User encountered error when creating DialTone.Menu customer: `invalid input value for enum restaurant_tier: "single_location"`. The Portal Admin UI was using tier values (`food_truck`, `single_location`, `multi_configuration`, `multi_location`) that didn't exist in the database enum. Database only had `pilot`, `starter`, `pro`, `enterprise`.
+
+### Changes
+
+- Created diagnostic query `developer/check-restaurant-tier-enum.sql` to inspect valid enum values
+- Created migration `developer/migrations/portal/008_add_restaurant_tier_values.sql`
+- Migration adds missing enum values: `food_truck`, `single_location`, `multi_configuration`, `multi_location`
+- Migration preserves existing values and is idempotent (safe to run multiple times)
+
+### Outcome
+
+- Migration ready to run in Portal Supabase SQL Editor
+- After running, customer creation with all UI tier options will succeed
+- Also fixes voice agent checkbox issue (removed from UI in previous session)
+
+### Follow-up: Add Verification Diagnostics
+
+- Added console logging to `verifyAddressWithPostGrid()` and `verifyEINWithCobalt()` functions
+- Logs now show HTTP status, error messages, and API response details when verification fails
+- Previous silent catch blocks made debugging impossible - now all errors are visible in console
+- User reported API keys are configured but verification still failing - logs will reveal root cause
+
+### Follow-up: Fix EIN Format and Add to Edit Form
+
+**Issue:** Cobalt Intelligence expects EIN without dashes (e.g., `421992050` not `42-1992050`)
+
+**Changes:**
+- Modified `verifyEINWithCobalt()` to strip dashes before API call: `ein.replace(/-/g, '')`
+- Added EIN field to Edit Customer modal
+- EIN is now visible and editable in the edit form
+- Backend `handleUpdateCustomer()` now processes EIN changes:
+  - Strips non-digits and validates 9-digit format
+  - Calls Cobalt verification when EIN changes
+  - Updates `ein`, `ein_verified`, `ein_verified_at` fields
+  - Supports clearing EIN by setting to empty
+- All 140 tests pass
+
+**UI Changes:**
+- Added EIN input field in phone/EIN row of edit modal
+- Format: `XX-XXXXXXX` with 10-character max (allows dash formatting)
+- Backend strips dashes automatically
+
+### Follow-up: Branded Invite Email Template
+
+**Issue:** Customer invite emails were plain text with no branding
+
+**Changes:**
+- Replaced plain text email with fully branded HTML template
+- **Design Elements:**
+  - ByteStreams blue side logo in gradient header (`blue-side-logo.png`)
+  - Brand gradient: Stream Blue (#2563eb) → Data Teal (#06b6d4)
+  - Professional responsive layout with 600px max-width
+  - Prominent "Sign In to Portal" CTA button with gradient background
+  - Info box with passwordless login explanation
+  - Footer with copyright and support email
+- **Email Compatibility:**
+  - Inline CSS for maximum email client compatibility
+  - MSO conditional comments for Outlook
+  - Fallback plain text version included
+  - Table-based layout (standard for HTML email)
+- **Content:**
+  - Welcome message with clear call-to-action
+  - Portal URL as button and fallback text link
+  - User's email address displayed for passwordless login context
+  - Support contact: support@bytestreams.ai
+  - Security note about ignoring if not requested
+- Sent via Resend API with both `html` and `text` versions
+- All 140 tests pass
+
+### Follow-up: Fix EIN Verification Business Name
+
+**Issue:** Cobalt EIN verification was failing because wrong name was sent. Code was sending `restaurantName` ("Hi Sandwich") instead of `businessName` ("bytestreams LLC") to Cobalt API. The IRS has the EIN registered under the legal business entity name, not the restaurant's DBA name.
+
+**Root Cause (from console logs):**
+```
+[Cobalt] EIN verification result: unverified {
+  name: 'HI SANDWICH',  // ❌ Wrong - sent restaurant name
+  tin: '421992050',
+  status: 'Did Not Match',
+  irsReason: 'TIN and Name combination does not match IRS records'
+}
+```
+
+**Fix:**
+- Changed `handleInvite()` line 751: `businessName: restaurantName` → `businessName: businessName`
+- Now sends legal business name to Cobalt for proper IRS verification
+- User confirmed manual test in Cobalt UI shows "TIN Matched" with correct business name
+
+**Also Fixed:**
+- PostGrid API key switched from "Public" mode to "Server" mode (correct for server-side usage)
+- Updated `.dev.vars` with new server-side PostGrid key
+- Both `.env` and `.dev.vars` updated with working API keys
+
+---
+
+## 2026-08-09 — Lead-Based KPIs and Outreach Activity Tracking
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Replaced landing-page KPI aggregation from deprecated email campaign tables with direct queries to the `leads` table in the Outreach Supabase project (`hltmzafywzqajjzjpqva`).
+- Dashboard now reports Total Contacts, Contacted or Beyond, Emailed, Called, Demos, Pilots, and Customers.
+- Added migration `developer/migrations/011_add_lead_activity_and_pilot_status.sql`:
+  - Adds `emailed` and `called` boolean columns, defaulting to false.
+  - Adds the `pilot` lead status to the database constraint.
+- Added Pilot to the CRM status control and status display metadata.
+- Added Emailed and Called checkboxes directly after Status and before Contact name in the lead edit panel.
+- The activity checkboxes render only for Contacted and later pipeline statuses: Contacted, Follow-up, Demo Scheduled, Pilot, Closed Won, Customer, and Closed Lost.
+- Moving a lead back before Contacted clears both activity flags server-side.
+
+### Validation
+
+- `pnpm check` passed with 0 errors and 0 warnings.
+- `pnpm test` passed: 140 tests across 11 files.
+
+### Follow-up: Lead KPI Dashboard Presentation
+
+- Renamed dashboard labels from "Total Contacts" to "Contacts" and "Contacted or Beyond" to "Contacted".
+- Displayed Pilots and Customers on separate rows beneath the standard lead metrics.
+- Refined the separate rows so the label appears before the bold count, with a 1.25rem label and 0.9375rem count.

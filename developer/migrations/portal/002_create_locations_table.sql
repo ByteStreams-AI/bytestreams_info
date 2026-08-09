@@ -1,0 +1,9 @@
+-- Portal Supabase migration: locations table
+-- Applied: 2026-08-08
+--
+-- The `locations` table already exists in mxhyvvgjtqllohpvrwon.
+-- No DDL changes needed — existing columns used:
+--   id, restaurant_id, name, address_line1, city, state, postal_code, country,
+--   latitude, longitude, is_primary, is_active, delivery_enabled
+--
+-- This file is intentionally a no-op.

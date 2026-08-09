@@ -18,6 +18,9 @@ declare global {
 				CF_ACCESS_TEAM_DOMAIN: string;
 				SUPABASE_URL: string;
 				SUPABASE_SERVICE_ROLE_KEY: string;
+				STRIPE_SECRET_KEY: string;
+				STRIPE_TAX_CODE: string;
+				ENABLE_TAX_ASSESSMENT: string;
 			};
 		}
 	}

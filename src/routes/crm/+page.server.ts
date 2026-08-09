@@ -25,6 +25,7 @@ const VALID_STATUSES = [
 	'contacted',
 	'followup_required',
 	'demo_scheduled',
+	'pilot',
 	'closed_won',
 	'customer',
 	'closed_lost'
@@ -44,6 +45,16 @@ const READONLY_FIELDS = new Set([
 	'marketplace_providers',
 	'first_party_ordering',
 	'created_at'
+]);
+
+const CONTACTED_OR_LATER_STATUSES = new Set([
+	'contacted',
+	'followup_required',
+	'demo_scheduled',
+	'pilot',
+	'closed_won',
+	'customer',
+	'closed_lost'
 ]);
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -78,6 +89,14 @@ export const actions: Actions = {
 
 		if (status && typeof status === 'string' && VALID_STATUSES.includes(status as never)) {
 			payload.status = status;
+		}
+		const effectiveStatus = typeof payload.status === 'string' ? payload.status : undefined;
+		if (effectiveStatus && CONTACTED_OR_LATER_STATUSES.has(effectiveStatus)) {
+			payload.emailed = form.get('emailed') === 'true';
+			payload.called = form.get('called') === 'true';
+		} else if (effectiveStatus) {
+			payload.emailed = false;
+			payload.called = false;
 		}
 
 		const textFields = ['contact_name', 'email', 'website_url', 'notes', 'call_script', 'uses_pos', 'business_type', 'michelin_rating'] as const;

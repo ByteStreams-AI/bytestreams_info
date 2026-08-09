@@ -15,6 +15,7 @@
 		'contacted',
 		'followup_required',
 		'demo_scheduled',
+		'pilot',
 		'closed_won',
 		'customer',
 		'closed_lost'
@@ -28,6 +29,7 @@
 		contacted: 'Contacted',
 		followup_required: 'Follow-up',
 		demo_scheduled: 'Demo Scheduled',
+		pilot: 'Pilot',
 		closed_won: 'Closed Won',
 		customer: 'Customer',
 		closed_lost: 'Closed Lost'
@@ -41,12 +43,22 @@
 		contacted: 'badge--contacted',
 		followup_required: 'badge--followup',
 		demo_scheduled: 'badge--demo',
+		pilot: 'badge--won',
 		closed_won: 'badge--won',
 		customer: 'badge--customer',
 		closed_lost: 'badge--lost'
 	};
 
 	let selectedLead = $state<Lead | null>(null);
+	const CONTACTED_OR_LATER_STATUSES = new Set([
+		'contacted',
+		'followup_required',
+		'demo_scheduled',
+		'pilot',
+		'closed_won',
+		'customer',
+		'closed_lost'
+	]);
 	let saving = $state(false);
 	let salesFormDirty = $state(false);
 	let saveMessage = $state<string | null>(null);
@@ -626,6 +638,19 @@
 						{/each}
 					</select>
 				</label>
+
+				{#if CONTACTED_OR_LATER_STATUSES.has(selectedLead.status)}
+					<div class="activity-checkboxes">
+						<label>
+							<input type="checkbox" name="emailed" value="true" bind:checked={selectedLead.emailed} />
+							Emailed
+						</label>
+						<label>
+							<input type="checkbox" name="called" value="true" bind:checked={selectedLead.called} />
+							Called
+						</label>
+					</div>
+				{/if}
 
 				<label class="field-row">
 					<span>Contact name</span>

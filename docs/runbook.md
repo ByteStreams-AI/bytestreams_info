@@ -18,6 +18,22 @@ This runbook covers routine operation of the ByteStreams intranet, with emphasis
 
 The production application is a Cloudflare Worker with static assets, not a Cloudflare Pages project. The workflow job still has the display name `Deploy to Cloudflare Pages`, but its actual deployment command is `npx wrangler deploy`.
 
+## Portal Billing And Stripe Tax
+
+DialTone.Menu setup and recurring charges use Stripe Tax Calculations with the PostGrid-verified restaurant address as the billing address. Tax is exclusive and is added to the `$100.00` setup subtotal and each eligible tier subtotal.
+
+Before enabling billing:
+
+1. Apply `developer/migrations/portal/004_add_onboarding_billing_lifecycle.sql` to the portal Supabase project.
+2. Apply `developer/migrations/portal/005_add_stripe_tax_assessments.sql` to the portal Supabase project.
+3. Enable Stripe Tax and add every jurisdiction where ByteStreams is registered to collect tax. Stripe returns zero collectible tax for locations without an active registration.
+4. Store `STRIPE_SECRET_KEY` as a Cloudflare Worker secret. Do not place it in `wrangler.jsonc`.
+5. Set `STRIPE_TAX_CODE` to the approved Stripe product tax code. The application defaults to `txcd_10103001` (Software as a service for business use).
+
+Apply `developer/migrations/portal/006_add_structured_business_address.sql` before creating or editing Other customers with the structured Street, City, State, and ZIP fields. DialTone.Menu continues to store these components in `locations`.
+
+Stripe Tax Calculations are assessments, not completed tax transactions. When payment processing is connected, create the corresponding Stripe Tax Transaction after successful payment so Stripe reporting reflects collected tax.
+
 ## Important Paths
 
 ### Editorial Source

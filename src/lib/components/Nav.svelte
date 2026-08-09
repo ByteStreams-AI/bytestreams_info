@@ -16,7 +16,7 @@
 			/>
 		</a>
 		<span class="nav-divider" aria-hidden="true"></span>
-		<span class="nav-label">Intranet</span>
+		<a href="/" class="nav-label">Intranet</a>
 	</div>
 
 	<nav class="nav-links" aria-label="Section">
@@ -70,6 +70,11 @@
 		font-weight: 500;
 		color: var(--text-muted);
 		letter-spacing: 0.01em;
+		text-decoration: none;
+	}
+
+	.nav-label:hover {
+		color: var(--text-bright);
 	}
 
 	.nav-user {
