@@ -1,3 +1,31 @@
+## 2026-08-11 — StreetFoodFinder and SpotOn Call-Script Priorities
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added ranked value statements for StreetFoodFinder (priority 10) and SpotOn POS (priority 11) to the DialTone.Menu cold-call templates, including the application's canonical prompt source.
+- The StreetFoodFinder statement addresses its verified food-truck schedule and location use case; the SpotOn statement positions DialTone.Menu as a consolidated restaurant operations alternative.
+- Added focused case-insensitive trigger tests for both providers.
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 19 tests passed
+
+## 2026-08-10 — Call-Script Priority Test Alignment
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Kept `dialtone_sm/DialTone_Cold_Call_Template.md` as the authoritative source for ranked value statements.
+- Corrected the Square regression expectation to canonical priority 7.
+- Updated the canonical-restoration fixture to include the priority-5 `Phone Order` trigger alongside Toast, verifying that the lower-numbered match wins.
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts` — 17 tests passed
+
 ## 2026-08-09 — Tax Assessment UI Toggle
 
 **Participants:** Scott Thornton, GitHub Copilot

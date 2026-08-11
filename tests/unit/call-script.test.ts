@@ -121,9 +121,25 @@ describe('buildCallScriptPrompt', () => {
 		const prompt = buildCallScriptPrompt(lead({ notes: 'Current POS: sqUAre' }), 'Alex');
 		const generatedTemplate = boundedTemplate(prompt);
 
-		expect(generatedTemplate).toContain(`> ${canonicalStatement(6)}`);
+		expect(generatedTemplate).toContain(`> ${canonicalStatement(7)}`);
 		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
 		expect(generatedTemplate).not.toContain('[restaurant name]');
+	});
+
+	it('selects the StreetFoodFinder value statement from a case-insensitive note', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Listed on streetfoodfinder' }), 'Alex');
+		const generatedTemplate = boundedTemplate(prompt);
+
+		expect(generatedTemplate).toContain(`> ${canonicalStatement(10)}`);
+		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
+	});
+
+	it('selects the SpotOn POS value statement from a case-insensitive note', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Current POS: sPoToN' }), 'Alex');
+		const generatedTemplate = boundedTemplate(prompt);
+
+		expect(generatedTemplate).toContain(`> ${canonicalStatement(11)}`);
+		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
 	});
 
 	it('uses the known business segment when no approved priority finding is available', () => {
@@ -231,7 +247,7 @@ Do not save this footer`
 
 		const script = await generateCallScript(
 			ai as unknown as Ai,
-			lead({ notes: 'Vietnamese kitchen\n\nToast\nResi' }),
+			lead({ notes: 'Vietnamese kitchen\n\nPhone Order\nToast\nResi' }),
 			'Alex'
 		);
 

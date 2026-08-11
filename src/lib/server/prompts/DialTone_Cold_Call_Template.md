@@ -55,11 +55,15 @@ Select exactly one value statement using the restaurant's `note` field:
 | :---: | --- |
 | 1 | `DoorDash` or `Door Dash` |
 | 2 | `Uber Eats` or `UberEats` |
-| 3 | `static website`, `no online ordering`, or `no direct ordering` |
+| 3 | `static website`, `static web`, `no web`, `no online ordering`, or `no direct ordering` |
 | 4 | `orders scattered`, `disconnected ordering`, `separate tablets`, or `separate workflows` |
-| 5 | `Toast` |
-| 6 | `Square` |
-| 7 | `Resy` |
+| 5 | `Phone Order`, `Phone Orders`, `Online Phone Order` |
+| 6 | `Toast` |
+| 7 | `Square` |
+| 8 | `Resy` |
+| 9 | `ChowNow` |
+| 10 | `Street Food Finder` or `StreetFoodFinder` |
+| 11 | `SpotOn POS` or `SpotOn` |
 
 ### Priority 1: DoorDash Marketplace Reliance
 
@@ -77,17 +81,33 @@ Select exactly one value statement using the restaurant's `note` field:
 
 > I noticed [restaurant name] offers several ways to order. DialTone.Menu can bring all of its order sources into one kitchen workflow. also, our voice system answers every call and takes orders and reservations.
 
-### Priority 5: Existing Toast POS Provider
+### Priority 5: Existing Online Phone Order
+
+> I noticed [restaurant name] takes phone orders from your website. DialTone.Menu can answer your phone, take orders that are sent your kitchen. No manual processing required. Also we can provide [restaurant name] with a branded website that has a dynamic menu, plus a branded loyalty app.
+
+### Priority 6: Existing Toast POS Provider
 
 > I noticed that [restaurant name] uses Toast. DialTone.Menu can provide better restaurant functionality at a better value. also, our voice system answers every call and takes orders and reservations.
 
-### Priority 6: Existing Square POS Provider
+### Priority 7: Existing Square POS Provider
 
 > I noticed that [restaurant name] uses Square. DialTone.Menu can bring all of your order sources into one kitchen workflow at a better value. also, our voice system answers every call and takes orders and reservations.
 
-### Priority 7: Existing Resy Reservation Provider
+### Priority 8: Existing Resy Reservation Provider
 
 > I noticed that [restaurant name] uses Resy. DialTone.Menu can bring all of your order sources into one kitchen workflow and manage reservations as well. In addition, our voice system answers every call and takes orders and reservations.
+
+### Priority 9: Existing ChowNow Website Provider
+
+> I noticed that [restaurant name ] uses ChowNow. DialTone.Menu can proved a branded dynamic website, branded app, that works seamlessly with a integrated KDS. In addition, our voice system answers every call and takes orders and reservations.  
+
+### Priority 10: Existing StreetFoodFinder Provider
+
+> I noticed that [restaurant name] uses StreetFoodFinder to publish its food-truck schedule and locations. DialTone.Menu can give you a branded ordering experience that keeps customers informed of your current location and availability, sends orders directly to the kitchen, and answers every call for orders and reservations.
+
+### Priority 11: Existing SpotOn POS Provider
+
+> I noticed that [restaurant name] uses SpotOn POS. DialTone.Menu can bring POS, payments, direct ordering, kitchen flow, loyalty, and voice ordering into one restaurant platform at a better value.
 
 ******START HERE******
 
@@ -230,6 +250,25 @@ Do not argue with a firm no. Record the reason and end professionally.
 > Hi [Name], this is [Your Name] with DialTone.Menu at [Phone Number]. I noticed [specific observation] at [Restaurant Name]. We help restaurants connect direct ordering, payments, kitchen flow, loyalty, delivery access, and voice ordering in one platform. I would like to offer a 15-minute comparison of your current setup. Again, this is [Your Name] at [Phone Number]. I will also send a short email.
 
 ## Follow-Up Email
+
+### Food Truck
+
+**Subject:** A simpler ordering flow for [Truck Name]
+
+Hi [Name],
+
+I called because I noticed [specific observation]. DialTone.Menu gives food trucks one flow for walk-up and online orders, with branded direct ordering, pickup pacing, instant sold-out controls, loyalty, and optional delivery access.
+
+Based on [relevant discovery point], a 15-minute review could show whether consolidating your current ordering and payment tools would help reduce tablet and hardware burden during a rush.
+
+Would [Day/Time A] or [Day/Time B] work better?
+
+[Your Name]\\
+DialTone.Menu\\
+[Phone] | [Email]\\
+[dialtone.menu](https://dialtone.menu)
+
+### Single Location Restaurant
 
 **Subject:** A direct-ordering and cost comparison for [Restaurant Name]
 
