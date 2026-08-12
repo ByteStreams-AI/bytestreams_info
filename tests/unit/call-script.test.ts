@@ -284,6 +284,19 @@ Stop and let the prospect respond.
 	it('rejects a missing caller name', () => {
 		expect(() => buildCallScriptPrompt(lead(), '  ')).toThrow('CALLER_NAME is not configured');
 	});
+
+	it('rejects a lead with no supported value statement or business segment', () => {
+		const unsupportedLead = lead({
+			business_type: null,
+			num_locations: null,
+			notes: null,
+			uses_pos: null
+		});
+
+		expect(() => buildCallScriptPrompt(unsupportedLead, 'Alex')).toThrow(
+			'No supported value statement could be selected from approved research or CRM business type'
+		);
+	});
 });
 
 describe('extractCallScriptContent', () => {
@@ -355,5 +368,66 @@ Do not save this footer`
 			'@cf/meta/llama-3.3-70b-instruct-fp8-fast',
 			expect.objectContaining({ max_tokens: 2400 })
 		);
+	});
+
+	it('replaces a fabricated follow-up email with the canonical selection', async () => {
+		const ai = {
+			run: vi.fn().mockResolvedValue({
+				response: `******START HERE******
+## First 30 Seconds
+
+### 1. Deliver the Value Statement
+
+> Incorrect value statement
+
+Stop and let the prospect respond.
+
+## Observation-Based Openers
+
+### Food Truck
+
+> Incorrect opener
+
+## Follow-Up Email
+
+### Made Up Section
+
+Fabricated email content that does not match any canonical template.
+
+******STOP HERE******`
+			})
+		};
+
+		const script = await generateCallScript(
+			ai as unknown as Ai,
+			lead({ business_type: 'food_truck', uses_pos: 'Square', notes: 'Square' }),
+			'Alex'
+		);
+
+		expect(script).toContain('### Food Truck Using Square');
+		expect(script).not.toContain('### Made Up Section');
+		expect(script).not.toContain('Fabricated email content');
+	});
+
+	it('rejects a response with no AI output', async () => {
+		const ai = { run: vi.fn().mockResolvedValue({}) };
+
+		await expect(
+			generateCallScript(ai as unknown as Ai, lead(), 'Alex')
+		).rejects.toThrow('Workers AI returned no call script');
+	});
+
+	it('rejects an AI response missing the value-statement boundaries', async () => {
+		const ai = {
+			run: vi.fn().mockResolvedValue({
+				response: `******START HERE******
+## First 30 Seconds
+******STOP HERE******`
+			})
+		};
+
+		await expect(
+			generateCallScript(ai as unknown as Ai, lead(), 'Alex')
+		).rejects.toThrow('Workers AI returned a call script without the value-statement boundaries');
 	});
 });
