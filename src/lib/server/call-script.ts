@@ -7,6 +7,7 @@ const RANKED_VALUE_HEADING = '## Ranked Value Statement Selection';
 const VALUE_STATEMENT_PLACEHOLDER = '[Selected ranked value statement]';
 const VALUE_STATEMENT_HEADING = '### 1. Deliver the Value Statement';
 const VALUE_STATEMENT_STOP = 'Stop and let the prospect respond.';
+const FOLLOW_UP_EMAIL_HEADING = '## Follow-Up Email';
 
 interface RankedValueStatement {
 	priority: number;
@@ -47,6 +48,14 @@ function rankedValueStatement(evidence: string): string | null {
 }
 
 function segmentValueStatement(template: string, lead: Lead): string | null {
+	const heading = segmentHeading(lead);
+	if (!heading) return null;
+
+	const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return template.match(new RegExp(`^### ${escapedHeading}\\s*$\\n\\s*>\\s*(.+)$`, 'm'))?.[1]?.trim() ?? null;
+}
+
+function segmentHeading(lead: Lead): string | null {
 	let heading: string | null = null;
 	if (lead.business_type === 'food_truck') heading = 'Food Truck';
 	else if (
@@ -56,10 +65,63 @@ function segmentValueStatement(template: string, lead: Lead): string | null {
 	else if (lead.business_type === 'single_location' || lead.num_locations === 1) {
 		heading = 'Single-Location Restaurant';
 	}
-	if (!heading) return null;
+	return heading;
+}
 
+function canonicalSection(template: string, heading: string): string {
 	const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	return template.match(new RegExp(`^### ${escapedHeading}\\s*$\\n\\s*>\\s*(.+)$`, 'm'))?.[1]?.trim() ?? null;
+	const headingMatch = new RegExp(`^### ${escapedHeading}\\s*$`, 'm').exec(template);
+	if (!headingMatch || headingMatch.index === undefined) {
+		throw new Error(`Canonical call template is missing the ${heading} section`);
+	}
+	const sectionStart = headingMatch.index;
+	const nextSection = template.indexOf('\n### ', sectionStart + headingMatch[0].length);
+	return template.slice(sectionStart, nextSection === -1 ? undefined : nextSection).trim();
+}
+
+function canonicalFollowUpEmail(template: string, heading: string): string {
+	const section = canonicalSection(template, heading);
+	if (!section) throw new Error(`Canonical call template is missing the ${heading} follow-up email`);
+	return section;
+}
+
+function matchesPriority(evidence: string, priority: number): boolean {
+	const normalizedEvidence = evidence.toLowerCase();
+	return rankedValueStatements().some((statement) =>
+		statement.priority === priority
+		&& statement.triggers.some((trigger) => normalizedEvidence.includes(trigger))
+	);
+}
+
+function hasNoDirectOrdering(value: string | null): boolean {
+	return /^(no|none|false)$/i.test(value?.trim() ?? '');
+}
+
+function followUpEmailHeading(lead: Lead, approvedFindings: LeadResearchFinding[]): string | null {
+	const evidence = [
+		lead.notes,
+		lead.uses_pos,
+		...approvedFindings.map((finding) => `${finding.category} ${finding.value}`)
+	].filter(known).join('\n');
+	const hasNoOnlineOrdering = hasNoDirectOrdering(lead.first_party_ordering) || matchesPriority(evidence, 3);
+	const usesToast = /toast/i.test(evidence);
+	const usesSquare = /square/i.test(evidence);
+	const isFoodTruck = lead.business_type === 'food_truck';
+	const isSingleLocation = lead.business_type === 'single_location' || lead.num_locations === 1;
+
+	if (isFoodTruck) {
+		if (hasNoOnlineOrdering) return 'Food Truck With No Online Ordering';
+		if (usesToast) return 'Food Truck Using Toast';
+		if (usesSquare) return 'Food Truck Using Square';
+		return 'Food Truck';
+	}
+	if (isSingleLocation) {
+		if (hasNoOnlineOrdering) return 'Single Location With No Online Ordering';
+		if (usesToast) return 'Single Location Using Toast';
+		if (usesSquare) return 'Single Location Using Square';
+		return 'Single Location Restaurant';
+	}
+	return null;
 }
 
 function boundedCallTemplate(
@@ -96,6 +158,23 @@ function boundedCallTemplate(
 	template = template
 		.replace(VALUE_STATEMENT_PLACEHOLDER, () => valueStatement)
 		.replaceAll('[restaurant name]', () => lead.business_name);
+	const openerHeading = segmentHeading(lead);
+	if (openerHeading) {
+		const openerStart = template.indexOf('## Observation-Based Openers');
+		if (openerStart === -1) throw new Error('Canonical call template is missing observation-based openers');
+		const openerIntroEnd = template.indexOf('\n### ', openerStart);
+		if (openerIntroEnd === -1) throw new Error('Canonical call template is missing observation opener sections');
+		template = `${template.slice(0, openerIntroEnd).trimEnd()}\n\n${canonicalSection(template, openerHeading)}`;
+	}
+	const emailHeading = followUpEmailHeading(lead, approvedFindings);
+	if (emailHeading) {
+		let email = canonicalFollowUpEmail(callTemplate, emailHeading)
+			.replaceAll('[Your Name]', () => normalizedCallerName)
+			.replaceAll('[Restaurant Name]', () => lead.business_name)
+			.replaceAll('[Truck Name]', () => lead.business_name);
+		if (contactName) email = email.replaceAll('[Name]', () => contactName);
+		template = `${template}\n\n${FOLLOW_UP_EMAIL_HEADING}\n\n${email}`;
+	}
 	return template;
 }
 
@@ -115,6 +194,25 @@ function restoreCanonicalValueStatement(script: string, template: string): strin
 		throw new Error('Workers AI returned a call script without the value-statement boundaries');
 	}
 	return `${script.slice(0, start)}${canonicalValueStatementBlock(template)}${script.slice(stop + VALUE_STATEMENT_STOP.length)}`;
+}
+
+function restoreCanonicalFollowUpEmail(script: string, template: string): string {
+	const start = template.indexOf(FOLLOW_UP_EMAIL_HEADING);
+	if (start === -1) return script;
+	const canonicalEmail = template.slice(start).trim();
+	const scriptEmailStart = script.indexOf(FOLLOW_UP_EMAIL_HEADING);
+	if (scriptEmailStart === -1) return `${script.trimEnd()}\n\n${canonicalEmail}`;
+	return `${script.slice(0, scriptEmailStart).trimEnd()}\n\n${canonicalEmail}`;
+}
+
+function restoreCanonicalObservationOpener(script: string, template: string): string {
+	const templateStart = template.indexOf('## Observation-Based Openers');
+	if (templateStart === -1) return script;
+	const canonicalOpeners = template.slice(templateStart, template.indexOf(FOLLOW_UP_EMAIL_HEADING, templateStart)).trim();
+	const scriptStart = script.indexOf('## Observation-Based Openers');
+	if (scriptStart === -1) return `${script.trimEnd()}\n\n${canonicalOpeners}`;
+	const scriptEnd = script.indexOf(FOLLOW_UP_EMAIL_HEADING, scriptStart);
+	return `${script.slice(0, scriptStart).trimEnd()}\n\n${canonicalOpeners}${scriptEnd === -1 ? '' : `\n\n${script.slice(scriptEnd).trimStart()}`}`;
 }
 
 const GENERATION_RULES = `
@@ -219,7 +317,10 @@ export async function generateCallScript(
 		const script = extractCallScriptContent(result.response);
 		if (script) {
 			const template = boundedCallTemplate(lead, callerName, approvedFindings);
-			return restoreCanonicalValueStatement(script, template);
+			return restoreCanonicalFollowUpEmail(
+				restoreCanonicalObservationOpener(restoreCanonicalValueStatement(script, template), template),
+				template
+			);
 		}
 	}
 

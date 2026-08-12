@@ -167,6 +167,32 @@ describe('CRM restaurant research actions', () => {
 		);
 	});
 
+	it('returns and persists the complete generated follow-up email', async () => {
+		const ai = { run: vi.fn() };
+		const callScript = `## Follow-Up Email
+
+### Food Truck Using Square
+
+**Subject:** A better ordering flow for Empanadas de Mendoza
+
+Steve  
+DialTone.Menu`;
+		mocks.generateCallScript.mockResolvedValue(callScript);
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.generateScript({
+			request: request({ lead_id: 'lead-1' }),
+			locals: { user },
+			platform: { env: { AI: ai, CALLER_NAME: 'Steve' } }
+		} as never);
+
+		expect(mocks.updateLeadSalesFields).toHaveBeenCalledWith(
+			'lead-1',
+			'sales@bytestreams.ai',
+			{ call_script: callScript }
+		);
+		expect(result).toEqual({ success: true, call_script: callScript });
+	});
+
 	it('rejects script generation when the caller name is not configured', async () => {
 		const { actions } = await import('$lib/../routes/crm/+page.server');
 		const result = await actions.generateScript({

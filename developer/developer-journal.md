@@ -1,3 +1,17 @@
+## 2026-08-12 -- Follow-up email selection in generated call scripts
+
+### Changes
+
+- Extended generated call-script templates with one canonical follow-up email selected from verified CRM and approved-research evidence.
+- Applied deterministic precedence for Food Truck and Single Location leads: verified no online ordering, Toast, Square, then the segment default.
+- Reduced the generated prompt to the lead's single applicable observation opener, preventing unrelated Food Truck, Single Location, or Multi-Location openers from appearing together.
+- Restored the canonical observation opener and follow-up email after Workers AI generation so the selected sections are always included verbatim.
+- Added focused tests for no-online-ordering, Square, Toast, one-segment opener filtering, and restoration of a missing generated follow-up email.
+
+### Validation
+
+- Pending `developer/update-call-script.sh`, which synchronizes the canonical editorial template before lint, type checks, tests, build, and dry-run packaging.
+
 ## 2026-08-11 — StreetFoodFinder and SpotOn Call-Script Priorities
 
 **Participants:** Scott Thornton, GitHub Copilot
@@ -1420,3 +1434,23 @@ User encountered error when creating DialTone.Menu customer: `invalid input valu
 - Added focused unit tests for the `/kpi` endpoint: authentication redirect, missing configuration, successful lead counts, null count fallback, and query errors.
 - Added dashboard component tests for KPI rendering and error/retry behavior.
 - Restored the global branch-coverage gate without lowering its threshold: `85.31%` branches, with 148 passing tests.
+
+---
+
+## 2026-08-09 — Generate Script Follow-Up Email Regression Coverage
+
+**Participants:** Scott Thornton, GitHub Copilot
+
+### Changes
+
+- Added a generator regression for Food Truck + Square using `Empanadas de Mendoza`, requiring the resolved Square follow-up email, subject, and configured caller signature when the AI omits the email.
+- Added a CRM action regression confirming `generateScript` persists and returns the complete generated script without truncating the `## Follow-Up Email` section.
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/call-script.test.ts tests/unit/crm-research.test.ts` passed: 32 tests.
+- `bash developer/update-call-script.sh` passed all 11 checks, including the full 156-test suite, Svelte/TypeScript checks, production build, and Wrangler AI-binding dry run.
+
+### Operational Note
+
+- The active CRM route delegates to `generateCallScript()` and saves its return value unchanged. An output without the follow-up email therefore indicates an instance running a bundle from before this behavior was added; rebuilding alone does not update a deployed Worker.

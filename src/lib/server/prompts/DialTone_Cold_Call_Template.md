@@ -268,6 +268,63 @@ DialTone.Menu\\
 [Phone] | [Email]\\
 [dialtone.menu](https://dialtone.menu)
 
+### Food Truck With No Online Ordering
+
+**Subject:** Direct ordering for [Truck Name]
+
+Hi [Name],
+
+I noticed [Truck Name] does not appear to offer direct online ordering. DialTone.Menu can give your truck a branded website or app where customers can order directly, while bringing walk-up, phone, and online orders into one kitchen workflow.
+
+Location alerts can notify loyalty members when your truck is within their selected distance. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+
+Your first month of service is free. A 15-minute review can show how adding direct ordering and consolidating your current ordering and payment tools could improve your bottom line.
+
+Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
+[dialtone.menu](https://dialtone.menu)
+
+### Food Truck Using Square
+
+**Subject:** A better ordering flow for [Truck Name]
+
+Hi [Name],
+
+I noticed [Truck Name] uses Square. DialTone.Menu can bring walk-up, phone, and online orders into one kitchen workflow while giving your truck a branded website or app for direct ordering.
+
+Location alerts can notify loyalty members when your truck is within their selected distance. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+
+Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would improve your bottom line.
+
+Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
+[dialtone.menu](https://dialtone.menu)
+
+### Food Truck Using Toast
+
+**Subject:** A simpler ordering flow for [Truck Name]
+
+Hi [Name],
+
+I noticed [Truck Name] uses Toast. DialTone.Menu can bring walk-up, phone, and online orders into one kitchen workflow while giving your truck a branded website or app for direct ordering.
+
+Location alerts can notify loyalty members when your truck is within their selected distance. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+
+Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would improve your bottom line.
+
+Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
+[dialtone.menu](https://dialtone.menu)
+
 ### Single Location Restaurant
 
 **Subject:** A direct-ordering and cost comparison for [Restaurant Name]
@@ -279,6 +336,63 @@ I called because I noticed [specific observation]. DialTone.Menu brings staff PO
 Based on [relevant discovery point], a 15-minute review could show whether consolidating any of your current systems would simplify operations or reduce costs.
 
 Would [Day/Time A] or [Day/Time B] work better?
+
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
+[dialtone.menu](https://dialtone.menu)
+
+### Single Location With No Online Ordering
+
+**Subject:** Direct ordering for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] does not appear to offer direct online ordering. DialTone.Menu can give your restaurant a branded website or app where customers can order directly, while connecting dine-in, phone, and online orders to one kitchen workflow.
+
+Our AI voice agent can answer calls naturally and send phone orders directly to the kitchen. Loyalty, rewards, and gift cards give you a direct way to bring those guests back.
+
+Your first month of service is free. A 15-minute review can show how adding direct ordering and consolidating your current ordering and payment tools could improve your bottom line.
+
+Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
+[dialtone.menu](https://dialtone.menu)
+
+### Single Location Using Square
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses Square. DialTone.Menu can bring dine-in, phone, and online orders into one kitchen workflow while giving your restaurant a branded website or app for direct ordering.
+
+Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen. Loyalty, rewards, and gift cards help you build on the customer relationship after the first order.
+
+Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+
+[Your Name]  
+DialTone.Menu  
+[Phone] | [Email]  
+[dialtone.menu](https://dialtone.menu)
+
+### Single Location Using Toast
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses Toast. DialTone.Menu can bring dine-in, phone, and online orders into one kitchen workflow while giving your restaurant a branded website or app for direct ordering.
+
+Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen. Loyalty, rewards, and gift cards help you build on the customer relationship after the first order.
+
+Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
 [Your Name]  
 DialTone.Menu  

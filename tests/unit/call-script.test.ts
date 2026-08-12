@@ -150,6 +150,102 @@ describe('buildCallScriptPrompt', () => {
 		expect(generatedTemplate).not.toContain('[Selected ranked value statement]');
 	});
 
+	it('includes the no-online-ordering email before a provider-specific email', () => {
+		const prompt = buildCallScriptPrompt(lead({ first_party_ordering: 'no', notes: 'Uses Toast' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location With No Online Ordering');
+		expect(prompt).not.toContain('### Single Location Using Toast');
+	});
+
+	it('includes the Square food-truck email when Square is the known POS', () => {
+		const prompt = buildCallScriptPrompt(lead({ business_type: 'food_truck', uses_pos: 'Square' }), 'Alex');
+
+		expect(prompt).toContain('### Food Truck Using Square');
+		expect(prompt).not.toContain('### Food Truck Using Toast');
+		expect(prompt).toContain('### Food Truck');
+		expect(prompt).not.toContain('### Single-Location Restaurant');
+		expect(prompt).not.toContain('### Multi-Location Restaurant');
+	});
+
+	it('restores the selected food-truck opener and Square email when AI omits the email', async () => {
+		const ai = {
+			run: vi.fn().mockResolvedValue({
+				response: `******START HERE******
+## First 30 Seconds
+
+### 1. Deliver the Value Statement
+
+> Incorrect value statement
+
+Stop and let the prospect respond.
+
+## Observation-Based Openers
+
+### Food Truck
+
+> Correct food-truck opener
+
+### Single-Location Restaurant
+
+> Incorrect single-location opener
+
+******STOP HERE******`
+			})
+		};
+
+		const script = await generateCallScript(
+			ai as unknown as Ai,
+			lead({ business_type: 'food_truck', uses_pos: 'Square' }),
+			'Alex'
+		);
+
+		expect(script).toContain('### Food Truck Using Square');
+		expect(script).not.toContain('### Single-Location Restaurant');
+		expect(script).not.toContain('Incorrect single-location opener');
+	});
+
+	it('returns the resolved Square food-truck email for the reported lead scenario', async () => {
+		const ai = {
+			run: vi.fn().mockResolvedValue({
+				response: `******START HERE******
+## First 30 Seconds
+
+### 1. Deliver the Value Statement
+
+> Incorrect value statement
+
+Stop and let the prospect respond.
+
+## Observation-Based Openers
+
+### Food Truck
+
+> Incorrect opener
+
+******STOP HERE******`
+			})
+		};
+
+		const script = await generateCallScript(
+			ai as unknown as Ai,
+			lead({ business_name: 'Empanadas de Mendoza', business_type: 'food_truck', notes: 'Square', uses_pos: null }),
+			'Steve'
+		);
+
+		expect(script).toContain('### Food Truck Using Square');
+		expect(script).toContain('**Subject:** A better ordering flow for Empanadas de Mendoza');
+		expect(script).toContain('I noticed Empanadas de Mendoza uses Square.');
+		expect(script).toContain('Steve  \nDialTone.Menu');
+		expect(script).not.toContain('### Single-Location Restaurant');
+	});
+
+	it('includes the Toast single-location email when Toast is the known POS', () => {
+		const prompt = buildCallScriptPrompt(lead({ uses_pos: 'Toast' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location Using Toast');
+		expect(prompt).not.toContain('### Single Location Using Square');
+	});
+
 	it('includes approved sourced research and prohibits absence-based claims', () => {
 		const prompt = buildCallScriptPrompt(lead(), 'Alex', [{
 			finding_id: 'finding-1',
@@ -254,6 +350,7 @@ Do not save this footer`
 		expect(script).toContain(`> ${canonicalStatement(5)}`);
 		expect(script).not.toContain('I noticed you use Toast for your POS and online ordering');
 		expect(script).not.toContain('[restaurant name]');
+		expect(script).toContain('### Single Location Using Toast');
 		expect(ai.run).toHaveBeenCalledWith(
 			'@cf/meta/llama-3.3-70b-instruct-fp8-fast',
 			expect.objectContaining({ max_tokens: 2400 })
