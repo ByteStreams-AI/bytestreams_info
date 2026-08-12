@@ -257,16 +257,29 @@ Do not argue with a firm no. Record the reason and end professionally.
 
 Hi [Name],
 
-I called because I noticed [specific observation]. DialTone.Menu gives food trucks one flow for walk-up and online orders, with branded direct ordering, pickup pacing, instant sold-out controls, loyalty, and optional delivery access.
+I called because I noticed [specific observation]. DialTone.Menu gives food trucks one flow for walk-up and online orders, with branded direct ordering, pickup pacing, instant sold-out controls, loyalty, and optional delivery access. Location alerts also notify loyalty members automatically whenever your truck moves.
 
 Based on [relevant discovery point], a 15-minute review could show whether consolidating your current ordering and payment tools would help reduce tablet and hardware burden during a rush.
 
 Would [Day/Time A] or [Day/Time B] work better?
 
-[Your Name]\\
-DialTone.Menu\\
-[Phone] | [Email]\\
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
+
+### Food Truck Default (No Match Found)
+
+**Subject:** A simpler way to manage [Truck Name]'s orders and location updates
+
+Hi [restaurant name],
+
+I know location updates can be one of the biggest headaches for food trucks. DialTone.Menu makes it effortless. Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind.
+
+You also get unified management for every order source — online, app, and even phone — all inside one clean dashboard. No more juggling systems or missing orders.
+
+If you'd like, I can show you how it works in under two minutes.
+
+Best,
+Steven
 
 ### Food Truck With No Online Ordering
 
@@ -276,16 +289,14 @@ Hi [Name],
 
 I noticed [Truck Name] does not appear to offer direct online ordering. DialTone.Menu can give your truck a branded website or app where customers can order directly, while bringing walk-up, phone, and online orders into one kitchen workflow.
 
-Location alerts can notify loyalty members when your truck is within their selected distance. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
 
 Your first month of service is free. A 15-minute review can show how adding direct ordering and consolidating your current ordering and payment tools could improve your bottom line.
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ### Food Truck Using Square
 
@@ -295,16 +306,14 @@ Hi [Name],
 
 I noticed [Truck Name] uses Square. DialTone.Menu can bring walk-up, phone, and online orders into one kitchen workflow while giving your truck a branded website or app for direct ordering.
 
-Location alerts can notify loyalty members when your truck is within their selected distance. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
 
 Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would improve your bottom line.
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ### Food Truck Using Toast
 
@@ -314,16 +323,14 @@ Hi [Name],
 
 I noticed [Truck Name] uses Toast. DialTone.Menu can bring walk-up, phone, and online orders into one kitchen workflow while giving your truck a branded website or app for direct ordering.
 
-Location alerts can notify loyalty members when your truck is within their selected distance. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
 
 Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would improve your bottom line.
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ### Single Location Restaurant
 
@@ -337,10 +344,8 @@ Based on [relevant discovery point], a 15-minute review could show whether conso
 
 Would [Day/Time A] or [Day/Time B] work better?
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ### Single Location With No Online Ordering
 
@@ -356,10 +361,8 @@ Your first month of service is free. A 15-minute review can show how adding dire
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ### Single Location Using Square
 
@@ -375,10 +378,8 @@ Your first month of service is free. A 15-minute review can show whether consoli
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ### Single Location Using Toast
 
@@ -394,10 +395,8 @@ Your first month of service is free. A 15-minute review can show whether consoli
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
-[Your Name]  
-DialTone.Menu  
-[Phone] | [Email]  
-[dialtone.menu](https://dialtone.menu)
+Best,
+Steven
 
 ## CRM Disposition
 

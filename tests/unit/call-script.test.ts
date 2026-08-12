@@ -235,7 +235,7 @@ Stop and let the prospect respond.
 		expect(script).toContain('### Food Truck Using Square');
 		expect(script).toContain('**Subject:** A better ordering flow for Empanadas de Mendoza');
 		expect(script).toContain('I noticed Empanadas de Mendoza uses Square.');
-		expect(script).toContain('Steve  \nDialTone.Menu');
+		expect(script).toContain('Best,\nSteven');
 		expect(script).not.toContain('### Single-Location Restaurant');
 	});
 
