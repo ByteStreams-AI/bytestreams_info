@@ -1,3 +1,18 @@
+## 2026-08-12 -- CRM Pipeline Outreach Columns
+
+### Changes
+
+- Replaced the Contact and Contact Phone columns in the CRM Lead Pipeline table with PHONED and EMAILED activity columns.
+- Added three-state sorting for each activity column: ascending, descending, then the original lead order.
+- Added All, Yes, and No filters for PHONED and EMAILED that combine with the existing lead filters.
+- Added focused component coverage for the new headers, activity sorting, and activity filtering behavior.
+
+### Validation
+
+- `pnpm exec vitest run tests/components/pages.test.ts` passed (31 tests).
+- `pnpm run lint` passed.
+- `pnpm run check` passed with zero errors and warnings.
+
 ## 2026-08-12 -- Follow-up email selection in generated call scripts
 
 ### Changes

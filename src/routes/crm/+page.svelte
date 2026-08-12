@@ -88,6 +88,12 @@
 	let filterStatus = $state('');
 	let filterCity = $state('');
 	let filterBusinessType = $state('');
+	type OutreachFilter = '' | 'yes' | 'no';
+	let filterPhoned = $state<OutreachFilter>('');
+	let filterEmailed = $state<OutreachFilter>('');
+	type OutreachSortField = 'called' | 'emailed';
+	type SortDirection = 'ascending' | 'descending';
+	let outreachSort = $state<{ field: OutreachSortField; direction: SortDirection } | null>(null);
 	let currentPage = $state(1);
 	const PAGE_SIZE = 50;
 
@@ -137,16 +143,27 @@
 			if (filterStatus && lead.status !== filterStatus) return false;
 			if (filterCity && lead.city?.trim().toLocaleLowerCase() !== filterCity) return false;
 			if (filterBusinessType && (lead.business_type ?? '') !== filterBusinessType) return false;
+			if (filterPhoned && Boolean(lead.called) !== (filterPhoned === 'yes')) return false;
+			if (filterEmailed && Boolean(lead.emailed) !== (filterEmailed === 'yes')) return false;
 			return true;
 		});
 	});
-	const totalPages = $derived(Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE)));
+	const sortedLeads = $derived.by(() => {
+		const sort = outreachSort;
+		if (!sort) return filteredLeads;
+
+		return filteredLeads.toSorted((left, right) => {
+			const comparison = Number(Boolean(left[sort.field])) - Number(Boolean(right[sort.field]));
+			return sort.direction === 'ascending' ? comparison : -comparison;
+		});
+	});
+	const totalPages = $derived(Math.max(1, Math.ceil(sortedLeads.length / PAGE_SIZE)));
 	const pageNumbers = $derived(Array.from({ length: totalPages }, (_, index) => index + 1));
 	const pageStart = $derived((currentPage - 1) * PAGE_SIZE);
-	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, filteredLeads.length));
-	const paginatedLeads = $derived(filteredLeads.slice(pageStart, pageEnd));
+	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, sortedLeads.length));
+	const paginatedLeads = $derived(sortedLeads.slice(pageStart, pageEnd));
 	const hasActiveFilters = $derived(Boolean(
-		search || filterStatus || filterCity || filterBusinessType
+		search || filterStatus || filterCity || filterBusinessType || filterPhoned || filterEmailed
 	));
 
 	function resetPage() {
@@ -158,6 +175,20 @@
 		filterStatus = '';
 		filterCity = '';
 		filterBusinessType = '';
+		filterPhoned = '';
+		filterEmailed = '';
+		outreachSort = null;
+		currentPage = 1;
+	}
+
+	function toggleOutreachSort(field: OutreachSortField) {
+		if (outreachSort?.field !== field) {
+			outreachSort = { field, direction: 'ascending' };
+		} else if (outreachSort.direction === 'ascending') {
+			outreachSort = { field, direction: 'descending' };
+		} else {
+			outreachSort = null;
+		}
 		currentPage = 1;
 	}
 
@@ -358,8 +389,30 @@
 							</select>
 						</div>
 					</th>
-					<th>Contact</th>
-					<th>Contact Phone</th>
+					<th aria-sort={outreachSort?.field === 'called' ? outreachSort.direction : 'none'}>
+						<div class="th-filter">
+							<button class="th-sort" type="button" onclick={() => toggleOutreachSort('called')}>
+								PHONED
+							</button>
+							<select bind:value={filterPhoned} onchange={resetPage} aria-label="Filter by phoned">
+								<option value="">All</option>
+								<option value="yes">Yes</option>
+								<option value="no">No</option>
+							</select>
+						</div>
+					</th>
+					<th aria-sort={outreachSort?.field === 'emailed' ? outreachSort.direction : 'none'}>
+						<div class="th-filter">
+							<button class="th-sort" type="button" onclick={() => toggleOutreachSort('emailed')}>
+								EMAILED
+							</button>
+							<select bind:value={filterEmailed} onchange={resetPage} aria-label="Filter by emailed">
+								<option value="">All</option>
+								<option value="yes">Yes</option>
+								<option value="no">No</option>
+							</select>
+						</div>
+					</th>
 					<th></th>
 				</tr>
 			</thead>
@@ -382,15 +435,8 @@
 								{STATUS_LABELS[lead.status] ?? lead.status}
 							</span>
 						</td>
-						<td>{lead.contact_name ?? '—'}</td>
-						<td>
-							{#if lead.contact_phone && phoneHref(lead.contact_phone)}
-								{@const tel = phoneHref(lead.contact_phone)!}
-								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{lead.contact_phone}</a>
-							{:else}
-								{lead.contact_phone ?? '—'}
-							{/if}
-						</td>
+						<td>{lead.called ? 'Yes' : 'No'}</td>
+						<td>{lead.emailed ? 'Yes' : 'No'}</td>
 						<td>
 							<button class="btn-edit" onclick={() => openPanel(lead)}>Edit</button>
 						</td>
@@ -966,6 +1012,28 @@
 	.th-filter select:focus {
 		outline: none;
 		border-color: var(--color-stream-blue);
+	}
+
+	.th-sort {
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		font-weight: inherit;
+		text-transform: inherit;
+		letter-spacing: inherit;
+		cursor: pointer;
+	}
+
+	.th-sort:hover,
+	.th-sort:focus-visible {
+		color: var(--color-stream-blue);
+	}
+
+	.th-sort:focus-visible {
+		outline: 1px solid var(--color-stream-blue);
+		outline-offset: 2px;
 	}
 
 	.crm-empty {

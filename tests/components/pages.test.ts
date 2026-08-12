@@ -187,20 +187,83 @@ describe('CRM Page', () => {
 		uses_pos: null,
 		uses_kds: null,
 		uses_sms: null,
+		called: false,
+		emailed: false,
 		created_at: '2026-07-28T00:00:00.000Z'
 	};
 
-	it('renders a dialable phone link in the leads table', () => {
+	it('renders a dialable business phone link in the leads table', () => {
 		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
 
 		expect(screen.getByRole('link', { name: 'tel:+17135550101' })).toHaveAttribute(
 			'href',
 			'tel:+17135550101'
 		);
-		expect(screen.getByRole('link', { name: 'tel:+17135550102' })).toHaveAttribute(
-			'href',
-			'tel:+17135550102'
-		);
+		expect(screen.queryByRole('link', { name: 'tel:+17135550102' })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'PHONED' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'EMAILED' })).toBeInTheDocument();
+	});
+
+	it('sorts leads by phoned and emailed activity', async () => {
+		const phonedLead = {
+			...lead,
+			lead_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+			business_name: 'Phoned Cafe',
+			called: true
+		};
+		const emailedLead = {
+			...lead,
+			lead_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+			business_name: 'Emailed Cafe',
+			emailed: true
+		};
+		render(CrmPage, { props: { data: { user, leads: [phonedLead, emailedLead, lead], researchFindings: [] } } });
+
+		const businessNames = () => within(screen.getByRole('table')).getAllByRole('row')
+			.slice(1)
+			.map((row) => within(row).getAllByRole('cell')[0].textContent);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'PHONED' }));
+		expect(businessNames()).toEqual(['Emailed Cafe', 'Dialable Cafe', 'Phoned Cafe']);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'PHONED' }));
+		expect(businessNames()).toEqual(['Phoned Cafe', 'Emailed Cafe', 'Dialable Cafe']);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'EMAILED' }));
+		expect(businessNames()).toEqual(['Phoned Cafe', 'Dialable Cafe', 'Emailed Cafe']);
+	});
+
+	it('filters leads by phoned and emailed activity', async () => {
+		const phonedLead = {
+			...lead,
+			lead_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+			business_name: 'Phoned Cafe',
+			called: true
+		};
+		const emailedLead = {
+			...lead,
+			lead_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+			business_name: 'Emailed Cafe',
+			emailed: true
+		};
+		render(CrmPage, { props: { data: { user, leads: [phonedLead, emailedLead, lead], researchFindings: [] } } });
+
+		await fireEvent.change(screen.getByLabelText('Filter by phoned'), { target: { value: 'yes' } });
+		expect(screen.getByText('Phoned Cafe')).toBeInTheDocument();
+		expect(screen.queryByText('Emailed Cafe')).not.toBeInTheDocument();
+		expect(screen.queryByText('Dialable Cafe')).not.toBeInTheDocument();
+
+		await fireEvent.change(screen.getByLabelText('Filter by emailed'), { target: { value: 'no' } });
+		expect(screen.getByText('Phoned Cafe')).toBeInTheDocument();
+		expect(screen.getByLabelText('Filter by phoned')).toHaveValue('yes');
+		expect(screen.getByLabelText('Filter by emailed')).toHaveValue('no');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+		expect(screen.getByLabelText('Filter by phoned')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by emailed')).toHaveValue('');
+		expect(screen.getByText('Phoned Cafe')).toBeInTheDocument();
+		expect(screen.getByText('Emailed Cafe')).toBeInTheDocument();
+		expect(screen.getByText('Dialable Cafe')).toBeInTheDocument();
 	});
 
 	it('resets all restaurant table filters', async () => {
@@ -245,6 +308,8 @@ describe('CRM Page', () => {
 		expect(screen.getByLabelText('Filter by city')).toHaveValue('');
 		expect(screen.getByLabelText('Filter by status')).toHaveValue('');
 		expect(screen.getByLabelText('Filter by business type')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by phoned')).toHaveValue('');
+		expect(screen.getByLabelText('Filter by emailed')).toHaveValue('');
 		expect(screen.getByText('Dialable Cafe')).toBeInTheDocument();
 		expect(screen.getByText('Austin Smokehouse')).toBeInTheDocument();
 		expect(screen.getByText('Buffalo Burger')).toBeInTheDocument();
