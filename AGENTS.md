@@ -1,5 +1,18 @@
 # AGENTS.md
 
+## Active Repository Instructions
+
+### DialTone Cold-Call Template
+
+- The canonical editorial source is `../dialtone_sm/DialTone_Cold_Call_Template.md`.
+- The application bundles a synchronized copy at `src/lib/server/prompts/DialTone_Cold_Call_Template.md`. Do not maintain this copy independently.
+- After changing the canonical template, run `pnpm run sync:call-script` from this repository and verify that the two files are byte-for-byte identical.
+- Update `tests/unit/call-script.test.ts` whenever a template change adds, removes, renames, or changes behavior for a ranked value statement, observation opener, follow-up email, placeholder, generation boundary, or canonical section.
+- If a new provider-specific follow-up section must be selected automatically, update `followUpEmailHeading()` in `src/lib/server/call-script.ts` and add a matching selection test. A template section is not reachable until the routing function returns its exact heading.
+- Run `pnpm exec vitest run tests/unit/call-script.test.ts` after every template or routing change.
+- Run `pnpm test:coverage` before completion. CI enforces global thresholds of 85% for lines, statements, branches, and functions.
+- For the full synchronization and release-readiness workflow, run `pnpm run update:call-script`. This syncs the template and runs lint, Svelte/TypeScript checks, tests, a production build, and a Wrangler dry run. It does not commit, push, or deploy.
+
 ## feat/sveltekit-sso-landing — SvelteKit SSO + Landing Page
 
 **Date:** 2026-05-03

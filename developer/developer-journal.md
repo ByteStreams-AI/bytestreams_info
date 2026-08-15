@@ -1,3 +1,11 @@
+## 2026-08-15 -- Cold-Call Template Agent Instructions
+
+### Changes
+
+- Added active repository guidance to `AGENTS.md` identifying the canonical DialTone cold-call template and its synchronized application copy.
+- Documented when `tests/unit/call-script.test.ts` and `followUpEmailHeading()` must be updated after template changes.
+- Documented focused call-script testing, global coverage validation, and the full `update:call-script` workflow.
+
 ## 2026-08-15 -- Google Calendar Coverage
 
 ### Changes
