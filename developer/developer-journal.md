@@ -1,3 +1,15 @@
+## 2026-08-15 -- Google Calendar Coverage
+
+### Changes
+
+- Added focused unit coverage for Google Calendar OAuth configuration, authorization-code exchange, connection state, token refresh, event mapping, event CRUD, all-day date conversion, and API failures.
+- Kept `src/lib/server/google-calendar.ts` within the global coverage gate rather than excluding the new integration.
+
+### Validation
+
+- `pnpm exec vitest run tests/unit/google-calendar.test.ts` -- 15 tests passed.
+- `pnpm test:coverage` -- 182 tests passed; global statements and lines reached 97.06%, branches 87.82%, and functions 100%.
+
 ## 2026-08-13 — Calendar: real Google Calendar frontend (per-user OAuth)
 
 ### Summary
