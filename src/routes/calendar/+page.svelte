@@ -2,13 +2,15 @@
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import Nav from '$lib/components/Nav.svelte';
-	import type { CalendarEvent } from '$lib/types';
 
 	let { data } = $props();
 
 	// ── Calendar instance ──────────────────────────────────────────────────────
 	let calendarEl: HTMLDivElement;
 	let calendar: import('@fullcalendar/core').Calendar | null = null;
+
+	// ── Connect banner ─────────────────────────────────────────────────────────
+	let gcalError = $state<string | null>(null);
 
 	// ── Modal state ────────────────────────────────────────────────────────────
 	type ModalMode = 'create' | 'edit' | null;
@@ -24,7 +26,8 @@
 		start_at: '',
 		end_at: '',
 		all_day: false,
-		color: '#3b82f6'
+		color: '#3b82f6',
+		attendees: ''
 	});
 
 	const EVENT_COLORS = [
@@ -61,7 +64,8 @@
 			start_at: startStr ? toLocalInput(startStr) : toLocalInput(rounded.toISOString()),
 			end_at: endStr ? toLocalInput(endStr) : toLocalInput(defaultEnd.toISOString()),
 			all_day: allDay ?? false,
-			color: '#3b82f6'
+			color: '#3b82f6',
+			attendees: ''
 		};
 		deleteConfirm = false;
 		modalMode = 'create';
@@ -75,7 +79,8 @@
 			start_at: toLocalInput(event.startStr),
 			end_at: toLocalInput(event.endStr || event.startStr),
 			all_day: event.allDay,
-			color: event.backgroundColor || '#3b82f6'
+			color: event.backgroundColor || '#3b82f6',
+			attendees: ((event.extendedProps.attendees as string[]) ?? []).join(', ')
 		};
 		deleteConfirm = false;
 		modalMode = 'edit';
@@ -88,22 +93,16 @@
 
 	// ── FullCalendar init ──────────────────────────────────────────────────────
 	onMount(async () => {
+		gcalError = new URLSearchParams(window.location.search).get('gcal_error');
+
+		// Nothing to render until the user has connected their Google Calendar.
+		if (!data.connected) return;
+
 		const { Calendar } = await import('@fullcalendar/core');
 		const { default: dayGridPlugin } = await import('@fullcalendar/daygrid');
 		const { default: timeGridPlugin } = await import('@fullcalendar/timegrid');
 		const { default: listPlugin } = await import('@fullcalendar/list');
 		const { default: interactionPlugin } = await import('@fullcalendar/interaction');
-
-		const initialEvents = data.events.map((e: CalendarEvent) => ({
-			id: e.id,
-			title: e.title,
-			start: e.start_at,
-			end: e.end_at,
-			allDay: e.all_day,
-			backgroundColor: e.color ?? '#3b82f6',
-			borderColor: e.color ?? '#3b82f6',
-			extendedProps: { description: e.description, created_by: e.created_by }
-		}));
 
 		calendar = new Calendar(calendarEl, {
 			plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
@@ -116,7 +115,8 @@
 			height: 'auto',
 			editable: true,
 			selectable: true,
-			events: initialEvents,
+			// Live JSON feed — FullCalendar appends start/end for the visible range automatically.
+			events: '/calendar/events',
 
 			// Prevent selecting dates in the past
 			selectAllow: ({ start }) => {
@@ -209,10 +209,30 @@
 <main class="cal-layout">
 	<div class="cal-header">
 		<h1>Calendar</h1>
-		<button class="btn-primary" onclick={() => openCreate()}>+ New Event</button>
+		{#if data.connected}
+			<div class="cal-header-actions">
+				<a class="link-muted" href="/calendar/disconnect">Disconnect Google Calendar</a>
+				<button class="btn-primary" onclick={() => openCreate()}>+ New Event</button>
+			</div>
+		{/if}
 	</div>
 
-	<div class="cal-wrap" bind:this={calendarEl}></div>
+	{#if gcalError}
+		<div class="gcal-banner gcal-banner--error">
+			<span>Google Calendar error: {gcalError}</span>
+			<button class="btn-close" onclick={() => (gcalError = null)} aria-label="Dismiss">✕</button>
+		</div>
+	{/if}
+
+	{#if data.connected}
+		<div class="cal-wrap" bind:this={calendarEl}></div>
+	{:else}
+		<div class="gcal-banner gcal-banner--connect">
+			<p>Connect your Google Calendar to view and create events here. Events are created on your real primary
+				Google Calendar, and any attendees you add receive genuine Google Calendar invites.</p>
+			<a class="btn-primary" href="/calendar/connect">Connect Google Calendar</a>
+		</div>
+	{/if}
 </main>
 
 <!-- ── Modal ─────────────────────────────────────────────────────────────── -->
@@ -291,6 +311,17 @@
 		<textarea name="description" rows="3" bind:value={form.description}></textarea>
 	</label>
 
+	<label class="field-row">
+		<span>Attendees</span>
+		<textarea
+			name="attendees"
+			rows="2"
+			bind:value={form.attendees}
+			placeholder="jane@bytestreams.ai, alex@bytestreams.ai"
+		></textarea>
+		<small class="field-hint">Comma or newline separated. Google Calendar will email each attendee a real invite.</small>
+	</label>
+
 	<label class="field-row field-row--inline">
 		<span>All day</span>
 		<input type="checkbox" name="all_day" bind:checked={form.all_day} />
@@ -364,6 +395,51 @@
 		font-weight: 600;
 		color: var(--text-primary);
 		margin: 0;
+	}
+
+	.cal-header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-md);
+	}
+
+	.link-muted {
+		font-size: 0.85rem;
+		color: var(--text-secondary);
+		text-decoration: none;
+	}
+	.link-muted:hover {
+		color: var(--color-byte-blue);
+	}
+
+	.gcal-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-md);
+		border-radius: var(--radius-lg);
+		padding: var(--space-lg);
+		margin-bottom: var(--space-lg);
+	}
+	.gcal-banner--connect {
+		flex-direction: column;
+		align-items: flex-start;
+		background: var(--bg-surface);
+		border: 1px solid var(--border-edge);
+	}
+	.gcal-banner--connect p {
+		margin: 0 0 var(--space-md);
+		color: var(--text-secondary);
+	}
+	.gcal-banner--error {
+		background: color-mix(in srgb, #ef4444 12%, transparent);
+		border: 1px solid #ef4444;
+		color: var(--text-primary);
+	}
+
+	.field-hint {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
 	}
 
 	.cal-wrap {

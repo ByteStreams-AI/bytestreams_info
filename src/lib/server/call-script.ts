@@ -106,6 +106,11 @@ function followUpEmailHeading(lead: Lead, approvedFindings: LeadResearchFinding[
 	const hasNoOnlineOrdering = hasNoDirectOrdering(lead.first_party_ordering) || matchesPriority(evidence, 3);
 	const usesToast = /toast/i.test(evidence);
 	const usesSquare = /square/i.test(evidence);
+	const usesDoorDash = /door\s?dash/i.test(evidence);
+	const usesUberEats = /uber\s?eats/i.test(evidence);
+	const usesResy = /resy/i.test(evidence);
+	const usesChowNow = /chownow/i.test(evidence);
+	const usesOpenTable = /open\s?table/i.test(evidence);
 	const isFoodTruck = lead.business_type === 'food_truck';
 	const isSingleLocation = lead.business_type === 'single_location' || lead.num_locations === 1;
 
@@ -117,8 +122,13 @@ function followUpEmailHeading(lead: Lead, approvedFindings: LeadResearchFinding[
 	}
 	if (isSingleLocation) {
 		if (hasNoOnlineOrdering) return 'Single Location With No Online Ordering';
+		if (usesDoorDash) return 'Single Location Using DoorDash';
+		if (usesUberEats) return 'Single Location Using Uber Eats';
 		if (usesToast) return 'Single Location Using Toast';
 		if (usesSquare) return 'Single Location Using Square';
+		if (usesResy) return 'Single Location Using Resy';
+		if (usesChowNow) return 'Single Location Using ChowNow';
+		if (usesOpenTable) return 'Single Location Using OpenTable';
 		return 'Single Location Restaurant';
 	}
 	return null;

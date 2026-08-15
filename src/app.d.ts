@@ -21,6 +21,9 @@ declare global {
 				STRIPE_SECRET_KEY: string;
 				STRIPE_TAX_CODE: string;
 				ENABLE_TAX_ASSESSMENT: string;
+				GOOGLE_OAUTH_CLIENT_ID: string;
+				GOOGLE_OAUTH_CLIENT_SECRET: string;
+				GOOGLE_OAUTH_REDIRECT_URI: string;
 			};
 		}
 	}

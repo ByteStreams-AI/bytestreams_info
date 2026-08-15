@@ -255,13 +255,15 @@ Do not argue with a firm no. Record the reason and end professionally.
 
 **Subject:** A simpler ordering flow for [Truck Name]
 
-Hi [Name],
+Hi,
 
 I called because I noticed [specific observation]. DialTone.Menu gives food trucks one flow for walk-up and online orders, with branded direct ordering, pickup pacing, instant sold-out controls, loyalty, and optional delivery access. Location alerts also notify loyalty members automatically whenever your truck moves.
 
 Based on [relevant discovery point], a 15-minute review could show whether consolidating your current ordering and payment tools would help reduce tablet and hardware burden during a rush.
 
-Would [Day/Time A] or [Day/Time B] work better?
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -272,11 +274,14 @@ Steven
 
 Hi [restaurant name],
 
-I know location updates can be one of the biggest headaches for food trucks. DialTone.Menu makes it effortless. Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind.
+I know location updates can be one of the biggest headaches for food trucks. DialTone.Menu makes it effortless. Your loyalty customers get instant location alerts, and your branded website updates your location automatically, with one click keeping your traffic high, your orders flowing, and your brand top‑of‑mind.
+Restaurant studies have shown that making your order sources more available to potential customers and streamlining your operations can grow your bottom line up to 34%.
 
-You also get unified management for every order source — online, app, and even phone — all inside one clean dashboard. No more juggling systems or missing orders.
+You also get unified management for every order source - online, app, and even phone. All inside one clean dashboard. No more juggling systems or missing orders.
 
-If you'd like, I can show you how it works in under two minutes.
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -289,11 +294,13 @@ Hi [Name],
 
 I noticed [Truck Name] does not appear to offer direct online ordering. DialTone.Menu can give your truck a branded website or app where customers can order directly, while bringing walk-up, phone, and online orders into one kitchen workflow.
 
-Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush. Restaurant studies have shown that making your order sources more available to potential customers and streamlining your operations can grow your bottom line up to 34%.
 
 Your first month of service is free. A 15-minute review can show how adding direct ordering and consolidating your current ordering and payment tools could improve your bottom line.
 
-Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -304,13 +311,15 @@ Steven
 
 Hi [Name],
 
-I noticed [Truck Name] uses Square. DialTone.Menu can bring walk-up, phone, and online orders into one kitchen workflow while giving your truck a branded website or app for direct ordering.
-
-Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+I noticed [Truck Name] uses Square.
+Square for Restaurants is a broad POS platform priced per location, with payment-processing fees layered on top. DialTone.Menu matches the POS, KDS, and expo core and adds a native branded app, dedicated reservations, and voice ordering, which Square only supports through partner integrations or not at all.
+And DialTone.Menu enables a better bottom line for [Truck Name].
 
 Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would improve your bottom line.
 
-Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+See attachments for for pricing and details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -321,13 +330,15 @@ Steven
 
 Hi [Name],
 
-I noticed [Truck Name] uses Toast. DialTone.Menu can bring walk-up, phone, and online orders into one kitchen workflow while giving your truck a branded website or app for direct ordering.
-
-Your loyalty customers get instant location alerts, and your branded website updates your location automatically with one click — keeping your traffic high, your orders flowing, and your brand top‑of‑mind. Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen, so your team is not managing another order source during a rush.
+I noticed [Truck Name] uses Toast. Toast is a broad restaurant POS platform with its own hardware and processing agreements.
+DialTone.Menu covers the same core operating surface — POS, kitchen flow, direct ordering, and loyalty — and adds voice ordering, without a leased terminal.
+And a better bottom line for [Truck Name].
 
 Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would improve your bottom line.
 
-Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -342,7 +353,9 @@ I called because I noticed [specific observation]. DialTone.Menu brings staff PO
 
 Based on [relevant discovery point], a 15-minute review could show whether consolidating any of your current systems would simplify operations or reduce costs.
 
-Would [Day/Time A] or [Day/Time B] work better?
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -359,7 +372,9 @@ Our AI voice agent can answer calls naturally and send phone orders directly to 
 
 Your first month of service is free. A 15-minute review can show how adding direct ordering and consolidating your current ordering and payment tools could improve your bottom line.
 
-Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
@@ -370,11 +385,13 @@ Steven
 
 Hi [Name],
 
-I noticed [Restaurant Name] uses Square. DialTone.Menu can bring dine-in, phone, and online orders into one kitchen workflow while giving your restaurant a branded website or app for direct ordering.
+I noticed [Restaurant Name] uses Square. Square for Restaurants is a broad POS platform priced per location, with payment-processing fees layered on top. DialTone.Menu matches the POS, KDS, and expo core and adds a native branded app, dedicated reservations, and voice ordering, which Square only supports through partner integrations or not at all. With overall better cost.
 
-Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen. Loyalty, rewards, and gift cards help you build on the customer relationship after the first order.
+Your first month of service is free.
 
-Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+See attachments for more details and pricing.
 
 Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
 
@@ -387,13 +404,116 @@ Steven
 
 Hi [Name],
 
-I noticed [Restaurant Name] uses Toast. DialTone.Menu can bring dine-in, phone, and online orders into one kitchen workflow while giving your restaurant a branded website or app for direct ordering.
+I noticed [Restaurant Name] uses Toast. Toast is a broad restaurant POS platform with its own hardware and processing agreements. DialTone.Menu covers the same core operating surface — POS, kitchen flow, direct ordering, and loyalty — and adds voice ordering, without a leased terminal.
+And the overall cost improves your bottom line.
 
-Our AI voice agent can answer calls naturally, take orders, and send them directly to the kitchen. Loyalty, rewards, and gift cards help you build on the customer relationship after the first order.
+Your first month of service is free.
 
-Your first month of service is free. A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
 
-Would [Day/Time A] or [Day/Time B] work better for a demo? See the attached materials for more details.
+See attachments for details.
+
+What date works best for you for a demo?
+
+Best,
+Steven
+
+### Single Location Using ChowNow
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses ChowNow. ChowNow specializes in commission-free direct ordering, a branded website, and a branded app, but it connects to a third-party POS rather than replacing it and does not offer a kitchen display, expo workflow, or reservations. DialTone.Menu covers ChowNow's ordering strengths and adds a native POS, KDS, expo, reservations, and voice ordering in the same platform.
+And the overall cost improves your bottom line.
+
+Your first month of service is free.
+
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+See attachments for pricing and details.
+
+What date works best for you for a demo?
+
+Best,
+Steven
+
+### Single Location Using DoorDash
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses DoorDash. DoorDash's Commerce Platform provides direct ordering and marketing alongside its Marketplace and Drive delivery network, but a restaurant relying on DoorDash Marketplace pays a commission on every order and does not own the customer relationship. DialTone.Menu gives the same access to DoorDash Drive delivery through the restaurant's own branded ordering experience, with no marketplace commission.
+And the overall cost improves your bottom line.
+
+Your first month of service is free.
+
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+See attachments for details.
+
+What date works best for you for a demo?
+
+Best,
+Steven
+
+### Single Location Using OpenTable
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses OpenTable. OpenTable is a reservations, guest-management, and discovery platform priced on a custom basis. It does not publicly document a comparable point-of-sale, kitchen display, expo workflow, or direct online-ordering product. DialTone.Menu includes reservations and table management as one part of a complete ordering, POS, and kitchen platform.
+And the overall cost improves your bottom line.
+
+Your first month of service is free.
+
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+See attachments for details.
+
+What date works best for you for a demo?
+
+Best,
+Steven
+
+### Single Location Using Resy
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses Resy. Resy is a reservations and guest-management platform, with Tock adding prepaid experiences and ticketed events. It does not provide a point-of-sale, kitchen display, expo workflow, or direct online ordering. DialTone.Menu includes reservations and table management as one part of a complete ordering, POS, and kitchen platform.
+And the overall cost improves your bottom line.
+
+Your first month of service is free.
+
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+See attachments for details.
+
+What date works best for you for a demo?
+
+Best,
+Steven
+
+### Single Location Using Uber Eats
+
+**Subject:** A more connected ordering flow for [Restaurant Name]
+
+Hi [Name],
+
+I noticed [Restaurant Name] uses Uber Eats. Uber Eats Merchants combines Marketplace ordering, Webshop direct ordering, and Uber's own courier network, but a restaurant relying on Uber Eats Marketplace pays a commission on every order and does not own the customer relationship. DialTone.Menu gives the same access to Uber Eats delivery through the restaurant's own branded ordering experience, with no marketplace commission.
+And the overall cost improves your bottom line.
+
+Your first month of service is free.
+
+A 15-minute review can show whether consolidating your current ordering and payment tools would simplify operations and improve your bottom line.
+
+See attachments for details.
+
+What date works best for you for a demo?
 
 Best,
 Steven
