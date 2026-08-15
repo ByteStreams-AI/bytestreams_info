@@ -1,3 +1,33 @@
+## 2026-08-13 — Calendar: real Google Calendar frontend (per-user OAuth)
+
+### Summary
+
+Replaced the Supabase-backed calendar with a real Google Calendar integration. `/calendar` is now a FullCalendar frontend for each user's actual primary Google Calendar — events created/edited/deleted here are real Google Calendar events, and attendees receive genuine Google Calendar invites (RSVP, reminders, etc. all handled natively by Google).
+
+### Changes
+
+- Added `src/lib/server/google-calendar.ts` — per-user OAuth 2.0 (offline access), token refresh, and Calendar API v3 CRUD (`primary` calendar, `sendUpdates=all` so attendee changes trigger real invite emails).
+- Added `google_calendar_tokens` table (`developer/migrations/012_create_google_calendar_tokens.sql`) storing each user's access/refresh token, keyed by CF Access email.
+- Added OAuth routes: `/calendar/connect` (starts consent flow, CSRF state cookie), `/calendar/oauth/callback` (exchanges code, persists tokens), `/calendar/disconnect` (clears tokens).
+- Added `/calendar/events` — JSON feed endpoint FullCalendar calls directly with `start`/`end` query params for the visible range (replaces the old static Supabase event list).
+- Rewrote `calendar` route actions (`create`/`update`/`delete`) to call Google Calendar instead of Supabase; added an `attendees` field (comma/newline emails) to the event modal.
+- `+page.svelte` now shows a "Connect Google Calendar" banner when the user hasn't connected yet, and only initializes FullCalendar once connected.
+- Mapped the 6 UI color swatches to the nearest Google Calendar `colorId`.
+- Added `developer/migrate-events-to-google-calendar.mjs` — one-time script to push existing Supabase `events` rows into each creator's Google Calendar (skips creators who haven't connected yet; run with `--dry-run` first).
+
+### Manual setup required (not done by the agent)
+
+1. In Google Cloud Console: enable the Calendar API, configure the OAuth consent screen as **Internal** (Workspace-only), and create an OAuth 2.0 Client ID (Web application) with authorized redirect URI `https://bytestreams.info/calendar/oauth/callback`.
+2. Set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` as Cloudflare Worker secrets/vars (see `.env.example`).
+2. Run `developer/migrations/012_create_google_calendar_tokens.sql` in Supabase.
+3. Each user visits `/calendar/connect` once to authorize.
+4. After confirming the migration script ran successfully, optionally drop the old `events` table (commented at the bottom of the migration file).
+
+### Validation
+
+- `pnpm run check` — 0 errors (1 pre-existing unrelated warning).
+- `pnpm test` — 162/162 passing (no existing calendar test coverage to update).
+
 ## 2026-08-12 -- CRM Pipeline Outreach Columns
 
 ### Changes

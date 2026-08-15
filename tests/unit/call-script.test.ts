@@ -235,7 +235,7 @@ Stop and let the prospect respond.
 		expect(script).toContain('### Food Truck Using Square');
 		expect(script).toContain('**Subject:** A better ordering flow for Empanadas de Mendoza');
 		expect(script).toContain('I noticed Empanadas de Mendoza uses Square.');
-		expect(script).toContain('Steve  \nDialTone.Menu');
+		expect(script).toContain('Best,\nSteven');
 		expect(script).not.toContain('### Single-Location Restaurant');
 	});
 
@@ -244,6 +244,41 @@ Stop and let the prospect respond.
 
 		expect(prompt).toContain('### Single Location Using Toast');
 		expect(prompt).not.toContain('### Single Location Using Square');
+	});
+
+	it('includes the DoorDash single-location email when DoorDash is noted', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Uses DoorDash' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location Using DoorDash');
+		expect(prompt).not.toContain('### Single Location Using Toast');
+	});
+
+	it('includes the Uber Eats single-location email when Uber Eats is noted', () => {
+		const prompt = buildCallScriptPrompt(lead({ notes: 'Uses Uber Eats' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location Using Uber Eats');
+		expect(prompt).not.toContain('### Single Location Using Toast');
+	});
+
+	it('includes the Resy single-location email when Resy is the known POS', () => {
+		const prompt = buildCallScriptPrompt(lead({ uses_pos: 'Resy' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location Using Resy');
+		expect(prompt).not.toContain('### Single Location Using Toast');
+	});
+
+	it('includes the ChowNow single-location email when ChowNow is the known POS', () => {
+		const prompt = buildCallScriptPrompt(lead({ uses_pos: 'ChowNow' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location Using ChowNow');
+		expect(prompt).not.toContain('### Single Location Using Toast');
+	});
+
+	it('includes the OpenTable single-location email when OpenTable is the known POS', () => {
+		const prompt = buildCallScriptPrompt(lead({ uses_pos: 'OpenTable' }), 'Alex');
+
+		expect(prompt).toContain('### Single Location Using OpenTable');
+		expect(prompt).not.toContain('### Single Location Using Toast');
 	});
 
 	it('includes approved sourced research and prohibits absence-based claims', () => {

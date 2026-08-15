@@ -309,6 +309,43 @@ export async function deleteEvent(id: string): Promise<void> {
 	if (error) throw new Error(error.message);
 }
 
+// ── Google Calendar OAuth Tokens ──────────────────────────────────────────────
+
+export interface GoogleCalendarTokens {
+	access_token: string;
+	refresh_token: string;
+	expires_at: string; // ISO 8601
+	scope: string;
+}
+
+/** Fetch a user's stored Google Calendar OAuth tokens, if they've connected. */
+export async function getGoogleCalendarTokens(userEmail: string): Promise<GoogleCalendarTokens | null> {
+	const client = getClient();
+	const { data, error } = await client
+		.from('google_calendar_tokens')
+		.select('access_token, refresh_token, expires_at, scope')
+		.eq('user_email', userEmail)
+		.maybeSingle();
+	if (error) throw new Error(error.message);
+	return data as GoogleCalendarTokens | null;
+}
+
+/** Upsert a user's Google Calendar OAuth tokens (initial connect or refresh). */
+export async function saveGoogleCalendarTokens(userEmail: string, tokens: GoogleCalendarTokens): Promise<void> {
+	const client = getClient();
+	const { error } = await client
+		.from('google_calendar_tokens')
+		.upsert({ user_email: userEmail, ...tokens }, { onConflict: 'user_email' });
+	if (error) throw new Error(error.message);
+}
+
+/** Remove a user's stored Google Calendar OAuth tokens (disconnect). */
+export async function deleteGoogleCalendarTokens(userEmail: string): Promise<void> {
+	const client = getClient();
+	const { error } = await client.from('google_calendar_tokens').delete().eq('user_email', userEmail);
+	if (error) throw new Error(error.message);
+}
+
 // ── File Storage ──────────────────────────────────────────────────────────────
 
 const BUCKET = 'documents';
