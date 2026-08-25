@@ -138,6 +138,26 @@ function parseStructuredAddress(body: Record<string, unknown>): StripeTaxAddress
 	return { line1, city, state, postalCode, country: 'US' };
 }
 
+/**
+ * Customer-facing links for the emails we send them.
+ *
+ * These must NOT use PUBLIC_BASE_URL. That is the intranet (bytestreams.info),
+ * which sits behind Cloudflare Access — a customer following a link there is
+ * redirected to an SSO login they can never pass, and the logo silently fails to
+ * load for the same reason. The portal customers actually use is on bytestreams.ai.
+ */
+function customerPortalLinks(): { portalUrl: string; logoUrl: string } {
+	const configured = typeof publicEnv.PUBLIC_PORTAL_URL === 'string' && publicEnv.PUBLIC_PORTAL_URL.trim()
+		? publicEnv.PUBLIC_PORTAL_URL.trim()
+		: 'https://bytestreams.ai';
+	const baseUrl = configured.replace(/\/+$/, '');
+	return {
+		// /portal, not /portal.html — the Worker 307s the latter to the former.
+		portalUrl: `${baseUrl}/portal`,
+		logoUrl: `${baseUrl}/assets/blue-side-logo.png`
+	};
+}
+
 function currentBillingMonthStart(): string {
 	const now = new Date();
 	const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -447,11 +467,7 @@ async function handleGenerateBilling(): Promise<Response> {
 
 async function sendInviteEmail(email: string): Promise<boolean> {
 	if (!env.RESEND_API_KEY) return false;
-	const baseUrl = typeof publicEnv.PUBLIC_BASE_URL === 'string' && publicEnv.PUBLIC_BASE_URL.trim()
-		? publicEnv.PUBLIC_BASE_URL.trim()
-		: 'https://bytestreams.info';
-	const portalUrl = `${baseUrl}/portal.html`;
-	const logoUrl = `${baseUrl}/assets/blue-side-logo.png`;
+	const { portalUrl, logoUrl } = customerPortalLinks();
 
 	const htmlBody = `
 <!DOCTYPE html>
@@ -588,11 +604,7 @@ async function sendInvoiceEmail({
 	variant: InvoiceVariant;
 }): Promise<boolean> {
 	if (!env.RESEND_API_KEY) return false;
-	const baseUrl = typeof publicEnv.PUBLIC_BASE_URL === 'string' && publicEnv.PUBLIC_BASE_URL.trim()
-		? publicEnv.PUBLIC_BASE_URL.trim()
-		: 'https://bytestreams.info';
-	const portalUrl = `${baseUrl}/portal.html`;
-	const logoUrl = `${baseUrl}/assets/blue-side-logo.png`;
+	const { portalUrl, logoUrl } = customerPortalLinks();
 
 	const amountFmt = `$${(subtotalCents / 100).toFixed(2)}`;
 	const dueFmt = new Date(`${dueDate}T12:00:00Z`).toLocaleDateString('en-US', {

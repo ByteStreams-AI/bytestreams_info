@@ -1697,3 +1697,182 @@ Not caught earlier because `billing_schedule` is empty — see below.
   `flat_amount` convention and the "distributes according to what's left to refund"
   semantics both matched the implementation before it was replaced by the full-only
   policy.
+
+## 2026-08-25 — Product Billing Rules: Other, DialTone.Menu, DialTone.Med
+
+### Summary
+
+Implemented the three New Customer product rules across both repos, and resolved two
+open items from the 2026-08-24 entry. Both repos are deployed. The headline finding is
+that recurring billing had never worked and could not have: it depended on a column
+that did not exist.
+
+### The rules
+
+**Other** — a one-time charge from ByteStreams LLC, not DialTone.Menu. The customer
+receives an invoice to pay rather than a portal invite, and once payment clears the
+ByteStreams LLC invoice is reachable with a Paid stamp.
+
+**DialTone.Menu** — tier selection mandatory, $100 setup fee invoiced to the customer,
+recurring payment on the same day of each following month starting the next month, with
+the daily cron generating the bill and scheduling its notification.
+
+**DialTone.Med** — "Not available at this time." is the entire form.
+
+### `businesses.billing_cycle_start` never existed
+
+`worker.js` has written this column on setup payment and read it in the daily billing
+cron since before migration 005. It was never created. The write sat inside
+`.catch(() => {})` so it failed silently, and the cron's `billing_cycle_start=not.is.null`
+filter returned PostgREST `42703` on every single run.
+
+Recurring billing therefore never generated a row, and nothing anywhere surfaced it —
+no log, no error, no empty-result signal. Added as portal migration
+`010_add_billing_cycle_anchor.sql`. **Applied to `mxhyvvgjtqllohpvrwon` on 2026-08-25.**
+
+Applying it also re-enables the *old* deployed generator, which is why the Worker had to
+ship in the same window rather than later.
+
+### Recurring billing: three generators, none correct
+
+- `generateRollingBilling` stepped 30 days at a time. A Jun 1 anchor drifts to Jul 1,
+  Jul 31, Aug 30 — off the customer's billing day within two cycles.
+- `generateMonthlyBilling` selected **every business with no filter at all**, due the
+  15th. It would have billed Other and DialTone.Med customers a DialTone subscription.
+- Portal Admin's own generator used `next_billing_at + 30 days` anchored to onboarding
+  signoff, disagreeing with both of the above.
+
+All three are replaced by one rule in `src/lib/server/billing-cycle.ts`: charges fall on
+the same day of the month as the day the setup fee cleared, starting the following
+calendar month, clamped to the last day in months too short for the anchor. A 31st
+anchor bills Feb 28, Mar 31, Apr 30 and returns to the 31st — it does not walk backwards.
+
+Bills generate 5 days ahead of their due date so the reminder pass in the same cron run
+has a row to notify on, while the charge still lands on the anchor day. Generation
+upserts on `(business_id, billing_month, product)`, so the cron and Portal Admin's manual
+Generate button converge on one row instead of racing.
+
+`worker.js` carries a mirrored copy of the arithmetic. The two were diffed across
+**15,486 date pairs with zero mismatches** before shipping. They must be changed together;
+the tests live in this repo.
+
+### Changes — this repo
+
+- `other` branch now assesses tax, inserts a `billing_schedule` row, and sends a
+  ByteStreams LLC invoice email. It previously created **no bill at all**, leaving the
+  customer with nothing to pay. Tax is assessed before any write, so a failure leaves no
+  half-created customer behind.
+- The Other bill carries an explicit `description`. This is what makes the entity stick:
+  the portal bill card, invoice page, reminder email, and receipt email all render
+  `bill.description || <DialTone fallback>`, so setting it once keeps DialTone's name off
+  a ByteStreams LLC charge in four places.
+- DialTone.Menu setup fee invoiced at customer creation instead of first portal login,
+  and the bill now carries `bill_type: 'setup'` so the payment webhook stamps
+  `billing_cycle_start`. Without that field recurring billing never starts.
+- Tier validated against `TIER_AMOUNTS_CENTS` rather than merely being non-empty, and
+  **pricing moved server-side**. The client previously sent `monthly_amount_cents` and the
+  server trusted it, so a crafted request could name any tier at any price.
+- DialTone.Med intake closed: form replaced, submit disabled, product rejected 400.
+  Existing Med accounts untouched.
+- Onboarding signoff no longer sets the recurring schedule; it reports the first charge
+  date derived from `billing_cycle_start`, or null when the setup fee has not cleared.
+- Added `src/lib/server/billing-cycle.ts` and `tests/unit/billing-cycle.test.ts` (18 tests
+  covering leap years, year boundaries, and the short-month clamp sequence).
+
+### Changes — `bytestreams_ai`
+
+- Removed the login-time $100 setup bill. Portal Admin now invoices at creation, and
+  creating it again on login produced a second bill under a different `product` value
+  that the unique key could not collapse. It had been failing silently on the
+  `subtotal_cents` constraint, which is the only reason no duplicate ever appeared.
+- PaymentIntent description names ByteStreams LLC for `other` customers. That string is
+  what lands on the customer's receipt.
+- Added signed invoice links: HMAC-SHA256 over bill id + expiry, 90-day TTL, verified in
+  constant time. The invoice page previously accepted only a Supabase access token, which
+  exists solely inside a live session and so could never be emailed. Needs the
+  `INVOICE_LINK_SECRET` secret; without it the link is omitted and nothing else breaks.
+- Finished moving `portal.html`/`admin.html` out of `public/`.
+
+### Resolved from the 2026-08-24 entry
+
+**Item 2 — restricted-key scopes were never verified. Now verified, and all present.**
+Probed the live `rk_live_…4Sny` directly. `PaymentIntents`, `Tax Calculations`, and
+`Tax Transactions` all have write. The suspicion that the "Customer recurring payments"
+preset omitted the Tax scopes was wrong. Note the Dashboard does not surface Tax
+Calculations/Transactions as individually settable rows — searching for them finds only
+"Tax Transaction Reports", which is the reports API and unrelated. Don't go looking; probe
+the key instead.
+
+**Item 1 — the reason tax assessment returns zero is now pinned down.** A live
+calculation against a Memphis TN address returns `taxability_reason: not_collecting` with
+**zero active tax registrations** on the account. This is not a scope problem and not a
+code problem. Turning `enable_tax_assessment` on today would change nothing except adding
+an API call per charge — every bill would still read $0.00 tax, and each would commit a
+$0 Tax Transaction that looks like a correctly filed sale. Register for sales tax first
+(Tennessee at minimum), then flip the flag.
+
+### Deployment
+
+Both repos shipped 2026-08-25. Two things about the deploy pipeline are worth recording:
+
+- **`bytestreams_ai` was never on `main`.** All portal/billing work lived on
+  `feat/blogs-implementation`, which is why the live Worker was `fcf7ece4` and predated
+  everything. A pre-commit hook blocks direct commits to main; deploying is a PR merge.
+  Merged as PR #2, deployed 14:14:48Z.
+- **`bytestreams_info` deploys on ANY branch push.** Cloudflare Workers Builds is
+  connected to the repo independently of the GitHub Actions workflow, whose deploy job
+  correctly gates on `refs/heads/main`. Pushing a feature branch put version
+  `3de07aef` on 100% of traffic. This is a sharp edge: there is no such thing as a
+  non-deploying push in that repo. Merged as PR #7.
+
+### Validation
+
+- `pnpm lint`, `pnpm check`, `pnpm build` clean; **200 tests passing** (18 new).
+- Worker: `node --check` clean, `wrangler deploy --dry-run` clean, artifact guards pass.
+- Migration state, query shapes, and the `ON CONFLICT` target each probed against the
+  live portal database. The `(business_id, billing_month, product)` constraint was
+  confirmed by a deliberately invalid insert returning `23503` rather than `42P10`.
+- Post-deploy: both sites healthy, `/portal` 200, invoice endpoint 401s unauthenticated.
+
+### Still open
+
+- **Nothing has ever been charged.** `billing_schedule` is empty. The first exercise of
+  this code will be a live charge. Carried over from item 8 of the previous entry.
+- **No test path exists.** `.dev.vars` in both repos still point at the dead
+  `acct_1TUZtO`, and there is still no sandbox webhook destination.
+- **Zero tax registrations**, as above.
+- **`developer/cleanup-test-data.sql` is stale** — see below.
+
+### `developer/cleanup-test-data.sql` — rewritten
+
+The old script was still *valid* SQL — every table and column it referenced exists and
+its delete ordering respected the foreign keys — but it had stopped being useful:
+
+1. **It matched nothing.** Hardcoded to `slug = 'hi-sandwich'` and
+   `name ILIKE '%bytestreams llc%'`, while the current test record is "Steve&Mici"
+   (`business_type: 'other'`). It would report "No restaurant found" and delete nothing.
+2. **It never deleted Supabase auth users.** `ensureSupabaseAuthUser` creates an
+   `auth.users` row per customer; deleting `portal_accounts` orphaned it. 20 auth users
+   currently exist, most of them test accounts. This leaks rather than breaks —
+   re-creating a customer with the same email still works, since
+   `ensureSupabaseAuthUser` reuses an already-registered user.
+3. **It never deleted `staff` rows.** `worker.js` inserts one per new DialTone.Menu
+   restaurant with a verified EIN.
+4. **Its last three statements ran unconditionally**, deleting by a name pattern broad
+   enough to catch a real customer.
+
+Rewritten to take **an email** as its only parameter — the one identifier both New
+Customer flows share — and to cover both:
+
+- **DialTone.Menu**: `restaurants` → `locations` → `staff` → `businesses` →
+  `portal_accounts` → `billing_schedule`
+- **Other**: `businesses` → `portal_accounts` → `billing_schedule`
+
+It now also clears `billing_notifications` and `portal_messages` rather than relying on
+cascade behavior, and deletes the `auth.users` row (toggleable). `v_dry_run` defaults to
+TRUE, so the first run only reports counts; flip it to FALSE to apply. A verification
+query at the bottom returns anything that was missed, including portal accounts orphaned
+by a failed create.
+
+One thing left unverified: whether `staff.restaurant_id` cascades on delete. The script
+deletes staff rows explicitly, so it does not depend on the answer.
