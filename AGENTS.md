@@ -109,3 +109,151 @@ Connected GitHub repo to Cloudflare Pages via the unified Workers & Pages dashbo
 ### Status
 
 In progress: Resolving API token permissions for deploy step
+
+## 2026-08-24 — Live Stripe Payments Cutover
+
+**Date:** 2026-08-24
+**Agent:** Claude (Claude Code)
+
+### Summary
+
+Switched the DialTone customer billing flow from Stripe test mode to live mode, and
+closed four correctness gaps that were harmless in test but not with real money.
+Payments are **live and collecting**. Tax assessment is wired but **switched off** at
+`app_settings.enable_tax_assessment`, so live charges currently carry $0.00 tax — see
+Status.
+
+### Architecture (who does what)
+
+Payment handling spans two repos. Neither is complete on its own:
+
+- **`bytestreams_info` (this repo) — assessment.** Portal Admin creates
+  `billing_schedule` rows and calls Stripe Tax `/v1/tax/calculations` via
+  `src/lib/server/stripe-tax.ts` to compute what to charge. Deploys as the
+  `bytestreams-intranet` Worker.
+- **`bytestreams_ai` — collection.** `worker.js` creates PaymentIntents, serves the
+  customer portal, and reconciles via the Stripe webhook at `/api/stripe-webhook`.
+  Deploys as the `ancient-mountain-5dad` Worker.
+
+Both read the same Supabase project, `mxhyvvgjtqllohpvrwon`. They must stay in
+lockstep: if one is repointed, the webhook cannot find the bill and customers are
+charged against rows that stay `pending` forever.
+
+### Stripe accounts — the names mislead
+
+- **`acct_1TPSsg2KmwBSXLwC`** — BYTESTREAMS LLC, **live**. All live keys and the live
+  webhook destination.
+- `acct_1TPSsrRzkaQaekRa` — BYTESTREAMS LLC **sandbox**. A separate account under
+  Stripe's Sandboxes model, not a test view of live. Needs its own webhook
+  destination; its keys will never validate against the live signing secret.
+- `acct_1TUZtORrmddnOdHk` — a third, stale account. Still referenced by `.dev.vars`
+  in both repos. Not live, not the sandbox.
+
+### Changes — this repo
+
+- Added `developer/migrations/portal/009_add_payment_lifecycle.sql`: seven lifecycle
+  columns on `billing_schedule` (`stripe_tax_transaction_id`, `last_payment_error`,
+  `last_payment_failed_at`, `refunded_cents`, `refunded_at`, `disputed_at`,
+  `dispute_reason`) plus a partial index on `stripe_payment_intent_id`, which the
+  webhook needs to resolve a bill from a charge or dispute. **Applied to
+  `mxhyvvgjtqllohpvrwon` on 2026-08-24.**
+- Portal Admin billing table: added a **Tax Filed** column. A paid row showing
+  "Not filed" means the Stripe Tax transaction was never committed — this is the
+  only visible signal for a missing `Tax Transactions: write` scope, which fails
+  silently otherwise.
+- Added `refunded` and `disputed` status badges; surfaced `last_payment_error`.
+
+### Changes — `bytestreams_ai`
+
+- **Stripe Tax transactions are now recorded.** `recordTaxTransaction()` commits the
+  calculation via `/tax/transactions/create_from_calculation` after payment clears.
+  Previously tax was collected but never reported to Stripe Tax — a filing gap.
+  Refunds reverse it, using the delta so repeated partial refunds do not
+  double-reverse.
+- **Idempotency keys** on PaymentIntent creation (`bill-{id}-{amount}`), so retries
+  cannot double-charge while a genuine re-quote still creates a new intent.
+- **Stale intent reuse fixed.** The intent is fetched with GET (it was a POST, which
+  silently doubled as an update), reused only in `requires_payment_method` /
+  `requires_confirmation`, and its amount re-checked against the bill.
+- **Webhook coverage completed**: `payment_intent.payment_failed`, `charge.refunded`,
+  `charge.dispute.created` added alongside `payment_intent.succeeded`. Charge and
+  dispute objects do not reliably carry our metadata, so `resolveBillId()` falls back
+  to matching the stored intent id.
+- Payment gated to an allowlist (`pending` / `overdue`) on both server and portal.
+
+### Build bug found and fixed (`bytestreams_ai`)
+
+`build:public` and the CI "Stage deploy artifact" step both run `rm -rf public` then
+`cp *.html public/`. `portal.html` and `admin.html` lived **only** inside `public/`
+(tracked via gitignore negations), so every CI deploy shipped a site with **no
+customer portal**. Confirmed by triggering it. Fixed by moving both files to the repo
+root and adding `test -f public/portal.html` / `admin.html` guards to `build:public`
+and `deploy.yml`.
+
+Also note `npm run build` is `sass && build:public && blog:build` — eleventy writes
+into `public/` too. Running `build:public` alone drops the blog from the artifact.
+Always run the full build before deploying.
+
+### Tax is assessed at payment time (`bytestreams_ai`) — written, NOT yet deployed
+
+Portal Admin's assessment at bill-creation is now an **estimate for display only**.
+The authoritative figure is recalculated in `handlePortalPay` immediately before the
+PaymentIntent is created or updated.
+
+The reason is not expiry. Calculations stay committable for 90 days
+([API reference](https://docs.stripe.com/api/tax/transactions/create_from_calculation)),
+which comfortably covers a setup fee. The reason is that a calculation's **rates are
+frozen at creation** while the transaction posts as effective on the day it is
+committed — so a bill quoted weeks earlier would file stale rates against the current
+period and miss any registration added in between. Stripe's own
+[PaymentIntents guidance](https://docs.stripe.com/tax/payment-intent/custom) is
+calculate → create intent → record transaction on success.
+
+New helpers in `worker.js`:
+
+- `getTaxConfig()` — reads the same `app_settings.enable_tax_assessment` flag Portal
+  Admin uses, with an `ENABLE_TAX_ASSESSMENT` env override. One flag across both
+  services, so they cannot disagree about whether a bill carries tax.
+- `getBillingAddress()` — linked `locations` row for restaurants, `businesses.address_*`
+  otherwise. Returns null on an incomplete address; Stripe rejects partials.
+- `calculateTax()` — same call shape as this repo's `assessStripeTax()`.
+
+A calculation failure returns **502 and charges nothing**. Never bill an amount whose
+tax could not be verified.
+
+**Requires `Tax Calculations: write` on the worker's restricted key.** The block is
+gated on the enable flag, so while tax is off the code is inert and the scope is not
+yet needed — but the flag cannot be flipped until the scope exists, or every payment
+attempt 502s.
+
+**Intent reuse now also compares the calculation id**, and updates it alongside the
+amount. `recordTaxTransaction()` prefers the bill row over intent metadata, since the
+row is always at least as fresh once tax is re-assessed at payment.
+
+### Tax reversals are full-only (`bytestreams_ai`) — written, NOT yet deployed
+
+Bills are single-line-item, and Stripe recommends full reversals for that shape.
+Partial reversals make reporting unreliable once reversed tax stops being proportional
+to the subtotal, and a later full reversal does **not** supersede earlier partials —
+the two double-count.
+
+A partial refund therefore reverses no tax. It logs and writes an explanatory note to
+`last_payment_error` for manual handling.
+
+### Status
+
+**Live:** `ancient-mountain-5dad` version `fcf7ece4-5165-46e8-897a-5528924b314a`.
+`/api/portal/config` serves `pk_live_…CtOB`; the webhook returns 400 (invalid
+signature) rather than 503, confirming `STRIPE_WEBHOOK_SECRET` is set.
+
+`bytestreams-intranet` now carries `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, and
+`COBALT_API_KEY` (added 2026-08-24), so tax assessment *can* run.
+
+**But `app_settings.enable_tax_assessment` is `"false"`.** Every live charge books
+`tax_cents: 0` with no calculation id, which also means nothing is filed to Stripe
+Tax. Flipping it is a tax decision — confirm sales-tax registration and that Stripe
+Tax is configured in the live account first.
+
+**See `developer/developer-journal.md`, same date, for the full open list** —
+including uncommitted work in both repos, unverified restricted-key scopes, and the
+smoke test that has not been run.

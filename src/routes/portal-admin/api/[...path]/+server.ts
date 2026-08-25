@@ -3,6 +3,11 @@ import { env } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 import { canAccessPortalAdmin } from '$lib/server/authorization';
 import { assessStripeTax, type StripeTaxAddress } from '$lib/server/stripe-tax';
+import {
+	upcomingBillingDate,
+	nextRecurringBillingDate,
+	billingMonthFor
+} from '$lib/server/billing-cycle';
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -103,6 +108,24 @@ function normalizeText(value: unknown, maxLen: number): string {
 	if (typeof value !== 'string') return '';
 	return value.trim().slice(0, maxLen);
 }
+
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
+
+// Invoice line item for Other customers. Set explicitly so every downstream
+// renderer (portal bill card, invoice page, reminder and receipt emails) shows
+// the billing entity instead of falling back to its DialTone default.
+const OTHER_INVOICE_LINE_ITEM = 'ByteStreams LLC — Professional Services';
+
+// Recurring bills are generated this many days before they fall due, so the daily
+// reminder cron (which notifies 5 days out) has a row to send on. Keep in step with
+// REMINDER_LEAD_DAYS in bytestreams_ai/worker.js.
+const RECURRING_LEAD_DAYS = 5;
 
 function parseStructuredAddress(body: Record<string, unknown>): StripeTaxAddress | null {
 	const line1 = normalizeText(body.address_street, 200);
@@ -268,7 +291,7 @@ async function handleBilling(): Promise<Response> {
 
 	const { data: rows, error } = await supabase
 		.from('billing_schedule')
-		.select('id,business_id,billing_month,subtotal_cents,tax_cents,amount_cents,stripe_tax_calculation_id,stripe_tax_breakdown,tax_assessed_at,due_date,status,paid_at')
+		.select('id,business_id,billing_month,subtotal_cents,tax_cents,amount_cents,stripe_tax_calculation_id,stripe_tax_transaction_id,stripe_tax_breakdown,tax_assessed_at,due_date,status,paid_at,last_payment_error,last_payment_failed_at,refunded_cents,disputed_at')
 		.eq('billing_month', billingMonth)
 		.order('created_at', { ascending: false });
 
@@ -299,9 +322,19 @@ async function handleBilling(): Promise<Response> {
 	);
 }
 
+/**
+ * Generates the recurring DialTone.Menu charge for every customer whose next billing
+ * day falls inside the lead window. The charge itself still lands on the customer's
+ * anchor day — generating early is what gives the reminder cron a row to notify on.
+ *
+ * The same rule runs daily in bytestreams_ai/worker.js. Both write the same
+ * (business_id, billing_month, product) key, so whichever runs first wins and the
+ * other upserts over it rather than creating a second bill.
+ */
 async function handleGenerateBilling(): Promise<Response> {
 	const supabase = getSupabase();
 	const now = new Date();
+	const today = now.toISOString().slice(0, 10);
 	const stripeTax = await getStripeTaxConfig();
 	if (stripeTax.enabled && !stripeTax.secretKey) {
 		return jsonResponse({ error: 'STRIPE_SECRET_KEY is not configured' }, 503);
@@ -309,10 +342,10 @@ async function handleGenerateBilling(): Promise<Response> {
 
 	const { data: businesses, error: businessError } = await supabase
 		.from('businesses')
-		.select('id,monthly_amount_cents,next_billing_at,dialtone_location_id')
+		.select('id,monthly_amount_cents,billing_cycle_start,dialtone_location_id')
 		.eq('business_type', 'restaurant')
 		.eq('onboarded', true)
-		.lte('next_billing_at', now.toISOString());
+		.not('billing_cycle_start', 'is', null);
 
 	if (businessError) return jsonResponse({ error: businessError.message }, 500);
 
@@ -340,12 +373,14 @@ async function handleGenerateBilling(): Promise<Response> {
 
 	let created = 0;
 	let failed = 0;
+	let skipped = 0;
 	for (const business of businesses ?? []) {
-		if (!business.id || !business.next_billing_at) continue;
+		if (!business.id || !business.billing_cycle_start) continue;
+
+		const dueDate = upcomingBillingDate(business.billing_cycle_start.slice(0, 10), today, RECURRING_LEAD_DAYS);
+		if (!dueDate) { skipped += 1; continue; }
+
 		const amount = typeof business.monthly_amount_cents === 'number' ? business.monthly_amount_cents : 0;
-		const dueAt = new Date(business.next_billing_at);
-		const billingMonth = new Date(Date.UTC(dueAt.getUTCFullYear(), dueAt.getUTCMonth(), 1)).toISOString().slice(0, 10);
-		const dueDate = dueAt.toISOString().slice(0, 10);
 		let taxAssessment = {
 			calculationId: null as string | null,
 			subtotalCents: amount,
@@ -373,32 +408,33 @@ async function handleGenerateBilling(): Promise<Response> {
 				continue;
 			}
 		}
+
 		const { error } = await supabase
 			.from('billing_schedule')
 			.upsert(
 				{
 					business_id: business.id,
-					billing_month: billingMonth,
+					billing_month: billingMonthFor(dueDate),
 					due_date: dueDate,
 					subtotal_cents: taxAssessment.subtotalCents,
 					tax_cents: taxAssessment.taxCents,
 					amount_cents: taxAssessment.totalCents,
 					stripe_tax_calculation_id: taxAssessment.calculationId,
 					stripe_tax_breakdown: taxAssessment.taxBreakdown,
-					tax_assessed_at: amount > 0 ? now.toISOString() : null,
+					tax_assessed_at: amount > 0 && stripeTax.enabled ? now.toISOString() : null,
 					status: 'pending',
-					product: 'dialtone_menu_recurring'
+					product: 'dialtone_menu_recurring',
+					bill_type: 'monthly',
+					description: 'DialTone.Menu — Monthly Service Fee'
 				},
 				{ onConflict: 'business_id,billing_month,product' }
 			);
 
 		if (!error) {
 			created += 1;
-			const nextBillingAt = new Date(dueAt);
-			nextBillingAt.setUTCDate(nextBillingAt.getUTCDate() + 30);
 			await supabase
 				.from('businesses')
-				.update({ next_billing_at: nextBillingAt.toISOString() })
+				.update({ next_billing_at: nextRecurringBillingDate(business.billing_cycle_start.slice(0, 10), dueDate) })
 				.eq('id', business.id);
 		} else {
 			failed += 1;
@@ -406,7 +442,7 @@ async function handleGenerateBilling(): Promise<Response> {
 		}
 	}
 
-	return jsonResponse({ ok: failed === 0, created, failed }, failed > 0 ? 207 : 200);
+	return jsonResponse({ ok: failed === 0, created, skipped, failed }, failed > 0 ? 207 : 200);
 }
 
 async function sendInviteEmail(email: string): Promise<boolean> {
@@ -527,6 +563,174 @@ async function sendInviteEmail(email: string): Promise<boolean> {
 			subject: 'Your DialTone Portal invite',
 			html: htmlBody,
 			text: `Welcome to DialTone Portal\n\nSign in to your DialTone customer portal: ${portalUrl}\n\nUse this email address (${email}) — no password required.\n\nIf you didn't request this invitation, you can safely ignore this email.\n\n© ${new Date().getFullYear()} ByteStreams. All rights reserved.`
+		})
+	});
+
+	return response.ok;
+}
+
+// Both products invoice at customer creation rather than sending a portal invite:
+// Other is a one-time ByteStreams LLC service charge, DialTone.Menu is the $100 setup
+// fee that has to clear before onboarding starts. The copy differs, the shell does not.
+type InvoiceVariant = 'other' | 'dialtone_menu_setup';
+
+async function sendInvoiceEmail({
+	email,
+	businessName,
+	subtotalCents,
+	dueDate,
+	variant
+}: {
+	email: string;
+	businessName: string;
+	subtotalCents: number;
+	dueDate: string;
+	variant: InvoiceVariant;
+}): Promise<boolean> {
+	if (!env.RESEND_API_KEY) return false;
+	const baseUrl = typeof publicEnv.PUBLIC_BASE_URL === 'string' && publicEnv.PUBLIC_BASE_URL.trim()
+		? publicEnv.PUBLIC_BASE_URL.trim()
+		: 'https://bytestreams.info';
+	const portalUrl = `${baseUrl}/portal.html`;
+	const logoUrl = `${baseUrl}/assets/blue-side-logo.png`;
+
+	const amountFmt = `$${(subtotalCents / 100).toFixed(2)}`;
+	const dueFmt = new Date(`${dueDate}T12:00:00Z`).toLocaleDateString('en-US', {
+		month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC'
+	});
+	const safeName = escapeHtml(businessName);
+
+	const copy = variant === 'dialtone_menu_setup'
+		? {
+			subject: `Your DialTone.Menu setup invoice — ${amountFmt}`,
+			heading: 'Your setup invoice is ready',
+			leadHtml: `Your DialTone.Menu account for <strong>${safeName}</strong> is ready. A one-time setup fee is due to begin onboarding:`,
+			leadText: `Your DialTone.Menu account for ${businessName} is ready. A one-time setup fee is due to begin onboarding.`,
+			footnote: 'Onboarding begins once your setup fee clears. Your recurring service charge starts the following month.'
+		}
+		: {
+			subject: `Your ByteStreams invoice is ready — ${amountFmt}`,
+			heading: 'Your invoice is ready',
+			leadHtml: `ByteStreams LLC has issued an invoice to <strong>${safeName}</strong> for services provided. Click the button below to review and pay:`,
+			leadText: `ByteStreams LLC has issued an invoice to ${businessName} for services provided.`,
+			footnote: ''
+		};
+
+	const htmlBody = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>ByteStreams Invoice</title>
+	<!--[if mso]>
+	<style type="text/css">
+		body, table, td { font-family: Arial, Helvetica, sans-serif !important; }
+	</style>
+	<![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
+	<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+		<tr>
+			<td style="padding: 40px 20px;">
+				<!-- Main Container -->
+				<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+					<!-- Header with Logo -->
+					<tr>
+						<td style="background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%); padding: 32px 40px; border-radius: 12px 12px 0 0; text-align: center;">
+							<img src="${logoUrl}" alt="ByteStreams" width="180" style="display: block; margin: 0 auto; max-width: 100%; height: auto;">
+						</td>
+					</tr>
+
+					<!-- Body Content -->
+					<tr>
+						<td style="padding: 40px 40px 32px 40px;">
+							<h1 style="margin: 0 0 24px 0; color: #0d1117; font-size: 24px; font-weight: 600; line-height: 1.3;">
+								${copy.heading}
+							</h1>
+							<p style="margin: 0 0 24px 0; color: #21262d; font-size: 16px; line-height: 1.6;">
+								${copy.leadHtml}
+							</p>
+
+							<!-- Amount Summary -->
+							<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e5e7eb;">
+								<tr>
+									<td style="padding: 20px 24px;">
+										<p style="margin: 0 0 4px 0; color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em;">Amount</p>
+										<p style="margin: 0 0 16px 0; color: #0d1117; font-size: 28px; font-weight: 700; line-height: 1;">${amountFmt}</p>
+										<p style="margin: 0; color: #6b7280; font-size: 14px; line-height: 1.5;">
+											Due <strong style="color: #21262d;">${dueFmt}</strong><br>
+											Applicable sales tax is calculated at checkout and shown before you confirm payment.
+											${copy.footnote ? `<br><br>${copy.footnote}` : ''}
+										</p>
+									</td>
+								</tr>
+							</table>
+
+							<!-- CTA Button -->
+							<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 32px 0 0 0;">
+								<tr>
+									<td style="border-radius: 8px; background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);">
+										<a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px;">
+											Pay Invoice
+										</a>
+									</td>
+								</tr>
+							</table>
+
+							<p style="margin: 24px 0 0 0; color: #484f58; font-size: 14px; line-height: 1.6;">
+								Or copy and paste this link into your browser:<br>
+								<a href="${portalUrl}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${portalUrl}</a>
+							</p>
+						</td>
+					</tr>
+
+					<!-- Info Box -->
+					<tr>
+						<td style="padding: 0 40px 40px 40px;">
+							<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f9ff; border-radius: 8px; border-left: 4px solid #2563eb;">
+								<tr>
+									<td style="padding: 20px;">
+										<p style="margin: 0; color: #1d4ed8; font-size: 14px; line-height: 1.6;">
+											<strong style="display: block; margin-bottom: 8px;">🔒 Passwordless Sign-In</strong>
+											Use your email address (<strong>${escapeHtml(email)}</strong>) to sign in and pay. No password required.
+										</p>
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+
+					<!-- Footer -->
+					<tr>
+						<td style="padding: 24px 40px; background-color: #f8f9fa; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
+							<p style="margin: 0; color: #8b949e; font-size: 12px; line-height: 1.5; text-align: center;">
+								ByteStreams LLC · Nashville, TN<br>
+								© ${new Date().getFullYear()} ByteStreams LLC. All rights reserved.<br>
+								Questions? Contact us at <a href="mailto:support@bytestreams.ai" style="color: #2563eb; text-decoration: none;">support@bytestreams.ai</a>
+							</p>
+						</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+</body>
+</html>
+	`.trim();
+
+	const response = await fetch('https://api.resend.com/emails', {
+		method: 'POST',
+		headers: {
+			authorization: `Bearer ${env.RESEND_API_KEY}`,
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify({
+			from: 'ByteStreams <contact@send.bytestreams.ai>',
+			to: [email],
+			subject: copy.subject,
+			html: htmlBody,
+			text: `${copy.heading}\n\n${copy.leadText}\n\nAmount: ${amountFmt}\nDue: ${dueFmt}\nApplicable sales tax is calculated at checkout and shown before you confirm payment.${copy.footnote ? `\n${copy.footnote}` : ''}\n\nReview and pay: ${portalUrl}\n\nSign in with this email address (${email}) — no password required.\n\nByteStreams LLC · Nashville, TN\n© ${new Date().getFullYear()} ByteStreams LLC. All rights reserved.`
 		})
 	});
 
@@ -731,14 +935,16 @@ async function handleInvite(request: Request): Promise<Response> {
 		const tier = normalizeText(body.tier, 50);
 		const isFoodTruck = Boolean(body.is_food_truck);
 		const billingAddressSame = Boolean(body.billing_address_same);
-		const amountCents = Number.isInteger(body.monthly_amount_cents) ? (body.monthly_amount_cents as number) : 0;
+		// Priced from the tier table server-side. The client sends a tier, never an
+		// amount — trusting a client-supplied price lets any caller name their own.
+		const amountCents = TIER_AMOUNTS_CENTS[tier] ?? 0;
 
 		if (!restaurantName) return jsonResponse({ error: 'restaurant_name is required' }, 400);
 		if (!einDigits)      return jsonResponse({ error: 'ein is required' }, 400);
 		if (!address)        return jsonResponse({ error: 'Street, city, two-character state, and valid ZIP code are required' }, 400);
 		if (!email)          return jsonResponse({ error: 'email is required' }, 400);
 		if (!phone)          return jsonResponse({ error: 'phone is required' }, 400);
-		if (!tier)           return jsonResponse({ error: 'tier is required' }, 400);
+		if (!tier || !(tier in TIER_AMOUNTS_CENTS)) return jsonResponse({ error: 'A valid tier is required for DialTone.Menu' }, 400);
 
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
 			return jsonResponse({ error: 'Invalid email' }, 400);
@@ -857,7 +1063,7 @@ async function handleInvite(request: Request): Promise<Response> {
 			return jsonResponse({ error: businessError?.message ?? 'Failed to create business' }, 500);
 		}
 
-		const setupDueDate = new Date().toISOString().slice(0, 10);
+		const setupDueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 		const { error: setupBillingError } = await supabase
 			.from('billing_schedule')
 			.upsert({
@@ -871,7 +1077,12 @@ async function handleInvite(request: Request): Promise<Response> {
 				stripe_tax_breakdown: setupTax.taxBreakdown,
 				tax_assessed_at: new Date().toISOString(),
 				status: 'pending',
-				product: 'dialtone_menu_setup'
+				product: 'dialtone_menu_setup',
+				// bill_type drives the Worker's payment webhook: clearing a 'setup' bill is
+				// what stamps businesses.billing_cycle_start, the anchor every recurring
+				// charge is scheduled from. Without it, recurring billing never starts.
+				bill_type: 'setup',
+				description: 'One-Time Setup Fee'
 			}, { onConflict: 'business_id,billing_month,product' });
 
 		if (setupBillingError) {
@@ -907,76 +1118,32 @@ async function handleInvite(request: Request): Promise<Response> {
 		if (!env.RESEND_API_KEY) {
 			return jsonResponse({
 				ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
-				warning: ['Customer created but invite email not sent (RESEND_API_KEY not set).', ...warnings].join(' ')
+				warning: ['Customer created but setup invoice email not sent (RESEND_API_KEY not set).', ...warnings].join(' ')
 			});
 		}
 
-		const sent = await sendInviteEmail(email);
+		const sent = await sendInvoiceEmail({
+			email,
+			businessName,
+			subtotalCents: setupTax.subtotalCents,
+			dueDate: setupDueDate,
+			variant: 'dialtone_menu_setup'
+		});
 		return jsonResponse({
 			ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
-			warning: [sent ? null : 'Invite email failed to send.', ...warnings].filter(Boolean).join(' ') || undefined
+			warning: [sent ? null : 'Setup invoice email failed to send.', ...warnings].filter(Boolean).join(' ') || undefined
 		});
 	}
 
 	// ── DialTone.Med ───────────────────────────────────────────────────────────
+	// Intake is closed. Existing Med accounts keep working; no new ones are created.
 	if (product === 'dialtone_med') {
-		const email = normalizeText(body.email, 254);
-		const fullName = normalizeText(body.full_name, 200) || null;
-		const einDigits = normalizeText(body.ein, 20).replace(/\D/g, '').slice(0, 9);
-		const amountCents = Number.isInteger(body.monthly_amount_cents) ? (body.monthly_amount_cents as number) : 0;
-
-		if (!email) return jsonResponse({ error: 'email is required' }, 400);
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: 'Invalid email' }, 400);
-
-		let authUserId: string | null = null;
-		try {
-			authUserId = await ensureSupabaseAuthUser(email);
-		} catch (err) {
-			return jsonResponse({ error: err instanceof Error ? err.message : 'Failed to create auth user' }, 502);
-		}
-
-		const { data: business, error: businessError } = await supabase
-			.from('businesses')
-			.insert({
-				name: businessName,
-				business_type: 'clinic',
-				monthly_amount_cents: amountCents,
-				ein: einDigits || null,
-				ein_verified: false
-			})
-			.select('id')
-			.single();
-
-		if (businessError || !business?.id) {
-			return jsonResponse({ error: businessError?.message ?? 'Failed to create business' }, 500);
-		}
-
-		const { error: accountError } = await supabase
-			.from('portal_accounts')
-			.insert({
-				email,
-				full_name: fullName,
-				auth_user_id: authUserId,
-				business_id: business.id,
-				product,
-				role: 'owner',
-				status: 'setup_pending',
-				is_admin: false,
-				invited_at: new Date().toISOString()
-			});
-
-		if (accountError) {
-			return jsonResponse({ error: accountError.message ?? 'Failed to create portal account' }, 500);
-		}
-
-		if (!env.RESEND_API_KEY) {
-			return jsonResponse({ ok: true, ein_verified: false, warning: 'Customer created but invite email not sent (RESEND_API_KEY not set).' });
-		}
-		const sent = await sendInviteEmail(email);
-		return jsonResponse({ ok: true, ein_verified: false, warning: sent ? undefined : 'Invite email failed to send.' });
+		return jsonResponse({ error: 'DialTone.Med is not available at this time.' }, 400);
 	}
 
 	// ── Other ──────────────────────────────────────────────────────────────────
+	// Billed by ByteStreams LLC, not DialTone.Menu: a single one-time charge, so the
+	// customer gets an invoice to pay rather than a portal invite.
 	if (product === 'other') {
 		const email = normalizeText(body.email, 254);
 		const fullName = normalizeText(body.full_name, 200) || null;
@@ -990,6 +1157,32 @@ async function handleInvite(request: Request): Promise<Response> {
 		if (!address)                  return jsonResponse({ error: 'Street, city, two-character state, and valid ZIP code are required' }, 400);
 		if (serviceProvided.length < 25) return jsonResponse({ error: 'service_provided must be at least 25 characters' }, 400);
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: 'Invalid email' }, 400);
+		if (amountCents <= 0)          return jsonResponse({ error: 'Charge USD must be greater than zero — an Other customer is invoiced for a one-time payment' }, 400);
+
+		// Assess before anything is written, so a tax failure leaves no half-created
+		// customer behind — same ordering as the DialTone.Menu setup charge.
+		const stripeTax = await getStripeTaxConfig();
+		let charge;
+		if (stripeTax.enabled) {
+			try {
+				charge = await assessStripeTax({
+					...stripeTax,
+					amountCents,
+					address,
+					reference: `other-${email}`
+				});
+			} catch (error) {
+				return jsonResponse({ error: error instanceof Error ? error.message : 'Stripe Tax assessment failed' }, 502);
+			}
+		} else {
+			charge = {
+				calculationId: '',
+				subtotalCents: amountCents,
+				taxCents: 0,
+				totalCents: amountCents,
+				taxBreakdown: [] as unknown[]
+			};
+		}
 
 		let authUserId: string | null = null;
 		try {
@@ -1019,6 +1212,28 @@ async function handleInvite(request: Request): Promise<Response> {
 			return jsonResponse({ error: businessError?.message ?? 'Failed to create business' }, 500);
 		}
 
+		const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+		const { error: billingError } = await supabase
+			.from('billing_schedule')
+			.upsert({
+				business_id: business.id,
+				billing_month: currentBillingMonthStart(),
+				due_date: dueDate,
+				subtotal_cents: charge.subtotalCents,
+				tax_cents: charge.taxCents,
+				amount_cents: charge.totalCents,
+				stripe_tax_calculation_id: charge.calculationId,
+				stripe_tax_breakdown: charge.taxBreakdown,
+				tax_assessed_at: stripeTax.enabled ? new Date().toISOString() : null,
+				status: 'pending',
+				product: 'other',
+				description: OTHER_INVOICE_LINE_ITEM
+			}, { onConflict: 'business_id,billing_month,product' });
+
+		if (billingError) {
+			return jsonResponse({ error: `Customer created but invoice billing failed: ${billingError.message}` }, 500);
+		}
+
 		const { error: accountError } = await supabase
 			.from('portal_accounts')
 			.insert({
@@ -1038,13 +1253,29 @@ async function handleInvite(request: Request): Promise<Response> {
 		}
 
 		if (!env.RESEND_API_KEY) {
-			return jsonResponse({ ok: true, warning: 'Customer created but invite email not sent (RESEND_API_KEY not set).' });
+			return jsonResponse({ ok: true, warning: 'Customer created but invoice email not sent (RESEND_API_KEY not set).' });
 		}
-		const sent = await sendInviteEmail(email);
-		return jsonResponse({ ok: true, warning: sent ? undefined : 'Invite email failed to send.' });
+		const sent = await sendInvoiceEmail({
+			email,
+			businessName,
+			subtotalCents: charge.subtotalCents,
+			dueDate,
+			variant: 'other'
+		});
+		return jsonResponse({ ok: true, warning: sent ? undefined : 'Invoice email failed to send.' });
 	}
 
 	return jsonResponse({ error: `Unknown product: ${product}` }, 400);
+}
+
+/**
+ * Recurring billing is anchored to the day the setup fee cleared, so signoff only
+ * reports when the first charge lands — it does not set the schedule. Until the
+ * setup fee is paid there is no anchor and therefore no date to report.
+ */
+function recurringStartFor(billingCycleStart: string | null, onboardedAt: Date): string | null {
+	if (!billingCycleStart) return null;
+	return nextRecurringBillingDate(billingCycleStart.slice(0, 10), onboardedAt.toISOString().slice(0, 10));
 }
 
 async function handleOnboardingSignoff(request: Request, actorEmail: string): Promise<Response> {
@@ -1057,7 +1288,7 @@ async function handleOnboardingSignoff(request: Request, actorEmail: string): Pr
 	const supabase = getSupabase();
 	const { data: business, error } = await supabase
 		.from('businesses')
-		.select('id,ein_verified,address_verified,onboarded')
+		.select('id,ein_verified,address_verified,onboarded,billing_cycle_start')
 		.eq('id', businessId)
 		.single();
 
@@ -1068,8 +1299,7 @@ async function handleOnboardingSignoff(request: Request, actorEmail: string): Pr
 	}
 
 	const onboardedAt = new Date();
-	const recurringStartsAt = new Date(onboardedAt);
-	recurringStartsAt.setUTCDate(recurringStartsAt.getUTCDate() + 30);
+	const recurringStartsAt = recurringStartFor(business.billing_cycle_start, onboardedAt);
 
 	const { error: updateError } = await supabase
 		.from('businesses')
@@ -1077,13 +1307,13 @@ async function handleOnboardingSignoff(request: Request, actorEmail: string): Pr
 			onboarded: true,
 			onboarded_at: onboardedAt.toISOString(),
 			onboarded_by_email: actorEmail,
-			recurring_billing_starts_at: recurringStartsAt.toISOString(),
-			next_billing_at: recurringStartsAt.toISOString()
+			recurring_billing_starts_at: recurringStartsAt,
+			next_billing_at: recurringStartsAt
 		})
 		.eq('id', businessId);
 
 	if (updateError) return jsonResponse({ error: updateError.message }, 500);
-	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt.toISOString() });
+	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt });
 }
 
 const TIER_AMOUNTS_CENTS: Record<string, number> = {
@@ -1122,7 +1352,7 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 
 	const { data: business, error: businessError } = await supabase
 		.from('businesses')
-		.select('id,name,ein,ein_verified,address_verified,onboarded,dialtone_location_id')
+		.select('id,name,ein,ein_verified,address_verified,onboarded,dialtone_location_id,billing_cycle_start')
 		.eq('id', account.business_id)
 		.single();
 	if (businessError || !business) return jsonResponse({ error: businessError?.message ?? 'Business not found' }, 404);
@@ -1173,14 +1403,13 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 
 	if (requestedOnboarded && !business.onboarded) {
 		const onboardedAt = new Date();
-		const recurringStartsAt = new Date(onboardedAt);
-		recurringStartsAt.setUTCDate(recurringStartsAt.getUTCDate() + 30);
+		const recurringStartsAt = recurringStartFor(business.billing_cycle_start, onboardedAt);
 		Object.assign(businessUpdates, {
 			onboarded: true,
 			onboarded_at: onboardedAt.toISOString(),
 			onboarded_by_email: actorEmail,
-			recurring_billing_starts_at: recurringStartsAt.toISOString(),
-			next_billing_at: recurringStartsAt.toISOString()
+			recurring_billing_starts_at: recurringStartsAt,
+			next_billing_at: recurringStartsAt
 		});
 	}
 
