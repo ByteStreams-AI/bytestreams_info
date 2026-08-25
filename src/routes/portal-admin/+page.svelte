@@ -44,9 +44,12 @@
 				tax_cents: number;
 			amount_cents: number;
 				stripe_tax_calculation_id: string | null;
+				stripe_tax_transaction_id: string | null;
 			due_date: string;
 			status: string;
 			paid_at: string | null;
+			last_payment_error: string | null;
+			refunded_cents: number | null;
 		};
 
 		function fmtDate(iso: string | null | undefined) {
@@ -67,9 +70,19 @@
 				paid:          ['badge-success', 'fa-circle-check',       'Paid'],
 				pending:       ['badge-warning', 'fa-clock',              'Due'],
 				overdue:       ['badge-error',   'fa-circle-exclamation', 'Overdue'],
+				refunded:      ['badge-neutral', 'fa-rotate-left',        'Refunded'],
+				disputed:      ['badge-error',   'fa-triangle-exclamation', 'Disputed'],
 			};
 			const [cls, icon, label] = m[s] ?? ['badge-neutral', 'fa-circle', s];
 			return `<span class="badge ${cls}"><i class="fa-solid ${icon}"></i> ${label}</span>`;
+		}
+		// Collected tax only counts toward filing once its calculation is committed
+		// as a Stripe Tax transaction. A paid row without one needs manual attention.
+		function taxFiledBadge(r: BillingRow) {
+			if (r.tax_cents === 0) return '<span class="badge badge-neutral"><i class="fa-solid fa-minus"></i> No tax</span>';
+			if (r.stripe_tax_transaction_id) return '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Filed</span>';
+			if (r.status === 'paid') return '<span class="badge badge-error"><i class="fa-solid fa-triangle-exclamation"></i> Not filed</span>';
+			return '<span class="badge badge-warning"><i class="fa-solid fa-clock"></i> Pending</span>';
 		}
 		function escHtml(v: unknown) {
 			return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -227,8 +240,9 @@
 						<td>${fmtCents(r.tax_cents)}</td>
 						<td><strong>${fmtCents(r.amount_cents)}</strong></td>
 						<td>${fmtDate(r.due_date)}</td>
-						<td>${statusBadge(r.status)}</td>
+						<td>${statusBadge(r.status)}${r.last_payment_error ? `<br><span class="badge badge-error" style="margin-top:5px;" title="${escHtml(r.last_payment_error)}"><i class="fa-solid fa-circle-xmark"></i> Last attempt failed</span>` : ''}</td>
 						<td>${r.paid_at ? fmtDate(r.paid_at) : '—'}</td>
+						<td>${taxFiledBadge(r)}</td>
 					</tr>
 				`).join('');
 				getEl('billing-table').classList.remove('hidden');
@@ -523,11 +537,20 @@
 			enterprise:          { cents: 45000, label: '$450.00', asterisk: true  },
 		};
 
+		function submitLabelText() {
+			return getEl<HTMLSelectElement>('inv-product').value === 'other'
+				? 'Create & Send Invoice'
+				: 'Create & Send Invite';
+		}
+
 		function syncProductFields() {
 			const p = getEl<HTMLSelectElement>('inv-product').value;
 			getEl('inv-dm-wrap').classList.toggle('hidden', p !== 'dialtone_menu');
 			getEl('inv-med-wrap').classList.toggle('hidden', p !== 'dialtone_med');
 			getEl('inv-other-wrap').classList.toggle('hidden', p !== 'other');
+			getEl('invite-submit-label').textContent = submitLabelText();
+			// DialTone.Med intake is closed — nothing to submit.
+			getEl<HTMLButtonElement>('invite-submit-btn').disabled = p === 'dialtone_med';
 		}
 
 		function syncTier() {
@@ -555,7 +578,8 @@
 				errEl.textContent = msg;
 				errEl.classList.remove('hidden');
 				btn.disabled = false;
-				label.textContent = 'Create & Send Invite';
+				label.textContent = submitLabelText();
+				syncProductFields();
 			}
 
 			btn.disabled = true;
@@ -566,6 +590,7 @@
 			const businessName = getEl<HTMLInputElement>('inv-biz-name').value.trim();
 			if (!businessName) { showErr('Business Name is required'); return; }
 			if (!product)      { showErr('Product is required'); return; }
+			if (product === 'dialtone_med') { showErr('DialTone.Med is not available at this time.'); return; }
 
 			const reqBody: Record<string, unknown> = { business_name: businessName, product };
 
@@ -601,16 +626,7 @@
 				reqBody.email                = email;
 				reqBody.phone                = phone;
 				reqBody.tier                 = tier;
-				reqBody.monthly_amount_cents = TIER_AMOUNTS[tier]?.cents ?? 0;
-			} else if (product === 'dialtone_med') {
-				const email = getEl<HTMLInputElement>('inv-med-email').value.trim();
-				if (!email) { showErr('Email is required'); return; }
-				const amountRaw = parseFloat(getEl<HTMLInputElement>('inv-med-amount').value || '0');
-				reqBody.dialtone_slug        = getEl<HTMLInputElement>('inv-slug').value.trim() || null;
-				reqBody.ein                  = getEl<HTMLInputElement>('inv-med-ein').value.trim() || null;
-				reqBody.email                = email;
-				reqBody.full_name            = getEl<HTMLInputElement>('inv-med-name').value.trim() || null;
-				reqBody.monthly_amount_cents = Math.round(amountRaw * 100);
+				// Price is derived from the tier server-side; TIER_AMOUNTS drives display only.
 			} else if (product === 'other') {
 				const addressStreet = getEl<HTMLInputElement>('inv-other-address-street').value.trim();
 				const addressCity = getEl<HTMLInputElement>('inv-other-address-city').value.trim();
@@ -624,6 +640,8 @@
 				if (!/^[A-Z]{2}$/.test(addressState)) { showErr('State must be a two-character code'); return; }
 				if (!/^\d{5}(?:-\d{4})?$/.test(addressZip)) { showErr('Enter a valid ZIP code'); return; }
 				if (serviceProvided.length < 25)     { showErr('Service description must be at least 25 characters'); return; }
+				const otherAmountCents = Math.round(parseFloat(getEl<HTMLInputElement>('inv-other-amount').value || '0') * 100);
+				if (!(otherAmountCents > 0))         { showErr('Charge USD must be greater than zero'); return; }
 				reqBody.email                = email;
 				reqBody.full_name            = getEl<HTMLInputElement>('inv-other-name').value.trim() || null;
 				reqBody.phone                = getEl<HTMLInputElement>('inv-other-phone').value.trim() || null;
@@ -633,7 +651,7 @@
 				reqBody.address_zip          = addressZip;
 				reqBody.billing_address_same = getEl<HTMLInputElement>('inv-other-billing-addr').checked;
 				reqBody.service_provided     = serviceProvided;
-				reqBody.monthly_amount_cents = Math.round(parseFloat(getEl<HTMLInputElement>('inv-other-amount').value || '0') * 100);
+				reqBody.monthly_amount_cents = otherAmountCents;
 			}
 
 			try {
@@ -653,7 +671,7 @@
 					: ' <span class="badge badge-warning" style="margin-left:6px;">Address Not Verified</span>';
 
 				getEl('invite-success').innerHTML =
-					`<i class="fa-solid fa-circle-check"></i> Customer created${product !== 'other' ? ' and invite sent' : ''}!${badges}` +
+					`<i class="fa-solid fa-circle-check"></i> Customer created and ${product === 'other' ? 'invoice' : 'invite'} sent!${badges}` +
 					(data.warning ? `<br><small style="opacity:0.75;">${escHtml(data.warning)}</small>` : '');
 				getEl('invite-form').classList.add('hidden');
 				getEl('invite-success').classList.remove('hidden');
@@ -739,7 +757,7 @@
 					<thead>
 						<tr>
 							<th>Business</th><th>Period</th><th>Subtotal</th><th>Tax</th><th>Total</th>
-							<th>Due Date</th><th>Status</th><th>Paid On</th>
+							<th>Due Date</th><th>Status</th><th>Paid On</th><th>Tax Filed</th>
 						</tr>
 					</thead>
 					<tbody id="billing-tbody"></tbody>
@@ -1012,29 +1030,10 @@
 				</div>
 			</div>
 
-			<!-- DialTone.Med fields -->
+			<!-- DialTone.Med — intake closed -->
 			<div id="inv-med-wrap" class="hidden">
 				<div class="form-group">
-					<label for="inv-slug">DialTone Slug (optional)</label>
-					<input id="inv-slug" type="text" placeholder="the-golden-fork">
-				</div>
-				<div class="form-group">
-					<label for="inv-med-ein">EIN (optional)</label>
-					<input id="inv-med-ein" type="text" placeholder="XX-XXXXXXX" maxlength="10">
-				</div>
-				<div class="form-row">
-					<div class="form-group">
-						<label for="inv-med-email">Operator Email <span class="req">*</span></label>
-						<input id="inv-med-email" type="email" placeholder="owner@clinic.com">
-					</div>
-					<div class="form-group">
-						<label for="inv-med-name">Operator Name</label>
-						<input id="inv-med-name" type="text" placeholder="Jane Smith">
-					</div>
-				</div>
-				<div class="form-group">
-					<label for="inv-med-amount">Monthly Charge USD</label>
-					<input id="inv-med-amount" type="number" min="0" step="0.01" value="0.00">
+					<p class="form-note" style="margin:0;font-size:0.95rem;">Not available at this time.</p>
 				</div>
 			</div>
 
@@ -1081,8 +1080,9 @@
 					<textarea id="inv-service-provided" rows="3" maxlength="1000" placeholder="Describe the service provided (minimum 25 characters)…"></textarea>
 				</div>
 				<div class="form-group">
-					<label for="inv-other-amount">Charge USD</label>
-					<input id="inv-other-amount" type="number" min="0" step="0.01" value="0.00">
+					<label for="inv-other-amount">Charge USD <span class="req">*</span></label>
+					<input id="inv-other-amount" type="number" min="0.01" step="0.01" placeholder="0.00">
+					<p class="form-note">One-time charge, invoiced by ByteStreams LLC. Applicable tax is added at checkout.</p>
 				</div>
 			</div>
 

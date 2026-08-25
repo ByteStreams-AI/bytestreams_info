@@ -1519,3 +1519,181 @@ User encountered error when creating DialTone.Menu customer: `invalid input valu
 ### Operational Note
 
 - The active CRM route delegates to `generateCallScript()` and saves its return value unchanged. An output without the follow-up email therefore indicates an instance running a bundle from before this behavior was added; rebuilding alone does not update a deployed Worker.
+
+---
+
+## 2026-08-24 — Live Stripe Payments Cutover
+
+**Participants:** Scott Thornton, Claude (Claude Code)
+
+### Summary
+
+Took the DialTone billing flow from Stripe test mode to live. Payments are collecting
+as of this entry. Four correctness gaps were closed first, a latent CI bug that would
+have taken the customer portal offline was found and fixed, and several items remain
+open — including one that blocks Portal Admin from assessing tax in production.
+
+Full architectural context is in `AGENTS.md` under the same date. This entry records
+state, verification, and what is left.
+
+### Deployed
+
+- `bytestreams_ai` Worker `ancient-mountain-5dad`, version
+  `fcf7ece4-5165-46e8-897a-5528924b314a`.
+- `STRIPE_PUBLISHABLE_KEY` swapped from `pk_test_…TUZtO` to `pk_live_…CtOB`
+  (`acct_1TPSsg2KmwBSXLwC`).
+- Live webhook destination active at `https://bytestreams.ai/api/stripe-webhook`,
+  Snapshot payload style, API version `2026-03-25.dahlia`, subscribed to
+  `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`,
+  `charge.dispute.created`.
+- Migration `portal/009_add_payment_lifecycle.sql` applied to `mxhyvvgjtqllohpvrwon`.
+
+### Validation
+
+- `pnpm run check` 0 errors; `pnpm run lint` clean; `pnpm exec vitest run` 182/182.
+- `pnpm run build` and `wrangler deploy --dry-run` both succeeded.
+- Post-deploy: `/api/portal/config` returns `pk_live_51TPSsg2Km…`.
+- Post-deploy: `portal.html`, `admin.html`, `index.html`, `blog/`, `cookies.html`
+  all 200; a nonexistent path still 404s.
+- Webhook probe with no signature returns **400 Invalid signature**, not 503 —
+  confirming `STRIPE_WEBHOOK_SECRET` is set and verification runs.
+
+### Open Items
+
+**1. RESOLVED 2026-08-24 — `bytestreams-intranet` Worker secrets.**
+`STRIPE_SECRET_KEY`, `RESEND_API_KEY`, and `COBALT_API_KEY` were added. The Worker's
+secrets are now `CF_ACCESS_AUD`, `CF_ACCESS_TEAM_DOMAIN`, `COBALT_API_KEY`,
+`PORTAL_SUPABASE_SERVICE_ROLE_KEY`, `PORTAL_SUPABASE_URL`, `POSTGRID_API_KEY`,
+`RESEND_API_KEY`, `STRIPE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`.
+Portal Admin only calls `/v1/tax/calculations`, so its key needs
+**Tax Calculations: write**.
+
+**1a. OPEN, live impact — tax assessment is switched OFF.**
+`app_settings.enable_tax_assessment` is **`"false"`** (set 2026-08-09 by
+scotton@bytestreams.ai; verified 2026-08-24). `ENABLE_TAX_ASSESSMENT` is not set on
+the Worker, so the DB flag governs. Consequences while payments are live:
+
+  - `handleInvite` takes the else branch: setup fee books `$100.00` subtotal,
+    `tax_cents: 0`, `stripe_tax_calculation_id: ''`
+  - `handleGenerateBilling` skips assessment: recurring bills carry `tax_cents: 0`
+  - With no calculation id, `recordTaxTransaction()` short-circuits, so nothing is
+    filed either — self-consistent, but zero tax collected on every live charge
+
+Flipping it is a tax decision, not a code change. Before flipping, confirm sales-tax
+registration in the relevant jurisdictions **and** that Stripe Tax is configured in
+the live account (origin address + registrations) — without registrations Stripe
+returns zero tax regardless of the flag. Any bills already generated at `$0.00` tax
+need review.
+
+**2. Restricted-key scopes were never verified.**
+The live key was created through Stripe's wizard with "Customer recurring payments",
+a preset built for Stripe-managed Invoices/Subscriptions where tax is handled
+internally via `automatic_tax`. This integration instead calls the Tax APIs directly,
+so the preset likely omits both Tax scopes. The worker needs **PaymentIntents: write**
+and **Tax Transactions: write**. A missing Tax Transactions scope fails *silently* —
+the Tax Filed column in Portal Admin is the only signal.
+
+**3. RESOLVED 2026-08-24 — local `.env` key rotated.**
+The leaked `rk_live_…Fx1B` was rolled and `.env` now holds `rk_live_…4Sny`.
+
+**4. `.dev.vars` in both repos point at a dead Stripe account.**
+Both hold `sk_test_…TUZtO` (`acct_1TUZtORrmddnOdHk`), which is neither live nor the
+sandbox. Repoint at sandbox keys from `acct_1TPSsrRzkaQaekRa`.
+
+**5. No sandbox webhook destination exists.**
+Stripe Sandboxes are separate accounts, so the live destination does not exist there.
+A test path needs its own destination and its own signing secret.
+
+**6. Nothing is committed.** Working trees dirty in both repos:
+  - `bytestreams_info` — `AGENTS.md`, `developer/developer-journal.md`,
+    `src/routes/portal-admin/+page.svelte`,
+    `src/routes/portal-admin/api/[...path]/+server.ts`,
+    `developer/migrations/portal/009_add_payment_lifecycle.sql`
+  - `bytestreams_ai` — `worker.js`, `wrangler.toml`, `package.json`, `.gitignore`,
+    `.github/workflows/deploy.yml`, `portal.html` + `admin.html` (new at root)
+
+  The file move is not finished: `public/portal.html` and `public/admin.html` are
+  still tracked from before, so the generated artifact keeps showing as modified.
+  Complete it with `git rm --cached public/portal.html public/admin.html`.
+
+**6a. The worker has undeployed changes.** The live version (`fcf7ece4`) predates the
+tax-at-payment work, the full-only reversal policy, the setup-bill insert fix, and the
+setup-fee email wording. All four are written and verified locally but not shipped.
+Deploying is safe today — the tax block is gated on the enable flag, which is off, so
+the new code is inert and needs no additional key scope until the flag flips.
+
+**7. `bytestreams_info` is not redeployed.** The Tax Filed column and the new status
+badges are not live yet.
+
+**8. Smoke test not run.** One live charge on the smallest bill, then confirm: bill
+flips to Paid; Tax Filed reads *Filed*; confirmation emails arrive; Stripe's delivery
+log shows 200s. Then refund it to exercise the reversal path.
+
+**9. `bytestreams_ai/docs/portal-schema.sql` is stale** — predates the tax columns
+from migration 005 and does not include 009.
+
+### Operational Notes
+
+- **Deploying `bytestreams_ai` requires the full `npm run build`.** `build:public`
+  alone omits the eleventy blog output, which also writes into `public/`.
+- **The `(dev)` label on `mxhyvvgjtqllohpvrwon` in `bytestreams_ai/wrangler.toml` is
+  wrong.** That project is the portal/billing system of record — every `portal/`
+  migration was applied there. `klzznfagrtormretqsgb` has no `billing_schedule` table.
+  Repointing the worker there would charge customers against rows that do not exist.
+- **Two migration trees both number 009.** `developer/migrations/009_…` targets the
+  CRM project `hltmzafywzqajjzjpqva`; `developer/migrations/portal/009_…` targets
+  `mxhyvvgjtqllohpvrwon`. Running the wrong one cost a cycle here.
+
+### Follow-up: Tax at Payment Time, Full-Only Reversals
+
+Added after the cutover, in response to the question of whether a calculation could
+outlive the gap between bill creation and payment.
+
+**Expiry was verified, and it is 90 days — not 24 hours.** Stripe's API reference for
+`create_from_calculation` states "Calculations expire after 90 days," and the Custom
+Tax API guide repeats it against `expires_at`. An earlier code comment was softened on
+a bad assumption and has been restored to the verified figure. (A plausible source of
+the 24-hour belief: Checkout *Sessions* do expire in 24 hours. Different object.)
+
+**So expiry was not the real problem.** The real one is this, from the same guide:
+
+> The transaction is considered effective on the date when `create_from_calculation`
+> is called, and tax amounts won't be recalculated.
+
+A bill quoted in January and paid in March posts a March-effective transaction using
+January rates. No error, no failure — just wrong numbers filed against the wrong
+period, missing any rate change or registration added in between.
+
+**Changes (all in `bytestreams_ai`, none deployed):**
+
+- Tax re-assessed in `handlePortalPay` before the intent is created or updated.
+  Portal Admin's bill-creation figure becomes a display estimate. Failure returns 502
+  and charges nothing.
+- Intent reuse now compares the calculation id as well as the amount, and carries the
+  current id when updating. `recordTaxTransaction()` prefers the bill row over intent
+  metadata, closing a path where a superseded calculation could be committed.
+- Tax reversals restricted to `mode: full`. Partial refunds reverse nothing, log, and
+  write a note to `last_payment_error`. Stripe recommends full reversals for
+  single-line-item transactions; partials break proportionality in reporting and are
+  not superseded by a later full reversal, so the two double-count.
+- Setup-fee email (HTML and text) now states that tax is calculated at checkout, so
+  the $100.00 figure cannot contradict the total shown at payment.
+
+### Bug found: setup-bill insert was failing silently
+
+`worker.js` inserted `billing_schedule` rows for the setup fee without
+`subtotal_cents`, which migration 005 added with no default and then set `NOT NULL`.
+Every insert violated the constraint, and `.catch(() => null)` swallowed the error —
+so no setup bill was created and no setup-fee email was sent, with nothing in the
+logs. Now sets `subtotal_cents` and `tax_cents` explicitly and logs on failure.
+
+Not caught earlier because `billing_schedule` is empty — see below.
+
+### Additional verification
+
+- **`billing_schedule` contains zero rows.** Nothing has been billed. The $0.00-tax
+  exposure is entirely prospective; there is nothing to correct retroactively.
+- **Refund logic checked against the docs** rather than assumed. The negative
+  `flat_amount` convention and the "distributes according to what's left to refund"
+  semantics both matched the implementation before it was replaced by the full-only
+  policy.
