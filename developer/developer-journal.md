@@ -1819,11 +1819,20 @@ Both repos shipped 2026-08-25. Two things about the deploy pipeline are worth re
   `feat/blogs-implementation`, which is why the live Worker was `fcf7ece4` and predated
   everything. A pre-commit hook blocks direct commits to main; deploying is a PR merge.
   Merged as PR #2, deployed 14:14:48Z.
-- **`bytestreams_info` deploys on ANY branch push.** Cloudflare Workers Builds is
-  connected to the repo independently of the GitHub Actions workflow, whose deploy job
-  correctly gates on `refs/heads/main`. Pushing a feature branch put version
-  `3de07aef` on 100% of traffic. This is a sharp edge: there is no such thing as a
-  non-deploying push in that repo. Merged as PR #7.
+- **`bytestreams_info` can deploy from a branch push, inconsistently.** Cloudflare
+  Workers Builds is connected to the repo independently of the GitHub Actions workflow,
+  whose deploy job correctly gates on `refs/heads/main`. Pushing `feat/portal-billing-rules`
+  triggered a Workers Build that put version `3de07aef` on 100% of traffic at 14:07:41,
+  before PR #7 was merged at 14:08:26. But pushing `fix/customer-portal-email-links`
+  later the same day produced **no Workers Build and no deployment at all**.
+
+  The difference was not determined — possibly a branch-name pattern in the Workers
+  Builds configuration, possibly a build quota. Check the Cloudflare dashboard before
+  relying on either behavior.
+
+  The operational rule to follow: **treat a branch push here as possibly deploying, and
+  never assume it did.** Confirm with `wrangler deployments list` and the commit's
+  Workers Builds check rather than reasoning about it. Merges to `main` always deploy.
 
 ### Validation
 
