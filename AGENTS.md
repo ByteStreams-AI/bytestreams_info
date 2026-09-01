@@ -257,3 +257,66 @@ Tax is configured in the live account first.
 **See `developer/developer-journal.md`, same date, for the full open list** —
 including uncommitted work in both repos, unverified restricted-key scopes, and the
 smoke test that has not been run.
+
+## 2026-08-31 — Invoice Pay Links, Tier Pricing, Cross-Platform Dial Bridge
+
+**Date:** 2026-08-31
+**Agent:** Claude (Claude Code)
+
+### Summary
+
+Customers can now pay an invoice from the emailed link without signing in. Tier
+pricing was realigned with the published price list, a tier that could never be sold
+was removed, and the CRM's dial bridge was made to run on Windows and macOS.
+
+Shipped as `bytestreams_info` PRs #9, #10, #11 and `bytestreams_ai` PR #3. All merged
+to `main` and deployed by CI.
+
+### Changes
+
+- **Signed one-click pay links.** The invoice email's CTA pointed at bare `/portal`, a
+  sign-in wall that cost the customer a second magic-link email before they could reach
+  the bill. It now opens the invoice itself, which carries a Stripe card form.
+  `sendInvoiceEmail` signs the link with the same HMAC construction the worker already
+  verified for receipt emails; `/api/portal/pay` accepts `exp`+`sig` as an alternative
+  to a session token, scoped by the signature to one bill.
+- **`INVOICE_LINK_SECRET`** must hold the identical value here and in the bytestreams.ai
+  worker. Unset, invoice emails fall back to the portal sign-in link rather than mailing
+  a link that 401s. Documented in `.env.example`.
+- **`developer/remove-portal-customer.mjs`** — removes one portal customer and
+  everything created for them, keyed by email. Dry run by default;
+  `pnpm portal:remove-customer --email <email> --apply`. Replaces hand-editing
+  `developer/cleanup-test-data.sql`, which remains as the SQL-editor fallback.
+- **Tier pricing realigned** with `dialtone_menu/public/pricing.html`: Food Truck
+  $199 → $249, Single Location $279 → $299. Multi-Location ($399) and the $100 setup
+  fee were already correct. Both the server table that prices the bill and the client
+  table that renders the preview are updated and cross-referenced.
+- **Multi-Configuration tier removed.** It is not a value of the `restaurants.tier`
+  enum, so choosing it failed customer creation with `22P02`. It remains a valid *lead*
+  `business_type` in the CRM, which is a different field.
+- **Recurring monthly email** now carries the same one-click invoice link and reads as
+  an invoice rather than a reminder.
+- **Portal dashboard**: a signed-in user with no portal account rendered every card
+  empty, which read as "you have no invoice"; it now names the address they signed in
+  with. A failed payment setup went to the console, leaving a bill on screen with no
+  button and no reason. The placeholder logo is now the ByteStreams mark.
+- **Dial bridge runs on all three platforms.** `developer/kdeconnect-bridge.mjs`
+  resolves `kdeconnect-cli` per platform with a `KDECONNECT_CLI` override, adds
+  `/health`, and is documented in `developer/dial-bridge.md`. The CRM's click handler
+  called `preventDefault()` after awaiting the bridge — too late to stop the
+  navigation, invisible on Linux only because `tel:` has no handler there.
+
+### Open
+
+- **`ensureSupabaseAuthUser()` links the wrong auth user on re-invite.** This project's
+  GoTrue ignores the `?email=` filter on `/auth/v1/admin/users` and returns an arbitrary
+  user, which that function trusts as its fallback when creation reports "already
+  registered". Unfixed. It matters most for importing existing customers, who all
+  already have auth users.
+- **Existing customers pay outside the portal.** Onboarding them through the New
+  Customer form would duplicate their restaurant and invoice them $100 — and the setup
+  fee cannot simply be skipped, because paying a `bill_type: 'setup'` bill is the only
+  thing that ever sets `businesses.billing_cycle_start`, the anchor recurring billing
+  is scheduled from. An import path is deferred.
+- Dial bridge is verified on Linux only; Windows and macOS paths are the documented
+  install locations, to be confirmed on real hardware.
