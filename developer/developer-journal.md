@@ -1885,3 +1885,175 @@ by a failed create.
 
 One thing left unverified: whether `staff.restaurant_id` cascades on delete. The script
 deletes staff rows explicitly, so it does not depend on the answer.
+
+## 2026-08-31 — Invoice Pay Links, Tier Pricing, and the Dial Bridge
+
+Four pieces of work, plus several findings that outlived them.
+
+### Where it started: a portal that looked empty
+
+The reported symptom was that a new customer clicked **Pay Invoice** in their email,
+landed on the portal, and saw no invoice and no way to pay. The screenshot showed a
+fully-rendered dashboard with "No bill found for this month" and "No billing history
+yet".
+
+The data was fine. The customer, their business, and a pending $5 bill all existed in
+`mxhyvvgjtqllohpvrwon`, which is the project the live portal reads —
+`/api/portal/config` confirms it. What had actually happened is that the browser was
+signed in as a different address, one with no `portal_accounts` row.
+`/api/portal/me` returned 404, and `portal.html` only handled 401: every other error
+fell through and rendered the dashboard with empty cards.
+
+That is the bug worth remembering. **An empty dashboard is indistinguishable from a
+customer with no bill**, and it cost an hour of looking for a billing fault that did
+not exist. The page now names the address you signed in with and hides the billing
+sections rather than showing them empty.
+
+Two more silent failures in the same area were fixed at the same time: `initPayment`
+did `console.error` and returned when payment setup failed, leaving an outstanding
+bill on screen with no button and no explanation — a second, independent route to
+"there is no way to pay this" — and the placeholder business logo was a fork-and-knife
+icon, now the ByteStreams mark.
+
+### The real gap: a sign-in wall between the email and the payment
+
+Even with data in place, the emailed CTA pointed at bare `/portal`. The customer had
+to type their email, wait for a second magic-link email, click that, and only then
+reach the bill. For a $5 one-time charge that is most of the effort.
+
+The machinery to avoid it already existed and was only half-used: `worker.js` had
+`buildSignedInvoiceUrl` / `verifyInvoiceSignature` — HMAC-SHA256 over
+`<bill id>.<exp>`, 90-day TTL — but only receipt emails built such links, and the
+invoice page they opened had a Print button and no way to pay.
+
+So: `sendInvoiceEmail` now signs a link at invoice time with the identical
+construction, the invoice page renders a Stripe payment card when the bill is payable,
+and `/api/portal/pay` accepts `exp`+`sig` as an alternative to a session token. The
+signature covers one bill id, so a customer's link cannot be edited into someone
+else's invoice, and the existing `pending`/`overdue` allowlist still applies.
+
+`INVOICE_LINK_SECRET` has to be the same value in the intranet and the worker. It was
+set in neither at the start — which also means every payment receipt sent before today
+went out without its invoice link, since `buildSignedInvoiceUrl` returns null and logs
+a warning when the secret is missing. Both are set now.
+
+Verified end to end against a local `wrangler dev` in Stripe **test** mode: signed link
+with no sign-in rendered the invoice and a working payment element, `/api/portal/pay`
+returned a client secret from the signature alone, tampered and absent signatures 401'd,
+and a paid bill offered no payment. Then a real customer paid a live invoice through
+the same path — `pi_3UAfWq2KmwBSXLwC1JSqS3FV`, $5.00 — which is the only proof that
+counts.
+
+### Removing a customer, keyed by email
+
+`developer/cleanup-test-data.sql` did the right teardown but required editing a
+hardcoded email before pasting it into the SQL editor. `developer/remove-portal-customer.mjs`
+is the same teardown as an argument-taking script (`pnpm portal:remove-customer --email
+<email>`), dry-run by default, with `--apply` requiring the email typed back to confirm.
+
+Two details worth keeping:
+
+- It matches the email by paging `portal_accounts` and comparing in JS, **not** with
+  `ilike`. An underscore in an address is a `LIKE` wildcard, and `s_eveandmici@gmail.com`
+  would happily match `steveandmici@gmail.com`. That is how you delete the wrong customer.
+- Expect **more `staff` rows than the customer has people**. DialTone migration 0195
+  gives the support account an owner row on every restaurant at insert, so a one-owner
+  restaurant deletes three staff rows. That is correct, not a bug.
+
+It was exercised against synthetic customers in both flows plus the orphan-auth-user
+case, and then used throughout the day to clean up after every other experiment.
+
+### Pricing was below list
+
+The admin form priced Food Truck at $199 and Single Location at $279 while
+`dialtone_menu/public/pricing.html` sells them at $249 and $299. Every DialTone.Menu
+customer created through the portal was being billed under list. Both copies of the
+table — the server one that prices the bill, the client one that renders the preview —
+are now aligned and cross-referenced to the price list.
+
+Existing customers are unaffected, because recurring billing reads
+`businesses.monthly_amount_cents`, which is stored per business. **But editing a
+customer re-derives that amount from the tier**, so saving an edit on a current Food
+Truck customer reprices them $199 → $249. Worth knowing before touching anyone.
+
+While in there: the **Multi-Configuration** tier was removed. It is not a value of the
+`restaurants.tier` enum (0237 defines `pilot | food_truck | single_location |
+multi_location | enterprise`), so choosing it failed the first insert of customer
+creation with `22P02` and took the whole creation down with a 500 — verified by probing
+the database. It stays a valid lead `business_type` in the CRM, a different field
+entirely, which is why it looked plausible.
+
+### Recurring billing: already set up, now with a pay link
+
+The daily 08:00 UTC cron does generate the monthly bill — for each onboarded restaurant
+with an anchor, five days before the anniversary of the day its setup fee cleared — and
+emails the customer in the same run. The only gap was the same one as everywhere else:
+that email linked to the sign-in wall. It now carries the signed invoice link and reads
+as an invoice rather than a reminder.
+
+The cron's query, date arithmetic and upsert were verified by replicating them against
+the database with a probe business, which produced exactly the expected row ($249.00,
+due 2026-09-06, `dialtone_menu_recurring`) before being removed. **The scheduled handler
+itself could not be exercised**: `wrangler dev`'s local trigger returns `exception` with
+no log line at all while ordinary requests log normally, which looks like the known
+static-assets/scheduled interaction in local dev rather than this code.
+
+### The dial bridge
+
+Clicking a phone number in the CRM dialed only on Ubuntu. The web app was never the
+problem — every number is a plain `tel:` link — but `developer/kdeconnect-bridge.mjs`
+hardcoded `/usr/bin/kdeconnect-cli`, and the click handler had a bug Linux happened to
+hide.
+
+`dialPhone` awaited the bridge and *then* called `e.preventDefault()`. That is too
+late: once the handler yields, the click has been dispatched and the browser has
+followed the link. On Linux this was invisible because `tel:` has no handler there. On
+Windows or macOS — Phone Link, FaceTime — the same click would have dialed twice. The
+page now probes the bridge once on load so `preventDefault()` runs synchronously, and
+falls back to following the `tel:` link itself when the bridge answers but cannot dial.
+
+The probe treats **any** answer as "bridge present", including the 404 from a bridge
+predating `/health`, so a daemon that has not been restarted keeps working through a
+rollout. That was not hypothetical: the bridge running during this work was the old
+build.
+
+The bridge itself now resolves the CLI per platform with a `KDECONNECT_CLI` override,
+reports platform/CLI/device on `/health`, and separates "CLI not found" from "phone
+unreachable" — the old code answered "No paired device reachable" for both, which sends
+people to check their handset when the CLI is the problem. `developer/dial-bridge.md`
+covers install, pairing, and run-at-login for systemd, Windows Startup and launchd;
+none of it had been written down.
+
+Verified on Linux only. Windows and macOS resolution was tested by forcing
+`process.platform`, which confirms the fallbacks but not that KDE Connect actually
+installs to those paths.
+
+### Open
+
+**`ensureSupabaseAuthUser()` links the wrong auth user on re-invite.** This project's
+GoTrue ignores the `email` filter on `GET /auth/v1/admin/users` and returns an
+arbitrary user — querying a just-deleted address returned `owner@dineronthego.com`.
+That function trusts the filter as its fallback when creation reports "already
+registered", so re-inviting an existing email links the new `portal_accounts` row to
+someone else's `auth_user_id`, or trips the UNIQUE constraint. Both new scripts avoid
+it by paging the user list and matching in JS. The app path is unfixed, and it matters
+most for the import below, where every customer already has an auth user.
+
+**Importing the customers who pay outside the portal.** Deferred deliberately. The New
+Customer form is the wrong tool for them: `handleInvite` unconditionally inserts a
+fresh `restaurants` row and a fresh `locations` row, so an existing tenant would be
+duplicated and the portal account attached to the empty copy. It would also invoice
+them $100. And the setup fee cannot simply be skipped, because
+`businesses.billing_cycle_start` — the anchor every recurring charge is scheduled from
+— is written in exactly one place in the system: the Stripe webhook, when a
+`bill_type: 'setup'` bill is paid. No setup payment, no anchor; no anchor and
+`generateRecurringBilling` filters them out entirely.
+
+What they need instead is an import path that links a `businesses` row to the
+*existing* location, grandfathers `monthly_amount_cents`, sets the anchor and
+`onboarded` directly, and sends a "your billing is moving" note rather than a setup
+invoice. Do them one at a time, cancelling whatever bills them today in the same
+sitting, and watch one full cycle before the next.
+
+**`app_settings.enable_tax_assessment` is still `"false"`** (carried over from
+2026-08-24). Every charge books `tax_cents: 0` and nothing is filed to Stripe Tax.
