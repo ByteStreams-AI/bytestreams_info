@@ -2,6 +2,7 @@
 	import Nav from '$lib/components/Nav.svelte';
 	import { phoneHref } from '$lib/phone';
 	import type { Lead, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
+	import { onMount } from 'svelte';
 	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 
@@ -302,19 +303,38 @@
 		return val ? 'Yes' : 'No';
 	}
 
-	// Try local KDE Connect bridge; if unreachable, let the tel: href fall through
-	async function dialPhone(e: MouseEvent, telHref: string) {
-		const number = encodeURIComponent(telHref.replace('tel:', ''));
+	// The dial bridge is a per-workstation daemon (developer/kdeconnect-bridge.mjs)
+	// that places the call through a paired phone. Ask it once on load rather than
+	// per click: preventDefault() only stops a link while the click handler is
+	// still on the stack, so the answer has to be in hand before the click, and a
+	// workstation without the bridge would otherwise wait out a timeout every time.
+	let bridgeReady = $state(false);
+
+	onMount(() => {
 		const controller = new AbortController();
-		const tid = setTimeout(() => controller.abort(), 2000);
-		try {
-			const res = await fetch(`http://localhost:8765/dial?number=${number}`, { signal: controller.signal });
-			if (res.ok) e.preventDefault();
-		} catch {
-			// bridge not running — browser will handle tel: naturally
-		} finally {
-			clearTimeout(tid);
-		}
+		const tid = setTimeout(() => controller.abort(), 1500);
+		// Any answer at all means something is listening. The status is deliberately
+		// ignored: a bridge predating /health returns 404 and still dials, and a
+		// bridge whose phone is unreachable is better answered by its own error
+		// below than by silently routing to a tel: handler that may not exist.
+		fetch('http://localhost:8765/health', { signal: controller.signal })
+			.then(() => { bridgeReady = true; })
+			.catch(() => { bridgeReady = false; })
+			.finally(() => clearTimeout(tid));
+		return () => { clearTimeout(tid); controller.abort(); };
+	});
+
+	// No bridge: leave the click alone and let the OS handle the tel: link —
+	// Phone Link, Skype or Teams on Windows, FaceTime on macOS. Linux usually
+	// registers no handler at all, which is what the bridge is for.
+	function dialPhone(e: MouseEvent, telHref: string) {
+		if (!bridgeReady) return;
+		e.preventDefault();
+
+		const number = encodeURIComponent(telHref.replace('tel:', ''));
+		fetch(`http://localhost:8765/dial?number=${number}`)
+			.then((res) => { if (!res.ok) window.location.href = telHref; })
+			.catch(() => { window.location.href = telHref; });
 	}
 </script>
 
