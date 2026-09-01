@@ -1387,11 +1387,20 @@ async function handleOnboardingSignoff(request: Request, actorEmail: string): Pr
 	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt });
 }
 
+// Must match the published price list in dialtone_menu/public/pricing.html.
+// These are the base recurring charges; the $100 setup fee is separate and the
+// 1.5% transaction fee is billed by DialTone, not here. Enterprise is quoted
+// ("Let's talk" on the price list), so its figure is a starting point the
+// admin form flags as subject to final configuration.
+//
+// Keys are values of the restaurants.tier enum (dialtone migration 0237):
+// pilot | food_truck | single_location | multi_location | enterprise. A key
+// that is not in that enum fails the restaurants insert with 22P02 and takes
+// customer creation down with it.
 const TIER_AMOUNTS_CENTS: Record<string, number> = {
 	pilot: 0,
-	food_truck: 19900,
-	single_location: 27900,
-	multi_configuration: 34900,
+	food_truck: 24900,
+	single_location: 29900,
 	multi_location: 39900,
 	enterprise: 45000
 };
