@@ -1,4 +1,10 @@
 -- Cleanup test data for ONE portal customer, identified by email.
+--
+-- PREFER developer/remove-portal-customer.mjs (pnpm portal:remove-customer
+-- --email <email>). It does the same work with the email as an argument, so
+-- there is no literal to edit before running, and it also clears the auth user
+-- left behind by a create that failed before the portal_accounts insert.
+-- This file remains as the SQL-editor fallback.
 -- Run in the Portal Supabase SQL Editor (project mxhyvvgjtqllohpvrwon).
 --
 -- Covers both New Customer flows:

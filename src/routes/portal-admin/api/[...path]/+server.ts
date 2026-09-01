@@ -138,6 +138,50 @@ function parseStructuredAddress(body: Record<string, unknown>): StripeTaxAddress
 	return { line1, city, state, postalCode, country: 'US' };
 }
 
+function portalBaseUrl(): string {
+	const configured = typeof publicEnv.PUBLIC_PORTAL_URL === 'string' && publicEnv.PUBLIC_PORTAL_URL.trim()
+		? publicEnv.PUBLIC_PORTAL_URL.trim()
+		: 'https://bytestreams.ai';
+	return configured.replace(/\/+$/, '');
+}
+
+/**
+ * A link that opens one invoice and pays it, with no portal login in the way.
+ *
+ * The invoice page normally authenticates with the viewer's Supabase access
+ * token, which only exists inside a live portal session and so cannot be put in
+ * an email. A signed link carries its own proof instead: an expiry and an HMAC
+ * over the bill id, which the bytestreams.ai worker verifies with the same
+ * secret and scopes to that one invoice.
+ *
+ * INVOICE_LINK_SECRET must be the identical value here and in the worker. Unset
+ * here, the email falls back to the portal sign-in page — the behaviour before
+ * this link existed — so a missing secret degrades instead of emailing a link
+ * that 401s.
+ */
+const INVOICE_LINK_TTL_SECONDS = 90 * 24 * 60 * 60;
+
+async function hmacHex(secret: string, message: string): Promise<string> {
+	const key = await crypto.subtle.importKey(
+		'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+	);
+	const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+	return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function buildSignedInvoiceUrl(billId: string): Promise<string | null> {
+	const secret = env.INVOICE_LINK_SECRET?.trim();
+	if (!secret) {
+		console.warn('[invoice-link] INVOICE_LINK_SECRET not set — emailing the portal sign-in link instead');
+		return null;
+	}
+	if (!billId) return null;
+
+	const exp = Math.floor(Date.now() / 1000) + INVOICE_LINK_TTL_SECONDS;
+	const sig = await hmacHex(secret, `${billId}.${exp}`);
+	return `${portalBaseUrl()}/api/portal/invoice/${billId}?exp=${exp}&sig=${sig}`;
+}
+
 /**
  * Customer-facing links for the emails we send them.
  *
@@ -147,10 +191,7 @@ function parseStructuredAddress(body: Record<string, unknown>): StripeTaxAddress
  * load for the same reason. The portal customers actually use is on bytestreams.ai.
  */
 function customerPortalLinks(): { portalUrl: string; logoUrl: string } {
-	const configured = typeof publicEnv.PUBLIC_PORTAL_URL === 'string' && publicEnv.PUBLIC_PORTAL_URL.trim()
-		? publicEnv.PUBLIC_PORTAL_URL.trim()
-		: 'https://bytestreams.ai';
-	const baseUrl = configured.replace(/\/+$/, '');
+	const baseUrl = portalBaseUrl();
 	return {
 		// /portal, not /portal.html — the Worker 307s the latter to the former.
 		portalUrl: `${baseUrl}/portal`,
@@ -595,16 +636,22 @@ async function sendInvoiceEmail({
 	businessName,
 	subtotalCents,
 	dueDate,
-	variant
+	variant,
+	billId
 }: {
 	email: string;
 	businessName: string;
 	subtotalCents: number;
 	dueDate: string;
 	variant: InvoiceVariant;
+	billId: string;
 }): Promise<boolean> {
 	if (!env.RESEND_API_KEY) return false;
 	const { portalUrl, logoUrl } = customerPortalLinks();
+
+	// The invoice itself when the link can be signed, the sign-in page otherwise.
+	const signedUrl = await buildSignedInvoiceUrl(billId);
+	const payUrl = signedUrl ?? portalUrl;
 
 	const amountFmt = `$${(subtotalCents / 100).toFixed(2)}`;
 	const dueFmt = new Date(`${dueDate}T12:00:00Z`).toLocaleDateString('en-US', {
@@ -683,7 +730,7 @@ async function sendInvoiceEmail({
 							<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 32px 0 0 0;">
 								<tr>
 									<td style="border-radius: 8px; background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);">
-										<a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px;">
+										<a href="${payUrl}" target="_blank" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px;">
 											Pay Invoice
 										</a>
 									</td>
@@ -692,7 +739,7 @@ async function sendInvoiceEmail({
 
 							<p style="margin: 24px 0 0 0; color: #484f58; font-size: 14px; line-height: 1.6;">
 								Or copy and paste this link into your browser:<br>
-								<a href="${portalUrl}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${portalUrl}</a>
+								<a href="${payUrl}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${payUrl}</a>
 							</p>
 						</td>
 					</tr>
@@ -703,9 +750,11 @@ async function sendInvoiceEmail({
 							<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f9ff; border-radius: 8px; border-left: 4px solid #2563eb;">
 								<tr>
 									<td style="padding: 20px;">
-										<p style="margin: 0; color: #1d4ed8; font-size: 14px; line-height: 1.6;">
-											<strong style="display: block; margin-bottom: 8px;">🔒 Passwordless Sign-In</strong>
-											Use your email address (<strong>${escapeHtml(email)}</strong>) to sign in and pay. No password required.
+										<p style="margin: 0; color: #1d4ed8; font-size: 14px; line-height: 1.6;">${signedUrl
+											? `<strong style="display: block; margin-bottom: 8px;">🔒 Pay in one click — no account needed</strong>
+											The button above opens your invoice and takes card payment through Stripe. The link is unique to this invoice, so please don't forward it. To see your billing history, sign in at <a href="${portalUrl}" style="color: #1d4ed8;">${portalUrl}</a> with <strong>${escapeHtml(email)}</strong> — no password required.`
+											: `<strong style="display: block; margin-bottom: 8px;">🔒 Passwordless Sign-In</strong>
+											Use your email address (<strong>${escapeHtml(email)}</strong>) to sign in and pay. No password required.`}
 										</p>
 									</td>
 								</tr>
@@ -742,7 +791,9 @@ async function sendInvoiceEmail({
 			to: [email],
 			subject: copy.subject,
 			html: htmlBody,
-			text: `${copy.heading}\n\n${copy.leadText}\n\nAmount: ${amountFmt}\nDue: ${dueFmt}\nApplicable sales tax is calculated at checkout and shown before you confirm payment.${copy.footnote ? `\n${copy.footnote}` : ''}\n\nReview and pay: ${portalUrl}\n\nSign in with this email address (${email}) — no password required.\n\nByteStreams LLC · Nashville, TN\n© ${new Date().getFullYear()} ByteStreams LLC. All rights reserved.`
+			text: `${copy.heading}\n\n${copy.leadText}\n\nAmount: ${amountFmt}\nDue: ${dueFmt}\nApplicable sales tax is calculated at checkout and shown before you confirm payment.${copy.footnote ? `\n${copy.footnote}` : ''}\n\nReview and pay: ${payUrl}\n\n${signedUrl
+				? `That link opens your invoice and pays it by card — no account needed. It is unique to this invoice, so please don't forward it.\nBilling history: ${portalUrl} (sign in with ${email}, no password required).`
+				: `Sign in with this email address (${email}) — no password required.`}\n\nByteStreams LLC · Nashville, TN\n© ${new Date().getFullYear()} ByteStreams LLC. All rights reserved.`
 		})
 	});
 
@@ -1076,7 +1127,7 @@ async function handleInvite(request: Request): Promise<Response> {
 		}
 
 		const setupDueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-		const { error: setupBillingError } = await supabase
+		const { data: setupBill, error: setupBillingError } = await supabase
 			.from('billing_schedule')
 			.upsert({
 				business_id: business.id,
@@ -1095,7 +1146,10 @@ async function handleInvite(request: Request): Promise<Response> {
 				// charge is scheduled from. Without it, recurring billing never starts.
 				bill_type: 'setup',
 				description: 'One-Time Setup Fee'
-			}, { onConflict: 'business_id,billing_month,product' });
+			}, { onConflict: 'business_id,billing_month,product' })
+			// The id is what the emailed pay link is signed over.
+			.select('id')
+			.single();
 
 		if (setupBillingError) {
 			return jsonResponse({ error: `Customer created but setup billing failed: ${setupBillingError.message}` }, 500);
@@ -1139,7 +1193,8 @@ async function handleInvite(request: Request): Promise<Response> {
 			businessName,
 			subtotalCents: setupTax.subtotalCents,
 			dueDate: setupDueDate,
-			variant: 'dialtone_menu_setup'
+			variant: 'dialtone_menu_setup',
+			billId: setupBill?.id ?? ''
 		});
 		return jsonResponse({
 			ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
@@ -1225,7 +1280,7 @@ async function handleInvite(request: Request): Promise<Response> {
 		}
 
 		const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-		const { error: billingError } = await supabase
+		const { data: otherBill, error: billingError } = await supabase
 			.from('billing_schedule')
 			.upsert({
 				business_id: business.id,
@@ -1240,7 +1295,10 @@ async function handleInvite(request: Request): Promise<Response> {
 				status: 'pending',
 				product: 'other',
 				description: OTHER_INVOICE_LINE_ITEM
-			}, { onConflict: 'business_id,billing_month,product' });
+			}, { onConflict: 'business_id,billing_month,product' })
+			// The id is what the emailed pay link is signed over.
+			.select('id')
+			.single();
 
 		if (billingError) {
 			return jsonResponse({ error: `Customer created but invoice billing failed: ${billingError.message}` }, 500);
@@ -1272,7 +1330,8 @@ async function handleInvite(request: Request): Promise<Response> {
 			businessName,
 			subtotalCents: charge.subtotalCents,
 			dueDate,
-			variant: 'other'
+			variant: 'other',
+			billId: otherBill?.id ?? ''
 		});
 		return jsonResponse({ ok: true, warning: sent ? undefined : 'Invoice email failed to send.' });
 	}
