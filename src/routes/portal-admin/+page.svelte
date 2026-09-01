@@ -528,11 +528,12 @@
 			syncProductFields();
 		}
 
+		// Display only — the server prices from its own copy of this table. Keep both
+		// in step with dialtone_menu/public/pricing.html.
 		const TIER_AMOUNTS: Record<string, { cents: number; label: string; asterisk: boolean }> = {
 			pilot:               { cents: 0,     label: '$0.00',   asterisk: false },
-			food_truck:          { cents: 19900, label: '$199.00', asterisk: false },
-			single_location:     { cents: 27900, label: '$279.00', asterisk: false },
-			multi_configuration: { cents: 34900, label: '$349.00', asterisk: true  },
+			food_truck:          { cents: 24900, label: '$249.00', asterisk: false },
+			single_location:     { cents: 29900, label: '$299.00', asterisk: false },
 			multi_location:      { cents: 39900, label: '$399.00', asterisk: false },
 			enterprise:          { cents: 45000, label: '$450.00', asterisk: true  },
 		};
@@ -913,7 +914,6 @@
 					<option value="pilot">Pilot</option>
 					<option value="food_truck">Food Truck</option>
 					<option value="single_location">Single Location</option>
-					<option value="multi_configuration">Multi-Configuration</option>
 					<option value="multi_location">Multi-Location</option>
 					<option value="enterprise">Enterprise</option>
 				</select>
@@ -1014,7 +1014,6 @@
 						<option value="pilot">Pilot</option>
 						<option value="food_truck">Food Truck</option>
 						<option value="single_location">Single Location</option>
-						<option value="multi_configuration">Multi-Configuration</option>
 						<option value="multi_location">Multi-Location</option>
 						<option value="enterprise">Enterprise</option>
 					</select>
