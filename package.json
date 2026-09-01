@@ -12,6 +12,7 @@
     "update:call-script": "bash developer/update-call-script.sh",
     "portal:add-account": "node developer/add-portal-account.mjs",
     "portal:remove-customer": "node developer/remove-portal-customer.mjs",
+    "dial:bridge": "node developer/kdeconnect-bridge.mjs",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "eslint .",
