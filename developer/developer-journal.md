@@ -2057,3 +2057,85 @@ sitting, and watch one full cycle before the next.
 
 **`app_settings.enable_tax_assessment` is still `"false"`** (carried over from
 2026-08-24). Every charge books `tax_cents: 0` and nothing is filed to Stripe Tax.
+
+## 2026-09-16 — Telnyx 10DLC brand and campaign from Portal Admin (#13)
+
+The ask arrived as a four-step Telnyx ISV recipe: create a sub-brand, wait for TCR to
+verify it, submit the campaign, then provision a messaging profile and numbers — and
+do it "when a new customer is created," alongside the EIN and address checks. The
+recipe was right; the timing was not, and both timing questions were settled before
+any code.
+
+### Why not at creation
+
+**A brand is a TCR fee**, charged when the call is made. At creation nothing has been
+paid — the setup invoice goes out in the same request. The portal already has the
+moment that means "this is a paying customer": the `onboarded` flag, which the schema
+refuses unless EIN and address are both verified (`004`). So the brand registers at
+onboarding signoff, from both paths (the dedicated endpoint and the edit modal's
+checkbox), and **never blocks the signoff** — a Telnyx refusal lands on
+`businesses.tcr_last_error` and comes back in the response as `tcr.message`. A
+**Register Brand** button on the customer row retries.
+
+**A campaign is reviewed by a person who clicks the links.** The DialTone template
+(`dialtone/developer/10dlc-campaign-registration.md`, written after campaign
+`CW2K3CT` was rejected) puts the tenant's live menu page and five per-tenant
+disclosure screenshots inside the message flow, because that is where Telnyx wants
+the opt-in evidence. At creation the restaurant is inactive, the menu host answers
+nothing, and the screenshots do not exist. A campaign submitted then would carry a
+dead evidence link, which was its own rejection bullet last time. So the campaign is
+submitted from the customer row, enabled once the brand reads `VERIFIED`, and the
+portal GETs the menu host, `/menu` and all five evidence URLs first, refusing with the
+list of what does not resolve.
+
+### What was built
+
+- `src/lib/server/telnyx-10dlc.ts` — pure request builders and a thin client with an
+  injectable `fetcher`, the `stripe-tax.ts` shape. The brand request sends the LEGAL
+  name as `companyName` (it must match the EIN record) and the restaurant's trading
+  name as `displayName`, `vertical: HOSPITALITY`, `einIssuingCountry: US`. The
+  campaign request is the template by venue type: `usecase: MARKETING`, the
+  description, `START,YES,UNSTOP` / `STOP,UNSUBSCRIBE,…` / `HELP,INFO`, the three
+  brand-named auto-responses (help names the shared support line without naming
+  DialTone), three samples where a truck's second is a location message, the two
+  policy links, `embeddedLink: true` with the tenant's menu host as the sample,
+  `numberPool: false`, `ageGated: false`. A placeholder brand name throws.
+- `businesses.tcr_*` (`developer/migrations/portal/011_add_10dlc_registration.sql`):
+  entity type (private / public / non-profit — sole proprietors excluded because the
+  portal requires an EIN and that path is OTP-vetted), brand id and status, campaign
+  id and status, last error, last checked. The marketing DID stays a DialTone
+  provisioning step; this repo never touches the DialTone schema.
+- API actions `tcr-register-brand`, `tcr-refresh`, `tcr-submit-campaign`, all by
+  `business_id`. A **10DLC** column on the customer table that reads as a state with
+  only the next move as a button: *After onboarding* → *No brand · Register Brand* →
+  *Brand pending · Refresh* → *Brand verified · Submit Campaign* → *Campaign in
+  review · Refresh* → *Campaign approved*, with the last Telnyx error under it.
+- `TELNYX_API_KEY` Worker secret, the account DialTone sends from. Unset → skipped
+  with a warning, like PostGrid and Cobalt.
+
+Fourteen unit tests pin the request bodies: every campaign string names the tenant
+and never DialTone; the restaurant and truck variants differ exactly where the
+template says they must; every evidence URL is in the message flow and no verbal
+method is; the evidence check names each dead URL; the client hits the right
+endpoints with the bearer key and surfaces Telnyx refusals verbatim.
+
+### What the API docs got wrong, and what they do not say
+
+The recipe's field names were mostly right and its endpoints were placeholders.
+Verified against Telnyx's current docs: `POST /v2/10dlc/brand`, `GET
+/v2/10dlc/brand/{brandId}`, `POST /v2/10dlc/campaignBuilder`, `GET
+/v2/10dlc/campaignBuilder/{campaignId}`. Brand status is `identityStatus`
+(`SELF_DECLARED` | `VERIFIED` | `VETTED_VERIFIED` | `UNVERIFIED`); campaign status is
+`campaignStatus` (`TCR_PENDING` … `TELNYX_ACCEPTED` … `MNO_PROVISIONED`, with
+`_FAILED` / `_REJECTED` variants) beside a `submissionStatus` and `failureReasons`.
+There is no `resellerId` an ISV must set; each customer's brand simply lives under
+our account. What the docs leave open is how long TCR identity verification takes on
+a fresh brand — it is often immediate on a clean EIN match, and the Refresh button
+exists for when it is not.
+
+### Not built, on purpose
+
+Number assignment to the campaign (`POST /v2/10dlc/phone_number_campaigns`) waits on
+the DialTone-side DID and on dialtone #1614, where a brand-named opt-out needs one
+messaging profile per tenant. Telnyx status webhooks would replace the on-demand
+Refresh once the portal has a public endpoint for them.
