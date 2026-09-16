@@ -7,8 +7,12 @@ import {
 	buildCampaignRequest,
 	campaignStatusLabel,
 	checkUrlsResolve,
+	conventionalEvidenceBase,
 	conventionalEvidenceUrls,
 	createBrand,
+	evidenceUrlsFromBase,
+	isEvidenceBase,
+	isMenuHost,
 	describeTelnyxFailure,
 	formatEin,
 	getBrand,
@@ -191,5 +195,23 @@ describe('client', () => {
 		expect(campaignStatusLabel('TCR_PENDING')).toMatchObject({ text: 'In review', tone: 'warning' });
 		expect(campaignStatusLabel('MNO_PROVISIONED')).toMatchObject({ text: 'Approved', tone: 'success' });
 		expect(campaignStatusLabel('TELNYX_FAILED')).toMatchObject({ tone: 'danger' });
+	});
+});
+
+describe('admin-confirmed links (the live tenant is the prod clone)', () => {
+	it('derives the five screenshots from any folder, conventional or supplied', () => {
+		const base = conventionalEvidenceBase('https://app.supabase.co', 'rest-1');
+		expect(base).toBe('https://app.supabase.co/storage/v1/object/public/compliance-evidence/rest-1');
+		expect(evidenceUrlsFromBase(base)).toEqual(conventionalEvidenceUrls('https://app.supabase.co', 'rest-1'));
+		expect(evidenceUrlsFromBase(base + '/').cartDisclosure).toBe(base + '/cart_disclosure.jpg');
+	});
+
+	it('accepts only our hosts and a public evidence folder', () => {
+		expect(isMenuHost('https://shortys.m.dialtone.menu')).toBe(true);
+		expect(isMenuHost('https://shortys.dialtone.menu')).toBe(true);
+		expect(isMenuHost('http://shortys.m.dialtone.menu')).toBe(false);
+		expect(isMenuHost('https://evil.example.com')).toBe(false);
+		expect(isEvidenceBase('https://klzznfagrtormretqsgb.supabase.co/storage/v1/object/public/compliance-evidence/8221b632-6f69-443d-b972-57a7a9f551d1')).toBe(true);
+		expect(isEvidenceBase('https://klzznfagrtormretqsgb.supabase.co/storage/v1/object/public/other/x')).toBe(false);
 	});
 });

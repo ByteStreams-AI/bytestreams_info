@@ -45,6 +45,8 @@
 			tcr_campaign_status: string | null;
 			tcr_last_error: string | null;
 			tcr_last_checked_at: string | null;
+			tcr_menu_host: string | null;
+			tcr_evidence_base_url: string | null;
 			invited_at: string | null;
 			activated_at: string | null;
 		};
@@ -244,7 +246,11 @@
 					btn.addEventListener('click', async () => {
 						const action = el.dataset.action ?? '';
 						const biz = el.dataset.biz ?? '';
-						if (action === 'tcr-submit-campaign' && !confirm('Submit this tenant\'s 10DLC campaign to Telnyx for review? The portal will check the menu page and evidence links first.')) return;
+						if (action === 'tcr-submit-campaign') {
+							const customer = customerRows.find((row) => row.business_id === biz);
+							if (customer) openCampaignModal(customer);
+							return;
+						}
 						el.disabled = true;
 						try {
 							const res = await fetch(`${API}/${action}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ business_id: biz }) });
@@ -529,6 +535,48 @@
 				errEl.classList.remove('hidden');
 				btn.disabled = false;
 				label.textContent = 'Re-verify';
+			}
+		});
+
+		// ── 10DLC Campaign Modal (#13) ───────────────────────────────────────────
+		// The reviewer clicks two links: the menu host and the evidence folder. The
+		// row the portal created is the staging tenant; the LIVE one is its prod
+		// clone, so the admin confirms both, prefilled with the conventional paths.
+		function openCampaignModal(customer: PortalCustomerRow) {
+			getEl<HTMLInputElement>('cmp-business-id').value = customer.business_id ?? '';
+			getEl('cmp-business-name').textContent = customer.business_name ?? '';
+			getEl<HTMLInputElement>('cmp-menu-host').value = customer.tcr_menu_host ?? '';
+			getEl<HTMLInputElement>('cmp-evidence-base').value = customer.tcr_evidence_base_url ?? '';
+			getEl('cmp-error').classList.add('hidden');
+			getEl<HTMLButtonElement>('cmp-submit').disabled = false;
+			getEl('campaign-modal').classList.remove('hidden');
+		}
+		getEl('cmp-cancel').addEventListener('click', () => getEl('campaign-modal').classList.add('hidden'));
+		getEl('campaign-modal').addEventListener('click', e => { if (e.target === getEl('campaign-modal')) getEl('campaign-modal').classList.add('hidden'); });
+		getEl<HTMLFormElement>('cmp-form').addEventListener('submit', async e => {
+			e.preventDefault();
+			const btn = getEl<HTMLButtonElement>('cmp-submit');
+			const err = getEl('cmp-error');
+			btn.disabled = true;
+			err.classList.add('hidden');
+			try {
+				const res = await fetch(`${API}/tcr-submit-campaign`, {
+					method: 'POST', headers: authHeaders(),
+					body: JSON.stringify({
+						business_id: getEl<HTMLInputElement>('cmp-business-id').value,
+						menu_host: getEl<HTMLInputElement>('cmp-menu-host').value.trim(),
+						evidence_base_url: getEl<HTMLInputElement>('cmp-evidence-base').value.trim()
+					})
+				});
+				const data = await res.json() as { error?: string; message?: string };
+				if (!res.ok) throw new Error(data.error ?? 'Failed');
+				getEl('campaign-modal').classList.add('hidden');
+				alert(data.message ?? 'Submitted');
+				await loadCustomers();
+			} catch (e2) {
+				err.textContent = e2 instanceof Error ? e2.message : 'Failed';
+				err.classList.remove('hidden');
+				btn.disabled = false;
 			}
 		});
 
@@ -951,6 +999,34 @@
 
 	</div><!-- /admin-content -->
 </div><!-- /page-admin -->
+
+<!-- 10DLC Campaign Modal -->
+<div id="campaign-modal" class="modal-backdrop hidden">
+	<div class="modal" style="max-width:520px;">
+		<h2><i class="fa-solid fa-bullhorn" style="color:var(--stream-blue);"></i> Submit 10DLC Campaign</h2>
+		<p class="form-note" style="margin-bottom:12px;">For <strong id="cmp-business-name"></strong>. A Telnyx reviewer will open both of these. The portal checks that the menu page and all five screenshots answer before anything is sent.</p>
+		<form id="cmp-form">
+			<input type="hidden" id="cmp-business-id">
+			<div class="form-group">
+				<label for="cmp-menu-host">Live menu host</label>
+				<input id="cmp-menu-host" type="url" placeholder="https://shortys.m.dialtone.menu" required>
+				<p class="form-note">The tenant's branded host as it is live in prod. The message flow points at this and its /menu page.</p>
+			</div>
+			<div class="form-group">
+				<label for="cmp-evidence-base">Evidence folder</label>
+				<input id="cmp-evidence-base" type="url" placeholder="https://<project>.supabase.co/storage/v1/object/public/compliance-evidence/<restaurant_id>" required>
+				<p class="form-note">The public compliance-evidence folder holding cart_disclosure.jpg, home_qrcode.jpg, menu_footer_qrcode.jpg, kiosk_3_options.jpeg and kiosk_disclosure.jpeg for this tenant — in the project the live tenant runs in.</p>
+			</div>
+			<div id="cmp-error" class="status-msg error hidden"></div>
+			<div class="modal-footer">
+				<button type="button" id="cmp-cancel" class="btn btn-ghost">Cancel</button>
+				<button type="submit" id="cmp-submit" class="btn btn-primary" style="width:auto;">
+					<i class="fa-solid fa-paper-plane"></i> Submit Campaign
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
 
 <!-- Re-verify Modal -->
 <div id="reverify-modal" class="modal-backdrop hidden">

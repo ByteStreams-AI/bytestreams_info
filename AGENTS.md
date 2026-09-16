@@ -392,6 +392,17 @@ forms carry a "Business (legal) address is the same as the restaurant address" s
 table shows two lines with two badges when they differ; the brand is built from
 `legalAddressFor()` (`src/lib/server/addresses.ts`). **Apply 012 to `mxhyvvgjtqllohpvrwon`.**
 
+### The live tenant is the prod clone, so the admin confirms the reviewer's links
+
+The portal creates the tenant in `mxhyvvgjtqllohpvrwon` (DialTone staging); the tenant that
+actually serves guests is its prod clone in `klzznfagrtormretqsgb`, possibly under a different
+restaurant id. So the two links a Telnyx reviewer clicks — the branded menu host and the
+`compliance-evidence/<restaurant_id>/` folder — cannot be derived from the row the portal holds.
+**Submit Campaign** opens a modal prefilled with the conventional values; the admin pastes the live
+ones when they differ. Both are validated as OURS (`isMenuHost`, `isEvidenceBase`), every link is
+GET-checked, and what was submitted is recorded on the row (`013_add_10dlc_campaign_links.sql`,
+`tcr_menu_host` / `tcr_evidence_base_url`). **Apply 013 to `mxhyvvgjtqllohpvrwon`.**
+
 ### Not done, on purpose
 
 - **Number assignment.** The tenant's marketing DID is still written on the DialTone side, and

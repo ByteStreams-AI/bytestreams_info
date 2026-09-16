@@ -2145,6 +2145,18 @@ lives on `businesses.address*` for DialTone.Menu too, `address_verified` means t
 legal one, both forms carry the switch, the table shows two lines when they differ,
 and `legalAddressFor()` is the one place that decides which address the brand gets.
 
+### And the second thing the test found: the live tenant is not the row the portal holds
+
+The screenshots for Shorty's were already in a bucket — the PROD project's, under the
+prod restaurant id, while the portal reads staging and had created a fresh id. Probed
+directly: all five answer 200 on `klzznfagrtormretqsgb`, 400 on
+`mxhyvvgjtqllohpvrwon`. That is not a test artefact; it is how tenants work here.
+The portal provisions into staging and the serving tenant is the prod clone, so the
+two links a reviewer clicks can never be derived from the portal's row. Submit
+Campaign now opens a modal with both prefilled to the conventional values, the admin
+pastes the live ones, both are validated as ours, and what was sent is recorded
+(`013`).
+
 ### Not built, on purpose
 
 Number assignment to the campaign (`POST /v2/10dlc/phone_number_campaigns`) waits on
