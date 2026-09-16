@@ -126,6 +126,19 @@
 		function addressFixBtn(r: PortalCustomerRow): string {
 			return ` <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`;
 		}
+		/**
+		 * Once EIN and both addresses are verified every pencil is gone, and with it
+		 * the only way to SEE what was verified (operator, 2026-09-16). One View opens
+		 * the same modal, prefilled; its Re-verify stays live so a move is still fixable.
+		 */
+		function allChecksVerified(r: PortalCustomerRow): boolean {
+			if (!r.ein_verified || !r.address_verified) return false;
+			if (r.product !== 'dialtone_menu' || r.business_address_same) return true;
+			return Boolean(r.restaurant_address_verified);
+		}
+		function viewChecksBtn(r: PortalCustomerRow): string {
+			return ` <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}" title="View verified details"><i class="fa-solid fa-eye"></i> View</button>`;
+		}
 		function restaurantAddressCell(r: PortalCustomerRow): string {
 			if (r.product !== 'dialtone_menu') return '<span style="color:var(--muted)">—</span>';
 			const verified = r.business_address_same ? r.address_verified : r.restaurant_address_verified;
@@ -217,7 +230,7 @@
 						<td><span class="badge badge-info">${escHtml(r.product ?? 'dialtone_menu')}</span></td>
 						<td>${statusBadge(r.status ?? '')}${r.onboarded ? '<br><span class="badge badge-success" style="margin-top:5px;"><i class="fa-solid fa-clipboard-check"></i> Onboarded</span>' : ''}</td>
 						<td>${r.ein_verified
-						? '<span class="badge badge-success"><i class="fa-solid fa-shield-check"></i> Verified</span>'
+						? `<span class="badge badge-success"><i class="fa-solid fa-shield-check"></i> Verified</span>${allChecksVerified(r) ? viewChecksBtn(r) : ''}`
 						: `${r.ein ? '<span class="badge badge-warning">Unverified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
 					}</td>
 						<td>${restaurantAddressCell(r)}</td>
