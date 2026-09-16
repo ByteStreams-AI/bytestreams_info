@@ -111,22 +111,31 @@
 		}
 
 		/**
-		 * Two addresses when they differ (#13 follow-up): the RESTAURANT's (locations
-		 * row — geocoding, delivery, tax) and the LEGAL one (EIN record, TCR brand).
-		 * One line when they are the same, which is most single-site restaurants.
+		 * Two COLUMNS, not one stacked cell (#13 follow-up, operator 2026-09-16): the
+		 * RESTAURANT's address (locations row — geocoding, delivery, tax) and the LEGAL
+		 * one (EIN record, TCR brand) each get a header, so a row reads left to right
+		 * instead of by a label inside the cell. A non-menu product has no restaurant,
+		 * and a single-site restaurant's legal address IS its restaurant address, so
+		 * each column has an explicit "does not apply" state rather than a blank.
 		 */
-		function addressCell(r: PortalCustomerRow): string {
-			const badge = (ok: boolean, present: boolean) => ok
+		function addressBadge(ok: boolean, present: boolean): string {
+			return ok
 				? '<span class="badge badge-success"><i class="fa-solid fa-location-check"></i> Verified</span>'
 				: present ? '<span class="badge badge-warning">Not Verified</span>' : '<span style="color:var(--muted)">—</span>';
-			const fix = `<button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`;
+		}
+		function addressFixBtn(r: PortalCustomerRow): string {
+			return ` <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`;
+		}
+		function restaurantAddressCell(r: PortalCustomerRow): string {
+			if (r.product !== 'dialtone_menu') return '<span style="color:var(--muted)">—</span>';
+			const verified = r.business_address_same ? r.address_verified : r.restaurant_address_verified;
+			return addressBadge(verified, Boolean(r.address)) + (verified ? '' : addressFixBtn(r));
+		}
+		function businessAddressCell(r: PortalCustomerRow): string {
 			const isMenu = r.product === 'dialtone_menu';
-			if (!isMenu || r.business_address_same) {
-				return `${badge(r.address_verified, Boolean(r.address))}${r.address_verified ? '' : ' ' + fix}`;
-			}
-			return `<span class="text-mono">Restaurant</span> ${badge(r.restaurant_address_verified, Boolean(r.address))}<br>` +
-				`<span class="text-mono">Business</span> ${badge(r.address_verified, Boolean(r.business_address))}` +
-				`${r.address_verified && r.restaurant_address_verified ? '' : ' ' + fix}`;
+			if (isMenu && r.business_address_same) return '<span class="text-mono" style="color:var(--muted)">Same as restaurant</span>';
+			const present = Boolean(isMenu ? r.business_address : r.address);
+			return addressBadge(r.address_verified, present) + (r.address_verified ? '' : addressFixBtn(r));
 		}
 
 		function statusBadge(s: string) {
@@ -211,7 +220,8 @@
 						? '<span class="badge badge-success"><i class="fa-solid fa-shield-check"></i> Verified</span>'
 						: `${r.ein ? '<span class="badge badge-warning">Unverified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
 					}</td>
-					<td>${addressCell(r)}</td>
+						<td>${restaurantAddressCell(r)}</td>
+						<td>${businessAddressCell(r)}</td>
 						<td>${tcrCell(r)}</td>
 						<td><strong>${fmtCents(r.setup_fee_cents ?? 10000)}</strong> setup<br><span class="text-mono">${fmtCents(r.monthly_amount_cents ?? 0)} recurring</span></td>
 						<td>${fmtDate(r.invited_at)}</td>
@@ -904,7 +914,7 @@
 					<thead>
 						<tr>
 							<th>Business</th><th>Contact</th><th>Product</th>
-								<th>Status</th><th>EIN</th><th>Address</th><th>10DLC</th><th>Billing</th><th>Invited</th><th></th>
+								<th>Status</th><th>EIN</th><th>Restaurant Address</th><th>Business Address</th><th>10DLC</th><th>Billing</th><th>Invited</th><th></th>
 						</tr>
 					</thead>
 					<tbody id="customers-tbody"></tbody>
