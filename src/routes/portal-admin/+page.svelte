@@ -25,12 +25,26 @@
 			address_state: string | null;
 			address_zip: string | null;
 			address_verified: boolean;
+			business_address_same: boolean;
+			restaurant_address_verified: boolean;
+			business_address: string | null;
+			business_address_street: string | null;
+			business_address_city: string | null;
+			business_address_state: string | null;
+			business_address_zip: string | null;
 			phone: string | null;
 			monthly_amount_cents: number | null;
 			setup_fee_cents: number | null;
 			onboarded: boolean;
 			onboarded_at: string | null;
 			recurring_billing_starts_at: string | null;
+			tcr_entity_type: string | null;
+			tcr_brand_id: string | null;
+			tcr_brand_status: string | null;
+			tcr_campaign_id: string | null;
+			tcr_campaign_status: string | null;
+			tcr_last_error: string | null;
+			tcr_last_checked_at: string | null;
 			invited_at: string | null;
 			activated_at: string | null;
 		};
@@ -62,6 +76,57 @@
 		function fmtCents(c: number) {
 			return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(c / 100);
 		}
+		/**
+		 * The 10DLC cell (#13): brand at onboarding, campaign on demand. Buttons appear
+		 * only for the next possible move, so the cell reads as a state, not a menu.
+		 */
+		function tcrCell(r: PortalCustomerRow): string {
+			if (r.product !== 'dialtone_menu') return '<span style="color:var(--muted)">—</span>';
+			const biz = escHtml(r.business_id ?? '');
+			const btn = (action: string, label: string, icon: string) =>
+				`<button class="btn btn-ghost btn-xs tcr-btn" data-action="${action}" data-biz="${biz}" title="${label}"><i class="fa-solid ${icon}"></i> ${label}</button>`;
+			const err = r.tcr_last_error ? `<br><span class="text-mono" style="color:var(--danger,#e5484d)" title="${escHtml(r.tcr_last_error)}">${escHtml(r.tcr_last_error.slice(0, 60))}${r.tcr_last_error.length > 60 ? '…' : ''}</span>` : '';
+			if (!r.tcr_brand_id) {
+				if (!r.onboarded) return `<span style="color:var(--muted)">After onboarding</span>${err}`;
+				return `<span class="badge badge-warning">No brand</span> ${btn('tcr-register-brand', 'Register Brand', 'fa-id-card')}${err}`;
+			}
+			const verified = r.tcr_brand_status === 'VERIFIED' || r.tcr_brand_status === 'VETTED_VERIFIED';
+			const brand = verified
+				? '<span class="badge badge-success"><i class="fa-solid fa-id-card"></i> Brand verified</span>'
+				: `<span class="badge badge-warning">Brand ${escHtml(r.tcr_brand_status ?? 'pending')}</span>`;
+			if (!r.tcr_campaign_id) {
+				return `${brand}<br>${verified ? btn('tcr-submit-campaign', 'Submit Campaign', 'fa-paper-plane') : btn('tcr-refresh', 'Refresh', 'fa-rotate')}${err}`;
+			}
+			const st = r.tcr_campaign_status ?? '';
+			const approved = st === 'MNO_PROVISIONED' || st === 'MNO_ACCEPTED';
+			const failed = /_(FAILED|REJECTED)$|^TCR_(SUSPENDED|EXPIRED)$/.test(st);
+			const campaign = approved
+				? '<span class="badge badge-success"><i class="fa-solid fa-bullhorn"></i> Campaign approved</span>'
+				: failed
+					? `<span class="badge badge-danger">${escHtml(st.replace(/_/g, ' '))}</span>`
+					: `<span class="badge badge-info">Campaign in review</span>`;
+			return `${brand}<br>${campaign} ${btn('tcr-refresh', 'Refresh', 'fa-rotate')}${err}`;
+		}
+
+		/**
+		 * Two addresses when they differ (#13 follow-up): the RESTAURANT's (locations
+		 * row — geocoding, delivery, tax) and the LEGAL one (EIN record, TCR brand).
+		 * One line when they are the same, which is most single-site restaurants.
+		 */
+		function addressCell(r: PortalCustomerRow): string {
+			const badge = (ok: boolean, present: boolean) => ok
+				? '<span class="badge badge-success"><i class="fa-solid fa-location-check"></i> Verified</span>'
+				: present ? '<span class="badge badge-warning">Not Verified</span>' : '<span style="color:var(--muted)">—</span>';
+			const fix = `<button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`;
+			const isMenu = r.product === 'dialtone_menu';
+			if (!isMenu || r.business_address_same) {
+				return `${badge(r.address_verified, Boolean(r.address))}${r.address_verified ? '' : ' ' + fix}`;
+			}
+			return `<span class="text-mono">Restaurant</span> ${badge(r.restaurant_address_verified, Boolean(r.address))}<br>` +
+				`<span class="text-mono">Business</span> ${badge(r.address_verified, Boolean(r.business_address))}` +
+				`${r.address_verified && r.restaurant_address_verified ? '' : ' ' + fix}`;
+		}
+
 		function statusBadge(s: string) {
 			const m: Record<string, [string, string, string]> = {
 				active:        ['badge-success', 'fa-circle-check',       'Active'],
@@ -144,10 +209,9 @@
 						? '<span class="badge badge-success"><i class="fa-solid fa-shield-check"></i> Verified</span>'
 						: `${r.ein ? '<span class="badge badge-warning">Unverified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
 					}</td>
-					<td>${r.address_verified
-						? '<span class="badge badge-success"><i class="fa-solid fa-location-check"></i> Verified</span>'
-						: `${r.address ? '<span class="badge badge-warning">Not Verified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
-					}</td>						<td><strong>${fmtCents(r.setup_fee_cents ?? 10000)}</strong> setup<br><span class="text-mono">${fmtCents(r.monthly_amount_cents ?? 0)} recurring</span></td>
+					<td>${addressCell(r)}</td>
+						<td>${tcrCell(r)}</td>
+						<td><strong>${fmtCents(r.setup_fee_cents ?? 10000)}</strong> setup<br><span class="text-mono">${fmtCents(r.monthly_amount_cents ?? 0)} recurring</span></td>
 						<td>${fmtDate(r.invited_at)}</td>
 						<td>
 							<button class="btn btn-ghost btn-sm edit-btn" data-id="${escHtml(r.id)}" title="Edit customer">
@@ -174,6 +238,25 @@
 					});
 				});
 
+				// Telnyx 10DLC actions (#13): each button POSTs one action for one business and reloads.
+				getEl('customers-tbody').querySelectorAll('.tcr-btn').forEach(btn => {
+					const el = btn as HTMLButtonElement;
+					btn.addEventListener('click', async () => {
+						const action = el.dataset.action ?? '';
+						const biz = el.dataset.biz ?? '';
+						if (action === 'tcr-submit-campaign' && !confirm('Submit this tenant\'s 10DLC campaign to Telnyx for review? The portal will check the menu page and evidence links first.')) return;
+						el.disabled = true;
+						try {
+							const res = await fetch(`${API}/${action}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ business_id: biz }) });
+							const data = await res.json() as { error?: string; message?: string };
+							if (!res.ok) throw new Error(data.error ?? 'Failed');
+							alert(data.message ?? 'Done');
+						} catch (err) {
+							alert(err instanceof Error ? err.message : 'Failed');
+						}
+						await loadCustomers();
+					});
+				});
 				getEl('customers-tbody').querySelectorAll('.fix-btn').forEach(btn => {
 					const el = btn as HTMLElement;
 					btn.addEventListener('click', () => {
@@ -381,6 +464,13 @@
 			getEl<HTMLInputElement>('rv-address-state').value = customer.address_state ?? '';
 			getEl<HTMLInputElement>('rv-address-zip').value = customer.address_zip ?? '';
 			getEl<HTMLInputElement>('rv-ein').value = customer.ein ?? '';
+			const same = customer.product !== 'dialtone_menu' || customer.business_address_same;
+			getEl<HTMLInputElement>('rv-business-addr-same').checked = same;
+			getEl('rv-business-addr-wrap').classList.toggle('hidden', same);
+			getEl<HTMLInputElement>('rv-business-street').value = same ? '' : (customer.business_address_street ?? '');
+			getEl<HTMLInputElement>('rv-business-city').value = same ? '' : (customer.business_address_city ?? '');
+			getEl<HTMLInputElement>('rv-business-state').value = same ? '' : (customer.business_address_state ?? '');
+			getEl<HTMLInputElement>('rv-business-zip').value = same ? '' : (customer.business_address_zip ?? '');
 			getEl('rv-error').classList.add('hidden');
 			getEl('rv-success').classList.add('hidden');
 			getEl('rv-form').classList.remove('hidden');
@@ -411,6 +501,11 @@
 						address_city: getEl<HTMLInputElement>('rv-address-city').value.trim() || null,
 						address_state: getEl<HTMLInputElement>('rv-address-state').value.trim().toUpperCase() || null,
 						address_zip: getEl<HTMLInputElement>('rv-address-zip').value.trim() || null,
+						business_address_same: getEl<HTMLInputElement>('rv-business-addr-same').checked,
+						business_street: getEl<HTMLInputElement>('rv-business-street').value.trim() || null,
+						business_city: getEl<HTMLInputElement>('rv-business-city').value.trim() || null,
+						business_state: getEl<HTMLInputElement>('rv-business-state').value.trim().toUpperCase() || null,
+						business_zip: getEl<HTMLInputElement>('rv-business-zip').value.trim() || null,
 						ein: getEl<HTMLInputElement>('rv-ein').value.trim() || null,
 					})
 				});
@@ -454,6 +549,8 @@
 			const isMenu = customer.product === 'dialtone_menu';
 			getEl('edit-tier-wrap').classList.toggle('hidden', !isMenu);
 			tierSelect.value = customer.tier ?? '';
+			getEl('edit-entity-wrap').classList.toggle('hidden', !isMenu);
+			getEl<HTMLSelectElement>('edit-entity-type').value = customer.tcr_entity_type ?? 'PRIVATE_PROFIT';
 			getEl<HTMLInputElement>('edit-amount').disabled = isMenu;
 			getEl('edit-amount-label').textContent = isMenu ? 'Recurring Charge USD (set by tier)' : 'Charge USD';
 
@@ -495,6 +592,7 @@
 						phone: getEl<HTMLInputElement>('edit-phone').value.trim(),
 						ein: getEl<HTMLInputElement>('edit-ein').value.trim(),
 						tier: getEl<HTMLSelectElement>('edit-tier').value,
+						tcr_entity_type: getEl<HTMLSelectElement>('edit-entity-type').value,
 						monthly_amount_cents: Math.round(parseFloat(getEl<HTMLInputElement>('edit-amount').value || '0') * 100),
 						onboarded: getEl<HTMLInputElement>('edit-onboarded').checked
 					})
@@ -513,6 +611,12 @@
 
 		// ── New Customer Modal ────────────────────────────────────────────────────
 		getEl('invite-btn').addEventListener('click',    () => { getEl('invite-modal').classList.remove('hidden'); });
+		getEl<HTMLInputElement>('inv-business-addr-same').addEventListener('change', e => {
+			getEl('inv-business-addr-wrap').classList.toggle('hidden', (e.target as HTMLInputElement).checked);
+		});
+		getEl<HTMLInputElement>('rv-business-addr-same').addEventListener('change', e => {
+			getEl('rv-business-addr-wrap').classList.toggle('hidden', (e.target as HTMLInputElement).checked);
+		});
 		getEl('invite-cancel').addEventListener('click', () => closeModal());
 		getEl('invite-modal').addEventListener('click',  e => { if (e.target === getEl('invite-modal')) closeModal(); });
 
@@ -615,6 +719,23 @@
 				if (!email)          { showErr('Email is required'); return; }
 				if (!phone)          { showErr('Phone is required'); return; }
 				if (!tier)           { showErr('Tier is required'); return; }
+
+				const businessAddrSame = getEl<HTMLInputElement>('inv-business-addr-same').checked;
+				if (!businessAddrSame) {
+					const bStreet = getEl<HTMLInputElement>('inv-business-street').value.trim();
+					const bCity = getEl<HTMLInputElement>('inv-business-city').value.trim();
+					const bState = getEl<HTMLInputElement>('inv-business-state').value.trim().toUpperCase();
+					const bZip = getEl<HTMLInputElement>('inv-business-zip').value.trim();
+					if (!bStreet) { showErr('Business street is required'); return; }
+					if (!bCity)   { showErr('Business city is required'); return; }
+					if (!/^[A-Z]{2}$/.test(bState)) { showErr('Business state must be a two-character code'); return; }
+					if (!/^\d{5}(?:-\d{4})?$/.test(bZip)) { showErr('Enter a valid business ZIP code'); return; }
+					reqBody.business_street = bStreet;
+					reqBody.business_city   = bCity;
+					reqBody.business_state  = bState;
+					reqBody.business_zip    = bZip;
+				}
+				reqBody.business_address_same = businessAddrSame;
 
 				reqBody.restaurant_name      = restaurantName;
 				reqBody.is_food_truck        = getEl<HTMLInputElement>('inv-food-truck').checked;
@@ -735,7 +856,7 @@
 					<thead>
 						<tr>
 							<th>Business</th><th>Contact</th><th>Product</th>
-								<th>Status</th><th>EIN</th><th>Address</th><th>Billing</th><th>Invited</th><th></th>
+								<th>Status</th><th>EIN</th><th>Address</th><th>10DLC</th><th>Billing</th><th>Invited</th><th></th>
 						</tr>
 					</thead>
 					<tbody id="customers-tbody"></tbody>
@@ -854,7 +975,32 @@
 			<div class="form-group">
 				<label for="rv-address-zip">ZIP Code</label>
 				<input id="rv-address-zip" type="text" inputmode="numeric" placeholder="98104" maxlength="10" pattern="[0-9][0-9][0-9][0-9][0-9](-[0-9][0-9][0-9][0-9])?">
-				<p class="form-note">Re-runs PostGrid verification and updates coordinates</p>
+				<p class="form-note">Restaurant address — re-runs PostGrid verification and updates coordinates</p>
+			</div>
+			<div class="form-check-row">
+				<input type="checkbox" id="rv-business-addr-same" checked>
+				<label for="rv-business-addr-same" class="check-label">Business (legal) address is the same as the restaurant address</label>
+			</div>
+			<div id="rv-business-addr-wrap" class="hidden">
+				<div class="form-group">
+					<label for="rv-business-street">Business Street</label>
+					<input id="rv-business-street" type="text" placeholder="500 Church St">
+				</div>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="rv-business-city">City</label>
+						<input id="rv-business-city" type="text" placeholder="Nashville">
+					</div>
+					<div class="form-group">
+						<label for="rv-business-state">State</label>
+						<input id="rv-business-state" type="text" placeholder="TN" minlength="2" maxlength="2" pattern="[A-Za-z][A-Za-z]">
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="rv-business-zip">ZIP Code</label>
+					<input id="rv-business-zip" type="text" inputmode="numeric" placeholder="37219" maxlength="10" pattern="[0-9][0-9][0-9][0-9][0-9](-[0-9][0-9][0-9][0-9])?">
+					<p class="form-note">The address on the EIN record; the 10DLC brand carries this one</p>
+				</div>
 			</div>
 			<div class="form-group">
 				<label for="rv-ein">EIN</label>
@@ -916,6 +1062,14 @@
 					<option value="single_location">Single Location</option>
 					<option value="multi_location">Multi-Location</option>
 					<option value="enterprise">Enterprise</option>
+				</select>
+			</div>
+			<div id="edit-entity-wrap" class="form-group hidden">
+				<label for="edit-entity-type">10DLC entity type</label>
+				<select id="edit-entity-type">
+					<option value="PRIVATE_PROFIT">Private company (LLC, Inc.)</option>
+					<option value="PUBLIC_PROFIT">Publicly traded</option>
+					<option value="NON_PROFIT">Non-profit</option>
 				</select>
 			</div>
 			<div class="form-group">
@@ -995,6 +1149,31 @@
 					<div class="form-check-row" style="margin-top:8px;">
 						<input type="checkbox" id="inv-billing-addr">
 						<label for="inv-billing-addr" class="check-label">Also use as billing address</label>
+					</div>
+					<div class="form-check-row" style="margin-top:8px;">
+						<input type="checkbox" id="inv-business-addr-same" checked>
+						<label for="inv-business-addr-same" class="check-label">Business (legal) address is the same as the restaurant address</label>
+					</div>
+				</div>
+				<div id="inv-business-addr-wrap" class="hidden">
+					<div class="form-group">
+						<label for="inv-business-street">Business Street <span class="req">*</span></label>
+						<input id="inv-business-street" type="text" placeholder="500 Church St">
+					</div>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="inv-business-city">City <span class="req">*</span></label>
+							<input id="inv-business-city" type="text" placeholder="Nashville">
+						</div>
+						<div class="form-group">
+							<label for="inv-business-state">State <span class="req">*</span></label>
+							<input id="inv-business-state" type="text" placeholder="TN" minlength="2" maxlength="2" pattern="[A-Za-z][A-Za-z]">
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="inv-business-zip">ZIP Code <span class="req">*</span></label>
+						<input id="inv-business-zip" type="text" inputmode="numeric" placeholder="37219" maxlength="10" pattern="[0-9][0-9][0-9][0-9][0-9](-[0-9][0-9][0-9][0-9])?">
+						<p class="form-note">The address on the EIN record. Used for the 10DLC brand; the restaurant address stays on the location.</p>
 					</div>
 				</div>
 				<div class="form-row">

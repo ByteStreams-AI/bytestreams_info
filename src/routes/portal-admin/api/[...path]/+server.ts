@@ -1,4 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
+import { formatAddressLine, legalAddressFor } from '$lib/server/addresses';
+import {
+	brandIsVerified,
+	buildBrandRequest,
+	buildCampaignRequest,
+	checkUrlsResolve,
+	conventionalEvidenceUrls,
+	createBrand,
+	getBrand,
+	getCampaign,
+	submitCampaign,
+	toE164,
+	type TcrEntityType
+} from '$lib/server/telnyx-10dlc';
 import { env } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 import { canAccessPortalAdmin } from '$lib/server/authorization';
@@ -36,6 +50,15 @@ type BusinessRow = {
 	address_verified: boolean | null;
 	onboarded: boolean | null;
 	onboarded_at: string | null;
+	business_address_same?: boolean | null;
+	restaurant_address_verified?: boolean | null;
+	tcr_entity_type?: string | null;
+	tcr_brand_id?: string | null;
+	tcr_brand_status?: string | null;
+	tcr_campaign_id?: string | null;
+	tcr_campaign_status?: string | null;
+	tcr_last_error?: string | null;
+	tcr_last_checked_at?: string | null;
 	recurring_billing_starts_at: string | null;
 	dialtone_location_id: string | null;
 	address: string | null;
@@ -136,6 +159,16 @@ function parseStructuredAddress(body: Record<string, unknown>): StripeTaxAddress
 	if (!/^[A-Z]{2}$/.test(state)) return null;
 	if (!/^\d{5}(?:-\d{4})?$/.test(postalCode)) return null;
 	return { line1, city, state, postalCode, country: 'US' };
+}
+
+/** The same shape under `business_*` keys — the legal address on the invite and re-verify forms. */
+function parseBusinessAddress(body: Record<string, unknown>): StripeTaxAddress | null {
+	return parseStructuredAddress({
+		address_street: body.business_street,
+		address_city: body.business_city,
+		address_state: body.business_state,
+		address_zip: body.business_zip
+	});
 }
 
 function portalBaseUrl(): string {
@@ -267,7 +300,7 @@ async function handleCustomers(): Promise<Response> {
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
 			.from('businesses')
-			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone')
+			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,business_address_same,restaurant_address_verified,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
 			.in('id', businessIds);
 
 		if (businessError) return jsonResponse({ error: businessError.message }, 500);
@@ -333,12 +366,33 @@ async function handleCustomers(): Promise<Response> {
 				address_state: location?.state ?? business?.address_state ?? null,
 				address_zip: location?.postal_code ?? business?.address_postal_code ?? null,
 				address_verified: business?.address_verified ?? false,
+				// The LEGAL address (#13 follow-up). For DialTone.Menu it is the restaurant's
+				// when business_address_same, else the separately entered one.
+				business_address_same: business?.business_address_same ?? true,
+				restaurant_address_verified: business?.restaurant_address_verified ?? false,
+				business_address: formatAddressLine(legalAddressFor({
+					businessAddressSame: business?.business_address_same ?? true,
+					business: business ? { line1: business.address ?? undefined, city: business.address_city ?? undefined, state: business.address_state ?? undefined, postalCode: business.address_postal_code ?? undefined } : null,
+					restaurant: location ? { line1: location.address_line1 ?? undefined, city: location.city ?? undefined, state: location.state ?? undefined, postalCode: location.postal_code ?? undefined } : null
+				})),
+				business_address_street: business?.address ?? null,
+				business_address_city: business?.address_city ?? null,
+				business_address_state: business?.address_state ?? null,
+				business_address_zip: business?.address_postal_code ?? null,
 				phone: restaurant?.phone_number ?? business?.phone ?? null,
 				monthly_amount_cents: business?.monthly_amount_cents ?? null,
 				setup_fee_cents: business?.setup_fee_cents ?? 10000,
 				onboarded: business?.onboarded ?? false,
 				onboarded_at: business?.onboarded_at ?? null,
 				recurring_billing_starts_at: business?.recurring_billing_starts_at ?? null,
+				// Telnyx 10DLC registration (#13): brand at onboarding, campaign on demand.
+				tcr_entity_type: business?.tcr_entity_type ?? 'PRIVATE_PROFIT',
+				tcr_brand_id: business?.tcr_brand_id ?? null,
+				tcr_brand_status: business?.tcr_brand_status ?? null,
+				tcr_campaign_id: business?.tcr_campaign_id ?? null,
+				tcr_campaign_status: business?.tcr_campaign_status ?? null,
+				tcr_last_error: business?.tcr_last_error ?? null,
+				tcr_last_checked_at: business?.tcr_last_checked_at ?? null,
 				invited_at: account.invited_at,
 				activated_at: account.activated_at
 			};
@@ -998,6 +1052,12 @@ async function handleInvite(request: Request): Promise<Response> {
 		const tier = normalizeText(body.tier, 50);
 		const isFoodTruck = Boolean(body.is_food_truck);
 		const billingAddressSame = Boolean(body.billing_address_same);
+		// The LEGAL address can differ from the restaurant's (#13 follow-up): a
+		// business registered at an office or a home and trading elsewhere. TCR
+		// checks the brand against the EIN record, so the legal one is what the
+		// brand carries; the restaurant's stays on the locations row.
+		const businessAddressSame = body.business_address_same === undefined ? true : Boolean(body.business_address_same);
+		const businessAddress = businessAddressSame ? null : parseBusinessAddress(body);
 		// Priced from the tier table server-side. The client sends a tier, never an
 		// amount — trusting a client-supplied price lets any caller name their own.
 		const amountCents = TIER_AMOUNTS_CENTS[tier] ?? 0;
@@ -1005,6 +1065,7 @@ async function handleInvite(request: Request): Promise<Response> {
 		if (!restaurantName) return jsonResponse({ error: 'restaurant_name is required' }, 400);
 		if (!einDigits)      return jsonResponse({ error: 'ein is required' }, 400);
 		if (!address)        return jsonResponse({ error: 'Street, city, two-character state, and valid ZIP code are required' }, 400);
+		if (!businessAddressSame && !businessAddress) return jsonResponse({ error: 'Business street, city, two-character state, and valid ZIP code are required when the business address differs' }, 400);
 		if (!email)          return jsonResponse({ error: 'email is required' }, 400);
 		if (!phone)          return jsonResponse({ error: 'phone is required' }, 400);
 		if (!tier || !(tier in TIER_AMOUNTS_CENTS)) return jsonResponse({ error: 'A valid tier is required for DialTone.Menu' }, 400);
@@ -1013,8 +1074,11 @@ async function handleInvite(request: Request): Promise<Response> {
 			return jsonResponse({ error: 'Invalid email' }, 400);
 		}
 
-		// Address validation + geocoding via PostGrid
+		// Address validation + geocoding via PostGrid — the restaurant's, and the
+		// legal one separately when it differs.
 		const addrResult = await verifyAddressWithPostGrid(address);
+		const legalResult = businessAddress ? await verifyAddressWithPostGrid(businessAddress) : addrResult;
+		const legalAddress = businessAddress ?? address;
 
 		// EIN verification via Cobalt
 		const einVerified = await verifyEINWithCobalt({
@@ -1113,7 +1177,15 @@ async function handleInvite(request: Request): Promise<Response> {
 				ein: einDigits,
 				ein_verified: einVerified,
 				ein_verified_at: einVerified ? new Date().toISOString() : null,
-				address_verified: addrResult.verified,
+				// address_verified is the LEGAL address's result — what onboarding and
+				// the brand require; the restaurant's has its own column.
+				address_verified: legalResult.verified,
+				restaurant_address_verified: addrResult.verified,
+				business_address_same: businessAddressSame,
+				address: legalResult.line1 ?? legalAddress.line1,
+				address_city: legalResult.city ?? legalAddress.city,
+				address_state: legalResult.state ?? legalAddress.state,
+				address_postal_code: legalResult.postalCode ?? legalAddress.postalCode,
 				is_food_truck: isFoodTruck,
 				billing_address_same: billingAddressSame,
 				setup_fee_cents: 10000,
@@ -1175,15 +1247,16 @@ async function handleInvite(request: Request): Promise<Response> {
 
 		const warnings: string[] = [];
 		if (!addrResult.verified) warnings.push(env.POSTGRID_API_KEY
-			? 'Address was saved but could not be verified.'
+			? 'Restaurant address was saved but could not be verified.'
 			: 'Address verification skipped (POSTGRID_API_KEY not set).');
+		if (businessAddress && !legalResult.verified && env.POSTGRID_API_KEY) warnings.push('Business address was saved but could not be verified.');
 		if (!einVerified) warnings.push(env.COBALT_API_KEY
 			? 'EIN was saved but could not be verified.'
 			: 'EIN verification skipped (COBALT_API_KEY not set).');
 
 		if (!env.RESEND_API_KEY) {
 			return jsonResponse({
-				ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
+				ok: true, ein_verified: einVerified, address_verified: legalResult.verified, restaurant_address_verified: addrResult.verified,
 				warning: ['Customer created but setup invoice email not sent (RESEND_API_KEY not set).', ...warnings].join(' ')
 			});
 		}
@@ -1197,7 +1270,7 @@ async function handleInvite(request: Request): Promise<Response> {
 			billId: setupBill?.id ?? ''
 		});
 		return jsonResponse({
-			ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
+			ok: true, ein_verified: einVerified, address_verified: legalResult.verified, restaurant_address_verified: addrResult.verified,
 			warning: [sent ? null : 'Setup invoice email failed to send.', ...warnings].filter(Boolean).join(' ') || undefined
 		});
 	}
@@ -1349,6 +1422,250 @@ function recurringStartFor(billingCycleStart: string | null, onboardedAt: Date):
 	return nextRecurringBillingDate(billingCycleStart.slice(0, 10), onboardedAt.toISOString().slice(0, 10));
 }
 
+// ── Telnyx 10DLC (#13) ──────────────────────────────────────────────────────
+//
+// One brand and one campaign PER TENANT — dialtone/developer/10dlc-campaign-registration.md.
+// The brand is registered when the business is onboarded (a TCR fee, spent only on
+// a customer who has paid the setup fee), never blocking the signoff; the campaign
+// is submitted from Portal Admin once the tenant is live, after the portal has
+// checked that every link a reviewer might click answers. State lives on
+// businesses.tcr_*; the marketing DID stays a DialTone provisioning step.
+
+type TcrBusiness = {
+	id: string;
+	name: string;
+	ein: string | null;
+	ein_verified: boolean | null;
+	address_verified: boolean | null;
+	is_food_truck: boolean | null;
+	dialtone_location_id: string | null;
+	business_address_same: boolean | null;
+	address: string | null;
+	address_city: string | null;
+	address_state: string | null;
+	address_postal_code: string | null;
+	tcr_entity_type: string | null;
+	tcr_brand_id: string | null;
+	tcr_brand_status: string | null;
+	tcr_campaign_id: string | null;
+	tcr_campaign_status: string | null;
+};
+
+const TCR_BUSINESS_FIELDS = 'id,name,ein,ein_verified,address_verified,is_food_truck,dialtone_location_id,business_address_same,address,address_city,address_state,address_postal_code,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status';
+
+function telnyxApiKey(): string | null {
+	return env.TELNYX_API_KEY?.trim() || null;
+}
+
+async function loadTcrContext(businessId: string) {
+	const supabase = getSupabase();
+	const { data: business, error } = await supabase
+		.from('businesses')
+		.select(TCR_BUSINESS_FIELDS)
+		.eq('id', businessId)
+		.single();
+	if (error || !business) throw new Error(error?.message ?? 'Business not found');
+	const biz = business as TcrBusiness;
+	if (!biz.dialtone_location_id) throw new Error('Not a DialTone.Menu tenant');
+
+	const { data: location } = await supabase
+		.from('locations')
+		.select('address_line1,city,state,postal_code,restaurant_id')
+		.eq('id', biz.dialtone_location_id)
+		.single();
+	if (!location?.restaurant_id) throw new Error('Tenant location not found');
+
+	const { data: restaurant } = await supabase
+		.from('restaurants')
+		.select('id,name,slug,phone_number')
+		.eq('id', location.restaurant_id)
+		.single();
+	if (!restaurant) throw new Error('Tenant restaurant not found');
+
+	const { data: account } = await supabase
+		.from('portal_accounts')
+		.select('email')
+		.eq('business_id', businessId)
+		.eq('role', 'owner')
+		.limit(1)
+		.maybeSingle();
+
+	return { supabase, biz, location, restaurant, ownerEmail: account?.email ?? null };
+}
+
+async function stampTcr(businessId: string, patch: Record<string, unknown>): Promise<void> {
+	const supabase = getSupabase();
+	const { error } = await supabase
+		.from('businesses')
+		.update({ ...patch, tcr_last_checked_at: new Date().toISOString() })
+		.eq('id', businessId);
+	if (error) throw new Error(error.message);
+}
+
+/**
+ * Register the tenant's brand, or refresh its status if one exists. Returns a
+ * human line for the admin. Throws only on a portal-side problem; a Telnyx
+ * refusal is recorded on the row and returned as the message.
+ */
+async function registerOrRefreshBrand(businessId: string): Promise<{ brand_id: string | null; brand_status: string | null; message: string }> {
+	const apiKey = telnyxApiKey();
+	if (!apiKey) return { brand_id: null, brand_status: null, message: '10DLC brand registration skipped (TELNYX_API_KEY not set).' };
+
+	const { biz, location, restaurant, ownerEmail } = await loadTcrContext(businessId);
+
+	if (biz.tcr_brand_id) {
+		try {
+			const brand = await getBrand(apiKey, biz.tcr_brand_id);
+			await stampTcr(businessId, { tcr_brand_status: brand.identityStatus, tcr_last_error: null });
+			return { brand_id: brand.brandId, brand_status: brand.identityStatus, message: `Brand ${brand.brandId} is ${brand.identityStatus}.` };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Brand status check failed';
+			await stampTcr(businessId, { tcr_last_error: message });
+			return { brand_id: biz.tcr_brand_id, brand_status: biz.tcr_brand_status, message };
+		}
+	}
+
+	// A brand is the business's identity with TCR; an unverified EIN or address
+	// is what TCR would reject, so it is refused here rather than paid for.
+	if (!biz.ein_verified || !biz.address_verified) {
+		return { brand_id: null, brand_status: null, message: 'EIN and address must both be verified before the 10DLC brand is registered.' };
+	}
+	const phone = toE164(restaurant.phone_number ?? '');
+	if (!phone) return { brand_id: null, brand_status: null, message: 'The restaurant phone is not a valid US number; fix it before registering the brand.' };
+	if (!ownerEmail) return { brand_id: null, brand_status: null, message: 'No owner email on the portal account.' };
+	const entityType = (biz.tcr_entity_type ?? 'PRIVATE_PROFIT') as TcrEntityType;
+	// The LEGAL address, which TCR checks against the EIN record — not necessarily
+	// where the restaurant is.
+	const legal = legalAddressFor({
+		businessAddressSame: biz.business_address_same ?? true,
+		business: { line1: biz.address ?? undefined, city: biz.address_city ?? undefined, state: biz.address_state ?? undefined, postalCode: biz.address_postal_code ?? undefined },
+		restaurant: { line1: location.address_line1 ?? undefined, city: location.city ?? undefined, state: location.state ?? undefined, postalCode: location.postal_code ?? undefined }
+	});
+	if (!legal) return { brand_id: null, brand_status: null, message: 'The business address is incomplete; fix it before registering the brand.' };
+
+	try {
+		const brand = await createBrand(apiKey, buildBrandRequest({
+			legalName: biz.name,
+			displayName: restaurant.name,
+			einDigits: biz.ein ?? '',
+			phoneE164: phone,
+			street: legal.line1,
+			city: legal.city,
+			state: legal.state,
+			postalCode: legal.postalCode,
+			email: ownerEmail,
+			website: `https://${restaurant.slug}.m.dialtone.menu`,
+			entityType
+		}));
+		await stampTcr(businessId, {
+			tcr_brand_id: brand.brandId,
+			tcr_brand_status: brand.identityStatus,
+			tcr_brand_registered_at: new Date().toISOString(),
+			tcr_last_error: null
+		});
+		return { brand_id: brand.brandId, brand_status: brand.identityStatus, message: `Brand ${brand.brandId} registered (${brand.identityStatus}).` };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : 'Brand registration failed';
+		await stampTcr(businessId, { tcr_last_error: message });
+		return { brand_id: null, brand_status: null, message };
+	}
+}
+
+async function handleTcrRegisterBrand(request: Request): Promise<Response> {
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+	const businessId = normalizeText(body?.business_id, 200);
+	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
+	try {
+		return jsonResponse({ ok: true, ...(await registerOrRefreshBrand(businessId)) });
+	} catch (err) {
+		return jsonResponse({ error: err instanceof Error ? err.message : 'Failed' }, 500);
+	}
+}
+
+async function handleTcrRefresh(request: Request): Promise<Response> {
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+	const businessId = normalizeText(body?.business_id, 200);
+	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
+	const apiKey = telnyxApiKey();
+	if (!apiKey) return jsonResponse({ error: 'TELNYX_API_KEY is not configured' }, 503);
+	try {
+		const { biz } = await loadTcrContext(businessId);
+		const patch: Record<string, unknown> = { tcr_last_error: null };
+		const lines: string[] = [];
+		if (biz.tcr_brand_id) {
+			const brand = await getBrand(apiKey, biz.tcr_brand_id);
+			patch.tcr_brand_status = brand.identityStatus;
+			lines.push(`Brand ${brand.identityStatus}`);
+		}
+		if (biz.tcr_campaign_id) {
+			const campaign = await getCampaign(apiKey, biz.tcr_campaign_id);
+			patch.tcr_campaign_status = campaign.campaignStatus;
+			if (campaign.failureReasons) patch.tcr_last_error = campaign.failureReasons;
+			lines.push(`Campaign ${campaign.campaignStatus ?? 'unknown'}`);
+		}
+		if (lines.length === 0) return jsonResponse({ error: 'Nothing registered yet.' }, 409);
+		await stampTcr(businessId, patch);
+		return jsonResponse({ ok: true, message: lines.join(' · ') });
+	} catch (err) {
+		const message = err instanceof Error ? err.message : 'Refresh failed';
+		await stampTcr(businessId, { tcr_last_error: message }).catch(() => undefined);
+		return jsonResponse({ error: message }, 502);
+	}
+}
+
+async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+	const businessId = normalizeText(body?.business_id, 200);
+	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
+	const apiKey = telnyxApiKey();
+	if (!apiKey) return jsonResponse({ error: 'TELNYX_API_KEY is not configured' }, 503);
+	// The evidence bucket lives in the project the TENANTS live in — the one the
+	// restaurant rows are read from — never the CRM project behind plain
+	// SUPABASE_URL, which has no compliance-evidence bucket at all.
+	const appUrl = getPortalSupabaseConfig().url;
+
+	try {
+		const { biz, restaurant } = await loadTcrContext(businessId);
+		if (biz.tcr_campaign_id) return jsonResponse({ error: `Campaign ${biz.tcr_campaign_id} already submitted (${biz.tcr_campaign_status ?? 'status unknown'}).` }, 409);
+		if (!biz.tcr_brand_id) return jsonResponse({ error: 'Register the brand first.' }, 409);
+
+		// Always the LIVE brand status: a campaign against an unverified brand is refused by Telnyx.
+		const brand = await getBrand(apiKey, biz.tcr_brand_id);
+		await stampTcr(businessId, { tcr_brand_status: brand.identityStatus });
+		if (!brandIsVerified(brand.identityStatus)) {
+			return jsonResponse({ error: `Brand is ${brand.identityStatus}; TCR must verify it before a campaign can be submitted.` }, 409);
+		}
+
+		const menuHost = `https://${restaurant.slug}.m.dialtone.menu`;
+		const evidence = conventionalEvidenceUrls(appUrl, restaurant.id);
+		// EVERY link a reviewer might click, before anything is sent. A dead evidence
+		// or embedded link was its own rejection bullet on CW2K3CT.
+		const check = await checkUrlsResolve([menuHost, `${menuHost}/menu`, ...Object.values(evidence)]);
+		if (!check.ok) {
+			return jsonResponse({ error: `Not submitted — these links do not resolve yet: ${check.dead.join(', ')}` }, 422);
+		}
+
+		const campaign = await submitCampaign(apiKey, buildCampaignRequest({
+			brandId: brand.brandId,
+			brandName: restaurant.name,
+			venue: biz.is_food_truck ? 'food_truck' : 'restaurant',
+			menuHost,
+			evidence
+		}));
+		await stampTcr(businessId, {
+			tcr_campaign_id: campaign.campaignId,
+			tcr_campaign_status: campaign.campaignStatus,
+			tcr_campaign_submitted_at: new Date().toISOString(),
+			tcr_last_error: campaign.failureReasons
+		});
+		return jsonResponse({ ok: true, campaign_id: campaign.campaignId, campaign_status: campaign.campaignStatus, message: `Campaign ${campaign.campaignId} submitted (${campaign.campaignStatus ?? 'pending'}).` });
+	} catch (err) {
+		const message = err instanceof Error ? err.message : 'Campaign submission failed';
+		await stampTcr(businessId, { tcr_last_error: message }).catch(() => undefined);
+		return jsonResponse({ error: message }, 502);
+	}
+}
+
 async function handleOnboardingSignoff(request: Request, actorEmail: string): Promise<Response> {
 	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
 	if (!body) return jsonResponse({ error: 'Invalid body' }, 400);
@@ -1384,7 +1701,14 @@ async function handleOnboardingSignoff(request: Request, actorEmail: string): Pr
 		.eq('id', businessId);
 
 	if (updateError) return jsonResponse({ error: updateError.message }, 500);
-	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt });
+
+	// The brand rides on onboarding (#13): the setup fee is paid, so the TCR fee is
+	// spent on a real customer. Never blocks the signoff — a refusal is recorded on
+	// the row and said back to the admin, who can retry from the customer table.
+	const tcr = await registerOrRefreshBrand(businessId).catch((err: unknown) => ({
+		brand_id: null, brand_status: null, message: err instanceof Error ? err.message : 'Brand registration failed'
+	}));
+	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt, tcr });
 }
 
 // Must match the published price list in dialtone_menu/public/pricing.html.
@@ -1417,6 +1741,10 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 	const ein = normalizeText(body.ein, 20) || null;
 	const tier = normalizeText(body.tier, 50) || null;
 	const requestedOnboarded = Boolean(body.onboarded);
+	// TCR entity type for the 10DLC brand (#13). Sole proprietors are excluded on
+	// purpose: the portal requires an EIN, and that path is OTP-vetted, not EIN-vetted.
+	const entityTypeInput = normalizeText(body.tcr_entity_type, 20).toUpperCase();
+	const tcrEntityType: TcrEntityType | null = (['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'NON_PROFIT'] as const).find((t) => t === entityTypeInput) ?? null;
 
 	if (!accountId) return jsonResponse({ error: 'account_id is required' }, 400);
 	if (!businessName) return jsonResponse({ error: 'business_name is required' }, 400);
@@ -1481,7 +1809,10 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 		}
 	}
 
-	if (requestedOnboarded && !business.onboarded) {
+	if (tcrEntityType) businessUpdates.tcr_entity_type = tcrEntityType;
+
+	const onboardingNow = requestedOnboarded && !business.onboarded;
+	if (onboardingNow) {
 		const onboardedAt = new Date();
 		const recurringStartsAt = recurringStartFor(business.billing_cycle_start, onboardedAt);
 		Object.assign(businessUpdates, {
@@ -1510,6 +1841,15 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 		if (phoneError) return jsonResponse({ error: phoneError.message }, 500);
 	}
 
+	// Same rule as the signoff endpoint (#13): onboarding is when the brand is
+	// registered, and a Telnyx refusal is said back rather than failing the save.
+	if (onboardingNow && account.product === 'dialtone_menu') {
+		const tcr = await registerOrRefreshBrand(business.id).catch((err: unknown) => ({
+			brand_id: null, brand_status: null, message: err instanceof Error ? err.message : 'Brand registration failed'
+		}));
+		return jsonResponse({ ok: true, tcr });
+	}
+
 	return jsonResponse({ ok: true });
 }
 
@@ -1522,16 +1862,24 @@ async function handleReverify(request: Request): Promise<Response> {
 		.some((field) => normalizeText(body[field], 200));
 	const newAddress = hasAddressInput ? parseStructuredAddress(body) : null;
 	const newEin = normalizeText(body.ein, 20).replace(/\D/g, '').slice(0, 9);
+	// The legal address (#13 follow-up): re-verified on its own when it differs
+	// from the restaurant's; "same" copies the restaurant's result onto it.
+	const sameFlagGiven = body.business_address_same !== undefined;
+	const businessAddressSame = sameFlagGiven ? Boolean(body.business_address_same) : null;
+	const hasBusinessInput = ['business_street', 'business_city', 'business_state', 'business_zip']
+		.some((field) => normalizeText(body[field], 200));
+	const newBusinessAddress = hasBusinessInput ? parseBusinessAddress(body) : null;
 
 	if (!businessId)            return jsonResponse({ error: 'business_id is required' }, 400);
 	if (hasAddressInput && !newAddress) return jsonResponse({ error: 'Street, city, two-character state, and valid ZIP code are required' }, 400);
-	if (!newAddress && !newEin) return jsonResponse({ error: 'address or ein is required' }, 400);
+	if (hasBusinessInput && !newBusinessAddress) return jsonResponse({ error: 'Business street, city, two-character state, and valid ZIP code are required' }, 400);
+	if (!newAddress && !newEin && !newBusinessAddress && !sameFlagGiven) return jsonResponse({ error: 'address or ein is required' }, 400);
 
 	const supabase = getSupabase();
 
 	const { data: business, error: bizError } = await supabase
 		.from('businesses')
-		.select('id,name,dialtone_location_id,address_state')
+		.select('id,name,dialtone_location_id,address_state,business_address_same,restaurant_address_verified')
 		.eq('id', businessId)
 		.single();
 
@@ -1544,9 +1892,21 @@ async function handleReverify(request: Request): Promise<Response> {
 	if (newAddress) {
 		const addrResult = await verifyAddressWithPostGrid(newAddress);
 		addrVerified = addrResult.verified;
-		bizUpdates.address_verified = addrVerified;
 
 		if (business.dialtone_location_id) {
+			// The restaurant's address. It is ALSO the legal one while the two are the
+			// same, so the legal columns follow it in that case.
+			bizUpdates.restaurant_address_verified = addrVerified;
+			const same = businessAddressSame ?? business.business_address_same ?? true;
+			if (same && !newBusinessAddress) {
+				Object.assign(bizUpdates, {
+					address_verified: addrVerified,
+					address: addrResult.line1 ?? newAddress.line1,
+					address_city: addrResult.city ?? newAddress.city,
+					address_state: addrResult.state ?? newAddress.state,
+					address_postal_code: addrResult.postalCode ?? newAddress.postalCode
+				});
+			}
 			await supabase.from('locations').update({
 				address_line1: addrResult.line1 ?? newAddress.line1,
 				city: addrResult.city ?? newAddress.city,
@@ -1556,6 +1916,7 @@ async function handleReverify(request: Request): Promise<Response> {
 				longitude: addrResult.lng ?? null,
 			}).eq('id', business.dialtone_location_id);
 		} else {
+			bizUpdates.address_verified = addrVerified;
 			Object.assign(bizUpdates, {
 				address: addrResult.line1 ?? newAddress.line1,
 				address_city: addrResult.city ?? newAddress.city,
@@ -1563,6 +1924,37 @@ async function handleReverify(request: Request): Promise<Response> {
 				address_postal_code: addrResult.postalCode ?? newAddress.postalCode
 			});
 		}
+	}
+
+	if (newBusinessAddress) {
+		// A legal address of its own: verified separately, and the two are no longer the same.
+		const legalResult = await verifyAddressWithPostGrid(newBusinessAddress);
+		Object.assign(bizUpdates, {
+			business_address_same: false,
+			address_verified: legalResult.verified,
+			address: legalResult.line1 ?? newBusinessAddress.line1,
+			address_city: legalResult.city ?? newBusinessAddress.city,
+			address_state: legalResult.state ?? newBusinessAddress.state,
+			address_postal_code: legalResult.postalCode ?? newBusinessAddress.postalCode
+		});
+		addrVerified = legalResult.verified;
+	} else if (businessAddressSame === true && business.dialtone_location_id && !newAddress) {
+		// Flipped back to "same" with no new restaurant address: the legal address
+		// becomes the restaurant's current one, with the restaurant's result.
+		const { data: loc } = await supabase
+			.from('locations')
+			.select('address_line1,city,state,postal_code')
+			.eq('id', business.dialtone_location_id)
+			.single();
+		Object.assign(bizUpdates, {
+			business_address_same: true,
+			address_verified: business.restaurant_address_verified ?? false,
+			address: loc?.address_line1 ?? null,
+			address_city: loc?.city ?? null,
+			address_state: loc?.state ?? null,
+			address_postal_code: loc?.postal_code ?? null
+		});
+		addrVerified = business.restaurant_address_verified ?? false;
 	}
 
 	if (newEin) {
@@ -1703,6 +2095,9 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 	if (params.path === 'onboarding-signoff') return handleOnboardingSignoff(request, locals.user!.email);
 	if (params.path === 'customer') return handleUpdateCustomer(request, locals.user!.email);
 	if (params.path === 'reverify') return handleReverify(request);
+	if (params.path === 'tcr-register-brand') return handleTcrRegisterBrand(request);
+	if (params.path === 'tcr-refresh') return handleTcrRefresh(request);
+	if (params.path === 'tcr-submit-campaign') return handleTcrSubmitCampaign(request);
 	if (params.path === 'resend-invite') return handleResendInvite(request);
 	if (params.path === 'message') return handleMessage(request);
 	if (params.path === 'settings') return handleUpdateSettings(request, locals.user!.email);

@@ -341,3 +341,63 @@ The human gate for the DialTone Instagram pipeline. Claude-drafted Stories and f
 - Reels are not drafted or regenerated here (their copy is `reels/<slug>/script.md` in `dialtone_social`). The form only offers story / image / carousel and pillars P0–P3.
 - Approving an edited caption keeps the original in `caption_original`. The Worker re-runs the full guardrails at publish time; the page's `quickCheck` is a courtesy, not the gate.
 - Rescheduling bumps `schedule_version` and clears `publish_workflow_id`; the Worker creates a fresh workflow instance and the old one exits as stale.
+
+## 2026-09-16 — Telnyx 10DLC brand + campaign from Portal Admin (#13)
+
+### Summary
+
+DialTone.Menu tenants get their own Telnyx 10DLC **brand** and **campaign**, registered from Portal
+Admin rather than by hand in Mission Control. One brand and one campaign PER TENANT — the content
+rules are `dialtone/developer/10dlc-campaign-registration.md`, written after campaign `CW2K3CT`
+(brand ByteStreams) was rejected because the perceived sender is the restaurant.
+
+### Two timings, decided 2026-09-16
+
+- **Brand at onboarding, never at creation.** A brand is a TCR fee. It fires when the business flips
+  to `onboarded` (both paths: the signoff endpoint and the edit modal), which already requires a
+  verified EIN and address. It never blocks the signoff: a Telnyx refusal lands on
+  `businesses.tcr_last_error` and comes back in the response as `tcr.message`. **Register Brand** on
+  the customer row retries.
+- **Campaign from the customer row, once the tenant is live.** The message flow points a reviewer at
+  `https://<slug>.m.dialtone.menu/menu` and at five per-tenant disclosure screenshots in the DialTone
+  app project's public `compliance-evidence/<restaurant_id>/` bucket. **Submit Campaign** is enabled
+  once the brand is `VERIFIED`, and the portal GETs every one of those links first — a dead link was
+  its own rejection bullet — refusing with the list of what does not resolve.
+
+### Where things live
+
+- `src/lib/server/telnyx-10dlc.ts` — pure request builders (brand; campaign by venue type from the
+  template: Marketing, description, keywords, opt-in/opt-out/help declarations, three samples where a
+  truck's second is a location message, policy links, embedded link = menu host, number pooling off)
+  plus a thin client with an injectable `fetcher`. Unit-tested without a network.
+- `businesses.tcr_*` (`developer/migrations/portal/011_add_10dlc_registration.sql`) — entity type,
+  brand id/status, campaign id/status, last error, last checked. **Apply to `mxhyvvgjtqllohpvrwon`
+  before deploying** — the project `PORTAL_SUPABASE_URL` reads; the CRM project has no `businesses`
+  and fails with `42P01`, which happened on first apply. The marketing DID itself stays a DialTone provisioning step
+  (`restaurants.marketing_sms_from_number`); this repo never touches the DialTone schema.
+- API actions: `tcr-register-brand`, `tcr-refresh`, `tcr-submit-campaign`, all by `business_id`.
+- `TELNYX_API_KEY` Worker secret — the same Telnyx account DialTone sends from. Unset → brand
+  registration is skipped with a warning, like PostGrid and Cobalt.
+
+### The legal address is not the restaurant's (same day)
+
+The first test, Shorty's under ByteStreams LLC, exposed it before the first brand was sent: the form
+captured ONE address and used it for the `locations` row (geocoding, delivery, tax) and for the
+business. TCR checks a brand against the EIN record, whose address is the LEGAL one — an office, a
+home, a holding company — not necessarily where the food is sold. `012_add_business_legal_address.sql`
+adds `business_address_same` (default true) and `restaurant_address_verified`; `businesses.address*`
+now hold the legal address for DialTone.Menu too (the restaurant's when same). `address_verified` is
+the legal address's result, which is what onboarding and the brand require. The invite and re-verify
+forms carry a "Business (legal) address is the same as the restaurant address" switch; the customer
+table shows two lines with two badges when they differ; the brand is built from
+`legalAddressFor()` (`src/lib/server/addresses.ts`). **Apply 012 to `mxhyvvgjtqllohpvrwon`.**
+
+### Not done, on purpose
+
+- **Number assignment.** The tenant's marketing DID is still written on the DialTone side, and
+  assigning it to the campaign (`POST /v2/10dlc/phone_number_campaigns`) waits on that plus
+  dialtone #1614 (one messaging profile per tenant, for a brand-named opt-out).
+- **Sole proprietors.** The entity-type select offers private, public and non-profit only: the portal
+  requires an EIN, and the sole-prop brand path is OTP-vetted rather than EIN-vetted.
+- **Webhooks.** Status is refreshed on demand from the row; a Telnyx `webhookURL` can replace that
+  once the portal has a public endpoint for it.
