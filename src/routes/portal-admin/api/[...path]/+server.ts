@@ -1619,8 +1619,10 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
 	const apiKey = telnyxApiKey();
 	if (!apiKey) return jsonResponse({ error: 'TELNYX_API_KEY is not configured' }, 503);
-	const appUrl = env.SUPABASE_URL?.trim();
-	if (!appUrl) return jsonResponse({ error: 'SUPABASE_URL is not configured' }, 503);
+	// The evidence bucket lives in the project the TENANTS live in — the one the
+	// restaurant rows are read from — never the CRM project behind plain
+	// SUPABASE_URL, which has no compliance-evidence bucket at all.
+	const appUrl = getPortalSupabaseConfig().url;
 
 	try {
 		const { biz, restaurant } = await loadTcrContext(businessId);
