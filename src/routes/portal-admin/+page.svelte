@@ -915,6 +915,7 @@
 				</div>
 				<p id="customers-loading" class="text-muted" style="padding:24px;">Loading…</p>
 				<p id="customers-empty" class="text-muted hidden" style="padding:24px;">No customers yet.</p>
+				<div class="table-scroll">
 				<table id="customers-table" class="data-table hidden">
 					<thead>
 						<tr>
@@ -924,6 +925,7 @@
 					</thead>
 					<tbody id="customers-tbody"></tbody>
 				</table>
+				</div>
 			</div>
 		</div>
 
@@ -938,6 +940,7 @@
 				</div>
 				<p id="billing-loading" class="text-muted" style="padding:24px;">Loading…</p>
 				<p id="billing-empty" class="text-muted hidden" style="padding:24px;">No billing records for this month.</p>
+				<div class="table-scroll">
 				<table id="billing-table" class="data-table hidden">
 					<thead>
 						<tr>
@@ -947,6 +950,7 @@
 					</thead>
 					<tbody id="billing-tbody"></tbody>
 				</table>
+				</div>
 				<div id="gen-status" class="hidden" style="padding:0 24px 24px;"></div>
 			</div>
 		</div>
@@ -1481,6 +1485,9 @@
 	:global(.panel-body)  { padding: 24px; }
 
 	/* Data table */
+	/* The panel clips to its rounded corners, so a table wider than it loses its
+	   right-hand columns — with the two address columns that was the Edit button. */
+	:global(.table-scroll) { overflow-x: auto; }
 	:global(.data-table) { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 	:global(.data-table th) {
 		text-align: left; padding: 10px 16px;
