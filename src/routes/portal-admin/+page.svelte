@@ -31,6 +31,13 @@
 			onboarded: boolean;
 			onboarded_at: string | null;
 			recurring_billing_starts_at: string | null;
+			tcr_entity_type: string | null;
+			tcr_brand_id: string | null;
+			tcr_brand_status: string | null;
+			tcr_campaign_id: string | null;
+			tcr_campaign_status: string | null;
+			tcr_last_error: string | null;
+			tcr_last_checked_at: string | null;
 			invited_at: string | null;
 			activated_at: string | null;
 		};
@@ -62,6 +69,38 @@
 		function fmtCents(c: number) {
 			return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(c / 100);
 		}
+		/**
+		 * The 10DLC cell (#13): brand at onboarding, campaign on demand. Buttons appear
+		 * only for the next possible move, so the cell reads as a state, not a menu.
+		 */
+		function tcrCell(r: PortalCustomerRow): string {
+			if (r.product !== 'dialtone_menu') return '<span style="color:var(--muted)">—</span>';
+			const biz = escHtml(r.business_id ?? '');
+			const btn = (action: string, label: string, icon: string) =>
+				`<button class="btn btn-ghost btn-xs tcr-btn" data-action="${action}" data-biz="${biz}" title="${label}"><i class="fa-solid ${icon}"></i> ${label}</button>`;
+			const err = r.tcr_last_error ? `<br><span class="text-mono" style="color:var(--danger,#e5484d)" title="${escHtml(r.tcr_last_error)}">${escHtml(r.tcr_last_error.slice(0, 60))}${r.tcr_last_error.length > 60 ? '…' : ''}</span>` : '';
+			if (!r.tcr_brand_id) {
+				if (!r.onboarded) return `<span style="color:var(--muted)">After onboarding</span>${err}`;
+				return `<span class="badge badge-warning">No brand</span> ${btn('tcr-register-brand', 'Register Brand', 'fa-id-card')}${err}`;
+			}
+			const verified = r.tcr_brand_status === 'VERIFIED' || r.tcr_brand_status === 'VETTED_VERIFIED';
+			const brand = verified
+				? '<span class="badge badge-success"><i class="fa-solid fa-id-card"></i> Brand verified</span>'
+				: `<span class="badge badge-warning">Brand ${escHtml(r.tcr_brand_status ?? 'pending')}</span>`;
+			if (!r.tcr_campaign_id) {
+				return `${brand}<br>${verified ? btn('tcr-submit-campaign', 'Submit Campaign', 'fa-paper-plane') : btn('tcr-refresh', 'Refresh', 'fa-rotate')}${err}`;
+			}
+			const st = r.tcr_campaign_status ?? '';
+			const approved = st === 'MNO_PROVISIONED' || st === 'MNO_ACCEPTED';
+			const failed = /_(FAILED|REJECTED)$|^TCR_(SUSPENDED|EXPIRED)$/.test(st);
+			const campaign = approved
+				? '<span class="badge badge-success"><i class="fa-solid fa-bullhorn"></i> Campaign approved</span>'
+				: failed
+					? `<span class="badge badge-danger">${escHtml(st.replace(/_/g, ' '))}</span>`
+					: `<span class="badge badge-info">Campaign in review</span>`;
+			return `${brand}<br>${campaign} ${btn('tcr-refresh', 'Refresh', 'fa-rotate')}${err}`;
+		}
+
 		function statusBadge(s: string) {
 			const m: Record<string, [string, string, string]> = {
 				active:        ['badge-success', 'fa-circle-check',       'Active'],
@@ -147,7 +186,9 @@
 					<td>${r.address_verified
 						? '<span class="badge badge-success"><i class="fa-solid fa-location-check"></i> Verified</span>'
 						: `${r.address ? '<span class="badge badge-warning">Not Verified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
-					}</td>						<td><strong>${fmtCents(r.setup_fee_cents ?? 10000)}</strong> setup<br><span class="text-mono">${fmtCents(r.monthly_amount_cents ?? 0)} recurring</span></td>
+					}</td>
+						<td>${tcrCell(r)}</td>
+						<td><strong>${fmtCents(r.setup_fee_cents ?? 10000)}</strong> setup<br><span class="text-mono">${fmtCents(r.monthly_amount_cents ?? 0)} recurring</span></td>
 						<td>${fmtDate(r.invited_at)}</td>
 						<td>
 							<button class="btn btn-ghost btn-sm edit-btn" data-id="${escHtml(r.id)}" title="Edit customer">
@@ -174,6 +215,25 @@
 					});
 				});
 
+				// Telnyx 10DLC actions (#13): each button POSTs one action for one business and reloads.
+				getEl('customers-tbody').querySelectorAll('.tcr-btn').forEach(btn => {
+					const el = btn as HTMLButtonElement;
+					btn.addEventListener('click', async () => {
+						const action = el.dataset.action ?? '';
+						const biz = el.dataset.biz ?? '';
+						if (action === 'tcr-submit-campaign' && !confirm('Submit this tenant\'s 10DLC campaign to Telnyx for review? The portal will check the menu page and evidence links first.')) return;
+						el.disabled = true;
+						try {
+							const res = await fetch(`${API}/${action}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ business_id: biz }) });
+							const data = await res.json() as { error?: string; message?: string };
+							if (!res.ok) throw new Error(data.error ?? 'Failed');
+							alert(data.message ?? 'Done');
+						} catch (err) {
+							alert(err instanceof Error ? err.message : 'Failed');
+						}
+						await loadCustomers();
+					});
+				});
 				getEl('customers-tbody').querySelectorAll('.fix-btn').forEach(btn => {
 					const el = btn as HTMLElement;
 					btn.addEventListener('click', () => {
@@ -454,6 +514,8 @@
 			const isMenu = customer.product === 'dialtone_menu';
 			getEl('edit-tier-wrap').classList.toggle('hidden', !isMenu);
 			tierSelect.value = customer.tier ?? '';
+			getEl('edit-entity-wrap').classList.toggle('hidden', !isMenu);
+			getEl<HTMLSelectElement>('edit-entity-type').value = customer.tcr_entity_type ?? 'PRIVATE_PROFIT';
 			getEl<HTMLInputElement>('edit-amount').disabled = isMenu;
 			getEl('edit-amount-label').textContent = isMenu ? 'Recurring Charge USD (set by tier)' : 'Charge USD';
 
@@ -495,6 +557,7 @@
 						phone: getEl<HTMLInputElement>('edit-phone').value.trim(),
 						ein: getEl<HTMLInputElement>('edit-ein').value.trim(),
 						tier: getEl<HTMLSelectElement>('edit-tier').value,
+						tcr_entity_type: getEl<HTMLSelectElement>('edit-entity-type').value,
 						monthly_amount_cents: Math.round(parseFloat(getEl<HTMLInputElement>('edit-amount').value || '0') * 100),
 						onboarded: getEl<HTMLInputElement>('edit-onboarded').checked
 					})
@@ -735,7 +798,7 @@
 					<thead>
 						<tr>
 							<th>Business</th><th>Contact</th><th>Product</th>
-								<th>Status</th><th>EIN</th><th>Address</th><th>Billing</th><th>Invited</th><th></th>
+								<th>Status</th><th>EIN</th><th>Address</th><th>10DLC</th><th>Billing</th><th>Invited</th><th></th>
 						</tr>
 					</thead>
 					<tbody id="customers-tbody"></tbody>
@@ -916,6 +979,14 @@
 					<option value="single_location">Single Location</option>
 					<option value="multi_location">Multi-Location</option>
 					<option value="enterprise">Enterprise</option>
+				</select>
+			</div>
+			<div id="edit-entity-wrap" class="form-group hidden">
+				<label for="edit-entity-type">10DLC entity type</label>
+				<select id="edit-entity-type">
+					<option value="PRIVATE_PROFIT">Private company (LLC, Inc.)</option>
+					<option value="PUBLIC_PROFIT">Publicly traded</option>
+					<option value="NON_PROFIT">Non-profit</option>
 				</select>
 			</div>
 			<div class="form-group">

@@ -120,6 +120,13 @@ The dry-run output must list:
 env.AI    AI
 ```
 
+### 2b. Telnyx 10DLC (Portal Admin, #13)
+
+1. Apply `developer/migrations/portal/011_add_10dlc_registration.sql` to the portal Supabase project.
+2. Store `TELNYX_API_KEY` as a Cloudflare Worker secret (`pnpm exec wrangler secret put TELNYX_API_KEY`).
+   Use the same Telnyx account DialTone sends from; the brand and campaign are created under it.
+3. Unset, brand registration is skipped with a warning at onboarding; nothing else changes.
+
 ### 3. Confirm GitHub Actions Secrets
 
 The deployment job requires these repository Actions secrets:

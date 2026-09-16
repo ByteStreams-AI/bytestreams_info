@@ -1,4 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+	brandIsVerified,
+	buildBrandRequest,
+	buildCampaignRequest,
+	checkUrlsResolve,
+	conventionalEvidenceUrls,
+	createBrand,
+	getBrand,
+	getCampaign,
+	submitCampaign,
+	toE164,
+	type TcrEntityType
+} from '$lib/server/telnyx-10dlc';
 import { env } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 import { canAccessPortalAdmin } from '$lib/server/authorization';
@@ -36,6 +49,13 @@ type BusinessRow = {
 	address_verified: boolean | null;
 	onboarded: boolean | null;
 	onboarded_at: string | null;
+	tcr_entity_type?: string | null;
+	tcr_brand_id?: string | null;
+	tcr_brand_status?: string | null;
+	tcr_campaign_id?: string | null;
+	tcr_campaign_status?: string | null;
+	tcr_last_error?: string | null;
+	tcr_last_checked_at?: string | null;
 	recurring_billing_starts_at: string | null;
 	dialtone_location_id: string | null;
 	address: string | null;
@@ -267,7 +287,7 @@ async function handleCustomers(): Promise<Response> {
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
 			.from('businesses')
-			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone')
+			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
 			.in('id', businessIds);
 
 		if (businessError) return jsonResponse({ error: businessError.message }, 500);
@@ -339,6 +359,14 @@ async function handleCustomers(): Promise<Response> {
 				onboarded: business?.onboarded ?? false,
 				onboarded_at: business?.onboarded_at ?? null,
 				recurring_billing_starts_at: business?.recurring_billing_starts_at ?? null,
+				// Telnyx 10DLC registration (#13): brand at onboarding, campaign on demand.
+				tcr_entity_type: business?.tcr_entity_type ?? 'PRIVATE_PROFIT',
+				tcr_brand_id: business?.tcr_brand_id ?? null,
+				tcr_brand_status: business?.tcr_brand_status ?? null,
+				tcr_campaign_id: business?.tcr_campaign_id ?? null,
+				tcr_campaign_status: business?.tcr_campaign_status ?? null,
+				tcr_last_error: business?.tcr_last_error ?? null,
+				tcr_last_checked_at: business?.tcr_last_checked_at ?? null,
 				invited_at: account.invited_at,
 				activated_at: account.activated_at
 			};
@@ -1349,6 +1377,235 @@ function recurringStartFor(billingCycleStart: string | null, onboardedAt: Date):
 	return nextRecurringBillingDate(billingCycleStart.slice(0, 10), onboardedAt.toISOString().slice(0, 10));
 }
 
+// ── Telnyx 10DLC (#13) ──────────────────────────────────────────────────────
+//
+// One brand and one campaign PER TENANT — dialtone/developer/10dlc-campaign-registration.md.
+// The brand is registered when the business is onboarded (a TCR fee, spent only on
+// a customer who has paid the setup fee), never blocking the signoff; the campaign
+// is submitted from Portal Admin once the tenant is live, after the portal has
+// checked that every link a reviewer might click answers. State lives on
+// businesses.tcr_*; the marketing DID stays a DialTone provisioning step.
+
+type TcrBusiness = {
+	id: string;
+	name: string;
+	ein: string | null;
+	ein_verified: boolean | null;
+	address_verified: boolean | null;
+	is_food_truck: boolean | null;
+	dialtone_location_id: string | null;
+	tcr_entity_type: string | null;
+	tcr_brand_id: string | null;
+	tcr_brand_status: string | null;
+	tcr_campaign_id: string | null;
+	tcr_campaign_status: string | null;
+};
+
+const TCR_BUSINESS_FIELDS = 'id,name,ein,ein_verified,address_verified,is_food_truck,dialtone_location_id,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status';
+
+function telnyxApiKey(): string | null {
+	return env.TELNYX_API_KEY?.trim() || null;
+}
+
+async function loadTcrContext(businessId: string) {
+	const supabase = getSupabase();
+	const { data: business, error } = await supabase
+		.from('businesses')
+		.select(TCR_BUSINESS_FIELDS)
+		.eq('id', businessId)
+		.single();
+	if (error || !business) throw new Error(error?.message ?? 'Business not found');
+	const biz = business as TcrBusiness;
+	if (!biz.dialtone_location_id) throw new Error('Not a DialTone.Menu tenant');
+
+	const { data: location } = await supabase
+		.from('locations')
+		.select('address_line1,city,state,postal_code,restaurant_id')
+		.eq('id', biz.dialtone_location_id)
+		.single();
+	if (!location?.restaurant_id) throw new Error('Tenant location not found');
+
+	const { data: restaurant } = await supabase
+		.from('restaurants')
+		.select('id,name,slug,phone_number')
+		.eq('id', location.restaurant_id)
+		.single();
+	if (!restaurant) throw new Error('Tenant restaurant not found');
+
+	const { data: account } = await supabase
+		.from('portal_accounts')
+		.select('email')
+		.eq('business_id', businessId)
+		.eq('role', 'owner')
+		.limit(1)
+		.maybeSingle();
+
+	return { supabase, biz, location, restaurant, ownerEmail: account?.email ?? null };
+}
+
+async function stampTcr(businessId: string, patch: Record<string, unknown>): Promise<void> {
+	const supabase = getSupabase();
+	const { error } = await supabase
+		.from('businesses')
+		.update({ ...patch, tcr_last_checked_at: new Date().toISOString() })
+		.eq('id', businessId);
+	if (error) throw new Error(error.message);
+}
+
+/**
+ * Register the tenant's brand, or refresh its status if one exists. Returns a
+ * human line for the admin. Throws only on a portal-side problem; a Telnyx
+ * refusal is recorded on the row and returned as the message.
+ */
+async function registerOrRefreshBrand(businessId: string): Promise<{ brand_id: string | null; brand_status: string | null; message: string }> {
+	const apiKey = telnyxApiKey();
+	if (!apiKey) return { brand_id: null, brand_status: null, message: '10DLC brand registration skipped (TELNYX_API_KEY not set).' };
+
+	const { biz, location, restaurant, ownerEmail } = await loadTcrContext(businessId);
+
+	if (biz.tcr_brand_id) {
+		try {
+			const brand = await getBrand(apiKey, biz.tcr_brand_id);
+			await stampTcr(businessId, { tcr_brand_status: brand.identityStatus, tcr_last_error: null });
+			return { brand_id: brand.brandId, brand_status: brand.identityStatus, message: `Brand ${brand.brandId} is ${brand.identityStatus}.` };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Brand status check failed';
+			await stampTcr(businessId, { tcr_last_error: message });
+			return { brand_id: biz.tcr_brand_id, brand_status: biz.tcr_brand_status, message };
+		}
+	}
+
+	// A brand is the business's identity with TCR; an unverified EIN or address
+	// is what TCR would reject, so it is refused here rather than paid for.
+	if (!biz.ein_verified || !biz.address_verified) {
+		return { brand_id: null, brand_status: null, message: 'EIN and address must both be verified before the 10DLC brand is registered.' };
+	}
+	const phone = toE164(restaurant.phone_number ?? '');
+	if (!phone) return { brand_id: null, brand_status: null, message: 'The restaurant phone is not a valid US number; fix it before registering the brand.' };
+	if (!ownerEmail) return { brand_id: null, brand_status: null, message: 'No owner email on the portal account.' };
+	const entityType = (biz.tcr_entity_type ?? 'PRIVATE_PROFIT') as TcrEntityType;
+
+	try {
+		const brand = await createBrand(apiKey, buildBrandRequest({
+			legalName: biz.name,
+			displayName: restaurant.name,
+			einDigits: biz.ein ?? '',
+			phoneE164: phone,
+			street: location.address_line1 ?? '',
+			city: location.city ?? '',
+			state: location.state ?? '',
+			postalCode: location.postal_code ?? '',
+			email: ownerEmail,
+			website: `https://${restaurant.slug}.m.dialtone.menu`,
+			entityType
+		}));
+		await stampTcr(businessId, {
+			tcr_brand_id: brand.brandId,
+			tcr_brand_status: brand.identityStatus,
+			tcr_brand_registered_at: new Date().toISOString(),
+			tcr_last_error: null
+		});
+		return { brand_id: brand.brandId, brand_status: brand.identityStatus, message: `Brand ${brand.brandId} registered (${brand.identityStatus}).` };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : 'Brand registration failed';
+		await stampTcr(businessId, { tcr_last_error: message });
+		return { brand_id: null, brand_status: null, message };
+	}
+}
+
+async function handleTcrRegisterBrand(request: Request): Promise<Response> {
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+	const businessId = normalizeText(body?.business_id, 200);
+	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
+	try {
+		return jsonResponse({ ok: true, ...(await registerOrRefreshBrand(businessId)) });
+	} catch (err) {
+		return jsonResponse({ error: err instanceof Error ? err.message : 'Failed' }, 500);
+	}
+}
+
+async function handleTcrRefresh(request: Request): Promise<Response> {
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+	const businessId = normalizeText(body?.business_id, 200);
+	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
+	const apiKey = telnyxApiKey();
+	if (!apiKey) return jsonResponse({ error: 'TELNYX_API_KEY is not configured' }, 503);
+	try {
+		const { biz } = await loadTcrContext(businessId);
+		const patch: Record<string, unknown> = { tcr_last_error: null };
+		const lines: string[] = [];
+		if (biz.tcr_brand_id) {
+			const brand = await getBrand(apiKey, biz.tcr_brand_id);
+			patch.tcr_brand_status = brand.identityStatus;
+			lines.push(`Brand ${brand.identityStatus}`);
+		}
+		if (biz.tcr_campaign_id) {
+			const campaign = await getCampaign(apiKey, biz.tcr_campaign_id);
+			patch.tcr_campaign_status = campaign.campaignStatus;
+			if (campaign.failureReasons) patch.tcr_last_error = campaign.failureReasons;
+			lines.push(`Campaign ${campaign.campaignStatus ?? 'unknown'}`);
+		}
+		if (lines.length === 0) return jsonResponse({ error: 'Nothing registered yet.' }, 409);
+		await stampTcr(businessId, patch);
+		return jsonResponse({ ok: true, message: lines.join(' · ') });
+	} catch (err) {
+		const message = err instanceof Error ? err.message : 'Refresh failed';
+		await stampTcr(businessId, { tcr_last_error: message }).catch(() => undefined);
+		return jsonResponse({ error: message }, 502);
+	}
+}
+
+async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
+	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+	const businessId = normalizeText(body?.business_id, 200);
+	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
+	const apiKey = telnyxApiKey();
+	if (!apiKey) return jsonResponse({ error: 'TELNYX_API_KEY is not configured' }, 503);
+	const appUrl = env.SUPABASE_URL?.trim();
+	if (!appUrl) return jsonResponse({ error: 'SUPABASE_URL is not configured' }, 503);
+
+	try {
+		const { biz, restaurant } = await loadTcrContext(businessId);
+		if (biz.tcr_campaign_id) return jsonResponse({ error: `Campaign ${biz.tcr_campaign_id} already submitted (${biz.tcr_campaign_status ?? 'status unknown'}).` }, 409);
+		if (!biz.tcr_brand_id) return jsonResponse({ error: 'Register the brand first.' }, 409);
+
+		// Always the LIVE brand status: a campaign against an unverified brand is refused by Telnyx.
+		const brand = await getBrand(apiKey, biz.tcr_brand_id);
+		await stampTcr(businessId, { tcr_brand_status: brand.identityStatus });
+		if (!brandIsVerified(brand.identityStatus)) {
+			return jsonResponse({ error: `Brand is ${brand.identityStatus}; TCR must verify it before a campaign can be submitted.` }, 409);
+		}
+
+		const menuHost = `https://${restaurant.slug}.m.dialtone.menu`;
+		const evidence = conventionalEvidenceUrls(appUrl, restaurant.id);
+		// EVERY link a reviewer might click, before anything is sent. A dead evidence
+		// or embedded link was its own rejection bullet on CW2K3CT.
+		const check = await checkUrlsResolve([menuHost, `${menuHost}/menu`, ...Object.values(evidence)]);
+		if (!check.ok) {
+			return jsonResponse({ error: `Not submitted — these links do not resolve yet: ${check.dead.join(', ')}` }, 422);
+		}
+
+		const campaign = await submitCampaign(apiKey, buildCampaignRequest({
+			brandId: brand.brandId,
+			brandName: restaurant.name,
+			venue: biz.is_food_truck ? 'food_truck' : 'restaurant',
+			menuHost,
+			evidence
+		}));
+		await stampTcr(businessId, {
+			tcr_campaign_id: campaign.campaignId,
+			tcr_campaign_status: campaign.campaignStatus,
+			tcr_campaign_submitted_at: new Date().toISOString(),
+			tcr_last_error: campaign.failureReasons
+		});
+		return jsonResponse({ ok: true, campaign_id: campaign.campaignId, campaign_status: campaign.campaignStatus, message: `Campaign ${campaign.campaignId} submitted (${campaign.campaignStatus ?? 'pending'}).` });
+	} catch (err) {
+		const message = err instanceof Error ? err.message : 'Campaign submission failed';
+		await stampTcr(businessId, { tcr_last_error: message }).catch(() => undefined);
+		return jsonResponse({ error: message }, 502);
+	}
+}
+
 async function handleOnboardingSignoff(request: Request, actorEmail: string): Promise<Response> {
 	const body = await request.json().catch(() => null) as Record<string, unknown> | null;
 	if (!body) return jsonResponse({ error: 'Invalid body' }, 400);
@@ -1384,7 +1641,14 @@ async function handleOnboardingSignoff(request: Request, actorEmail: string): Pr
 		.eq('id', businessId);
 
 	if (updateError) return jsonResponse({ error: updateError.message }, 500);
-	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt });
+
+	// The brand rides on onboarding (#13): the setup fee is paid, so the TCR fee is
+	// spent on a real customer. Never blocks the signoff — a refusal is recorded on
+	// the row and said back to the admin, who can retry from the customer table.
+	const tcr = await registerOrRefreshBrand(businessId).catch((err: unknown) => ({
+		brand_id: null, brand_status: null, message: err instanceof Error ? err.message : 'Brand registration failed'
+	}));
+	return jsonResponse({ ok: true, onboarded_at: onboardedAt.toISOString(), recurring_billing_starts_at: recurringStartsAt, tcr });
 }
 
 // Must match the published price list in dialtone_menu/public/pricing.html.
@@ -1417,6 +1681,10 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 	const ein = normalizeText(body.ein, 20) || null;
 	const tier = normalizeText(body.tier, 50) || null;
 	const requestedOnboarded = Boolean(body.onboarded);
+	// TCR entity type for the 10DLC brand (#13). Sole proprietors are excluded on
+	// purpose: the portal requires an EIN, and that path is OTP-vetted, not EIN-vetted.
+	const entityTypeInput = normalizeText(body.tcr_entity_type, 20).toUpperCase();
+	const tcrEntityType: TcrEntityType | null = (['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'NON_PROFIT'] as const).find((t) => t === entityTypeInput) ?? null;
 
 	if (!accountId) return jsonResponse({ error: 'account_id is required' }, 400);
 	if (!businessName) return jsonResponse({ error: 'business_name is required' }, 400);
@@ -1481,7 +1749,10 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 		}
 	}
 
-	if (requestedOnboarded && !business.onboarded) {
+	if (tcrEntityType) businessUpdates.tcr_entity_type = tcrEntityType;
+
+	const onboardingNow = requestedOnboarded && !business.onboarded;
+	if (onboardingNow) {
 		const onboardedAt = new Date();
 		const recurringStartsAt = recurringStartFor(business.billing_cycle_start, onboardedAt);
 		Object.assign(businessUpdates, {
@@ -1508,6 +1779,15 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 	} else {
 		const { error: phoneError } = await supabase.from('businesses').update({ phone }).eq('id', business.id);
 		if (phoneError) return jsonResponse({ error: phoneError.message }, 500);
+	}
+
+	// Same rule as the signoff endpoint (#13): onboarding is when the brand is
+	// registered, and a Telnyx refusal is said back rather than failing the save.
+	if (onboardingNow && account.product === 'dialtone_menu') {
+		const tcr = await registerOrRefreshBrand(business.id).catch((err: unknown) => ({
+			brand_id: null, brand_status: null, message: err instanceof Error ? err.message : 'Brand registration failed'
+		}));
+		return jsonResponse({ ok: true, tcr });
 	}
 
 	return jsonResponse({ ok: true });
@@ -1703,6 +1983,9 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 	if (params.path === 'onboarding-signoff') return handleOnboardingSignoff(request, locals.user!.email);
 	if (params.path === 'customer') return handleUpdateCustomer(request, locals.user!.email);
 	if (params.path === 'reverify') return handleReverify(request);
+	if (params.path === 'tcr-register-brand') return handleTcrRegisterBrand(request);
+	if (params.path === 'tcr-refresh') return handleTcrRefresh(request);
+	if (params.path === 'tcr-submit-campaign') return handleTcrSubmitCampaign(request);
 	if (params.path === 'resend-invite') return handleResendInvite(request);
 	if (params.path === 'message') return handleMessage(request);
 	if (params.path === 'settings') return handleUpdateSettings(request, locals.user!.email);
