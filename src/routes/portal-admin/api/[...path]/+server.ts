@@ -5,8 +5,11 @@ import {
 	buildBrandRequest,
 	buildCampaignRequest,
 	checkUrlsResolve,
-	conventionalEvidenceUrls,
+	conventionalEvidenceBase,
 	createBrand,
+	evidenceUrlsFromBase,
+	isEvidenceBase,
+	isMenuHost,
 	getBrand,
 	getCampaign,
 	submitCampaign,
@@ -59,6 +62,8 @@ type BusinessRow = {
 	tcr_campaign_status?: string | null;
 	tcr_last_error?: string | null;
 	tcr_last_checked_at?: string | null;
+	tcr_menu_host?: string | null;
+	tcr_evidence_base_url?: string | null;
 	recurring_billing_starts_at: string | null;
 	dialtone_location_id: string | null;
 	address: string | null;
@@ -300,7 +305,7 @@ async function handleCustomers(): Promise<Response> {
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
 			.from('businesses')
-			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,business_address_same,restaurant_address_verified,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
+			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,business_address_same,restaurant_address_verified,tcr_menu_host,tcr_evidence_base_url,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
 			.in('id', businessIds);
 
 		if (businessError) return jsonResponse({ error: businessError.message }, 500);
@@ -329,11 +334,11 @@ async function handleCustomers(): Promise<Response> {
 		}
 	}
 	const restaurantIds = [...new Set(Object.values(locationsById).map((location) => location.restaurant_id).filter((id): id is string => Boolean(id)))];
-	const restaurantsById: Record<string, { tier: string | null; phone_number: string | null }> = {};
+	const restaurantsById: Record<string, { tier: string | null; phone_number: string | null; slug?: string | null }> = {};
 	if (restaurantIds.length > 0) {
 		const { data: restaurants } = await supabase
 			.from('restaurants')
-			.select('id,tier,phone_number')
+			.select('id,tier,phone_number,slug')
 			.in('id', restaurantIds);
 		for (const restaurant of restaurants ?? []) {
 			if (restaurant.id) restaurantsById[restaurant.id] = restaurant;
@@ -393,6 +398,10 @@ async function handleCustomers(): Promise<Response> {
 				tcr_campaign_status: business?.tcr_campaign_status ?? null,
 				tcr_last_error: business?.tcr_last_error ?? null,
 				tcr_last_checked_at: business?.tcr_last_checked_at ?? null,
+				// Defaults for the campaign's two reviewer-facing links, confirmed by the
+				// admin at submit time because the live tenant is the prod clone.
+				tcr_menu_host: business?.tcr_menu_host ?? (restaurant?.slug ? `https://${restaurant.slug}.m.dialtone.menu` : null),
+				tcr_evidence_base_url: business?.tcr_evidence_base_url ?? (location?.restaurant_id ? conventionalEvidenceBase(getPortalSupabaseConfig().url, location.restaurant_id) : null),
 				invited_at: account.invited_at,
 				activated_at: account.activated_at
 			};
@@ -1619,9 +1628,15 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 	if (!businessId) return jsonResponse({ error: 'business_id is required' }, 400);
 	const apiKey = telnyxApiKey();
 	if (!apiKey) return jsonResponse({ error: 'TELNYX_API_KEY is not configured' }, 503);
-	// The evidence bucket lives in the project the TENANTS live in — the one the
-	// restaurant rows are read from — never the CRM project behind plain
-	// SUPABASE_URL, which has no compliance-evidence bucket at all.
+	// The two links the reviewer clicks, confirmed by the admin. The row the
+	// portal created lives in the tenants' project (staging), and the LIVE tenant
+	// is its prod clone: a different project for the evidence bucket, possibly a
+	// different restaurant id. Defaults are the conventional paths; the admin
+	// pastes the live ones when they differ. Both are validated as OURS.
+	const menuHostInput = normalizeText(body?.menu_host, 200).replace(/\/$/, '');
+	const evidenceInput = normalizeText(body?.evidence_base_url, 300).replace(/\/$/, '');
+	if (menuHostInput && !isMenuHost(menuHostInput)) return jsonResponse({ error: 'menu_host must be an https://<slug>.m.dialtone.menu host' }, 400);
+	if (evidenceInput && !isEvidenceBase(evidenceInput)) return jsonResponse({ error: 'evidence_base_url must be a public compliance-evidence folder in a Supabase project' }, 400);
 	const appUrl = getPortalSupabaseConfig().url;
 
 	try {
@@ -1636,8 +1651,9 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 			return jsonResponse({ error: `Brand is ${brand.identityStatus}; TCR must verify it before a campaign can be submitted.` }, 409);
 		}
 
-		const menuHost = `https://${restaurant.slug}.m.dialtone.menu`;
-		const evidence = conventionalEvidenceUrls(appUrl, restaurant.id);
+		const menuHost = menuHostInput || `https://${restaurant.slug}.m.dialtone.menu`;
+		const evidenceBase = evidenceInput || conventionalEvidenceBase(appUrl, restaurant.id);
+		const evidence = evidenceUrlsFromBase(evidenceBase);
 		// EVERY link a reviewer might click, before anything is sent. A dead evidence
 		// or embedded link was its own rejection bullet on CW2K3CT.
 		const check = await checkUrlsResolve([menuHost, `${menuHost}/menu`, ...Object.values(evidence)]);
@@ -1656,6 +1672,8 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 			tcr_campaign_id: campaign.campaignId,
 			tcr_campaign_status: campaign.campaignStatus,
 			tcr_campaign_submitted_at: new Date().toISOString(),
+			tcr_menu_host: menuHost,
+			tcr_evidence_base_url: evidenceBase,
 			tcr_last_error: campaign.failureReasons
 		});
 		return jsonResponse({ ok: true, campaign_id: campaign.campaignId, campaign_status: campaign.campaignStatus, message: `Campaign ${campaign.campaignId} submitted (${campaign.campaignStatus ?? 'pending'}).` });

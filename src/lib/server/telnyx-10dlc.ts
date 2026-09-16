@@ -112,9 +112,26 @@ export const OPTIN_KEYWORDS = 'START,YES,UNSTOP';
 export const OPTOUT_KEYWORDS = 'STOP,UNSUBSCRIBE,CANCEL,QUIT,END,STOPALL';
 export const HELP_KEYWORDS = 'HELP,INFO';
 
+/** The conventional evidence folder in a Supabase project's public bucket. */
+export function conventionalEvidenceBase(appSupabaseUrl: string, restaurantId: string): string {
+	return `${appSupabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/compliance-evidence/${restaurantId}`;
+}
+
+/** The five screenshots the template names, under one folder. */
+export function evidenceUrlsFromBase(baseUrl: string): EvidenceUrls {
+	const base = baseUrl.replace(/\/$/, '');
+	return {
+		cartDisclosure: `${base}/cart_disclosure.jpg`,
+		homeQrCode: `${base}/home_qrcode.jpg`,
+		menuFooterQrCode: `${base}/menu_footer_qrcode.jpg`,
+		kioskThreeOptions: `${base}/kiosk_3_options.jpeg`,
+		kioskDisclosure: `${base}/kiosk_disclosure.jpeg`
+	};
+}
+
 /** The conventional evidence paths in the DialTone app project's public bucket. */
 export function conventionalEvidenceUrls(appSupabaseUrl: string, restaurantId: string): EvidenceUrls {
-	const base = `${appSupabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/compliance-evidence/${restaurantId}`;
+	const base = conventionalEvidenceBase(appSupabaseUrl, restaurantId);
 	return {
 		cartDisclosure: `${base}/cart_disclosure.jpg`,
 		homeQrCode: `${base}/home_qrcode.jpg`,
@@ -413,4 +430,14 @@ export function campaignStatusLabel(status: string | null | undefined): { text: 
 		return { text: status.replace(/_/g, ' '), tone: 'danger' };
 	}
 	return { text: 'In review', tone: 'warning' };
+}
+
+/** An admin-supplied menu host: https and a dialtone.menu host, nothing else. */
+export function isMenuHost(value: string): boolean {
+	return /^https:\/\/[a-z0-9-]+(\.m)?\.dialtone\.menu$/.test(value.trim());
+}
+
+/** An admin-supplied evidence folder: a public compliance-evidence path in a Supabase project. */
+export function isEvidenceBase(value: string): boolean {
+	return /^https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\/public\/compliance-evidence\/[A-Za-z0-9-]+\/?$/.test(value.trim());
 }
