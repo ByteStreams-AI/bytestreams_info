@@ -1486,10 +1486,15 @@ async function loadTcrContext(businessId: string) {
 
 	const { data: restaurant } = await supabase
 		.from('restaurants')
-		.select('id,name,slug,phone_number')
+		.select('id,name,display_name,slug,phone_number')
 		.eq('id', location.restaurant_id)
 		.single();
 	if (!restaurant) throw new Error('Tenant restaurant not found');
+	// The perceived sender is the name the GUEST sees — the branding display
+	// name on the menu page and in the evidence screenshots — not the row's base
+	// name. Shorty's registered as "Shortys" because `name` lacked the
+	// apostrophe while Settings → Branding had it (2026-09-16).
+	const tradingName = restaurant.display_name?.trim() || restaurant.name;
 
 	const { data: account } = await supabase
 		.from('portal_accounts')
@@ -1499,7 +1504,7 @@ async function loadTcrContext(businessId: string) {
 		.limit(1)
 		.maybeSingle();
 
-	return { supabase, biz, location, restaurant, ownerEmail: account?.email ?? null };
+	return { supabase, biz, location, restaurant, tradingName, ownerEmail: account?.email ?? null };
 }
 
 async function stampTcr(businessId: string, patch: Record<string, unknown>): Promise<void> {
@@ -1520,7 +1525,7 @@ async function registerOrRefreshBrand(businessId: string): Promise<{ brand_id: s
 	const apiKey = telnyxApiKey();
 	if (!apiKey) return { brand_id: null, brand_status: null, message: '10DLC brand registration skipped (TELNYX_API_KEY not set).' };
 
-	const { biz, location, restaurant, ownerEmail } = await loadTcrContext(businessId);
+	const { biz, location, restaurant, tradingName, ownerEmail } = await loadTcrContext(businessId);
 
 	if (biz.tcr_brand_id) {
 		try {
@@ -1555,7 +1560,7 @@ async function registerOrRefreshBrand(businessId: string): Promise<{ brand_id: s
 	try {
 		const brand = await createBrand(apiKey, buildBrandRequest({
 			legalName: biz.name,
-			displayName: restaurant.name,
+			displayName: tradingName,
 			einDigits: biz.ein ?? '',
 			phoneE164: phone,
 			street: legal.line1,
@@ -1640,7 +1645,7 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 	const appUrl = getPortalSupabaseConfig().url;
 
 	try {
-		const { biz, restaurant } = await loadTcrContext(businessId);
+		const { biz, restaurant, tradingName } = await loadTcrContext(businessId);
 		if (biz.tcr_campaign_id) return jsonResponse({ error: `Campaign ${biz.tcr_campaign_id} already submitted (${biz.tcr_campaign_status ?? 'status unknown'}).` }, 409);
 		if (!biz.tcr_brand_id) return jsonResponse({ error: 'Register the brand first.' }, 409);
 
@@ -1663,7 +1668,7 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 
 		const campaign = await submitCampaign(apiKey, buildCampaignRequest({
 			brandId: brand.brandId,
-			brandName: restaurant.name,
+			brandName: tradingName,
 			venue: biz.is_food_truck ? 'food_truck' : 'restaurant',
 			menuHost,
 			evidence
