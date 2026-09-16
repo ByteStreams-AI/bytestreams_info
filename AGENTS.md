@@ -320,3 +320,24 @@ to `main` and deployed by CI.
   is scheduled from. An import path is deferred.
 - Dial bridge is verified on Linux only; Windows and macOS paths are the documented
   install locations, to be confirmed on real hardware.
+
+## 2026-09-16 — DialTone Social approval queue (`/social`)
+
+### Summary
+
+The human gate for the DialTone Instagram pipeline. Claude-drafted Stories and feed posts wait here; nothing Claude writes reaches Instagram without an approval on this page. The pipeline itself lives in the `dialtone_social` repo (Worker, generator, renderer, publish workflow); read its `AGENTS.md` and PRD §4.2 before changing behaviour here.
+
+### Changes
+
+- `src/routes/social/` — queue page (phone-first) with Approve / Edit-then-approve / Reject / Regenerate / Reschedule, a "Draft one" form, in-flight and failed draft requests, and scheduled/recent lists. Form actions; auth via `locals.user`.
+- `src/lib/server/social.ts` — Supabase access to `social_posts`, `social_post_events`, `social_generation_requests`, `schedule_slots`, `media_assets` (signed thumbnail URLs, 1h). Every transition writes an audit event with the actor's email and an `approved_unedited` / `approved_edited` outcome.
+- `src/lib/social.ts` — pure helpers: Central ⇄ UTC (DST-safe), open-slot computation, hashtag parsing, a cheap pre-check. Tested in `tests/unit/social.test.ts`.
+- `developer/migrations/013_create_social_tables.sql`, `014_create_social_generation_requests.sql` — copied from `dialtone_social/migrations/`; already applied to the intranet project.
+- Nav gains "Social".
+
+### Rules that matter here
+
+- This page never calls Meta, Claude or Browser Rendering. It writes rows; the `dialtone-social` Worker's 15-minute reconcile cron drafts requests and starts publish workflows. "Draft one" therefore takes up to 15 minutes to show a draft.
+- Reels are not drafted or regenerated here (their copy is `reels/<slug>/script.md` in `dialtone_social`). The form only offers story / image / carousel and pillars P0–P3.
+- Approving an edited caption keeps the original in `caption_original`. The Worker re-runs the full guardrails at publish time; the page's `quickCheck` is a courtesy, not the gate.
+- Rescheduling bumps `schedule_version` and clears `publish_workflow_id`; the Worker creates a fresh workflow instance and the old one exits as stale.

@@ -23,6 +23,7 @@
 		<a href="/crm" class="nav-link">CRM</a>
 		<a href="/calendar" class="nav-link">Calendar</a>
 		<a href="/files" class="nav-link">Files</a>
+		<a href="/social" class="nav-link">Social</a>
 	</nav>
 
 	<div class="nav-user">

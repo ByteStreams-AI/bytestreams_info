@@ -25,7 +25,9 @@ export default defineConfig({
 				'src/routes/calendar/**',
 				'src/routes/files/**',
 					'src/routes/portal-admin/**',
+				'src/routes/social/**',
 				'src/lib/server/supabase.ts',
+				'src/lib/server/social.ts',
 				'src/routes/+page.server.ts'
 			],
 			thresholds: {
