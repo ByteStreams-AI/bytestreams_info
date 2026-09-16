@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { formatAddressLine, legalAddressFor } from '$lib/server/addresses';
 import {
 	brandIsVerified,
 	buildBrandRequest,
@@ -49,6 +50,8 @@ type BusinessRow = {
 	address_verified: boolean | null;
 	onboarded: boolean | null;
 	onboarded_at: string | null;
+	business_address_same?: boolean | null;
+	restaurant_address_verified?: boolean | null;
 	tcr_entity_type?: string | null;
 	tcr_brand_id?: string | null;
 	tcr_brand_status?: string | null;
@@ -156,6 +159,16 @@ function parseStructuredAddress(body: Record<string, unknown>): StripeTaxAddress
 	if (!/^[A-Z]{2}$/.test(state)) return null;
 	if (!/^\d{5}(?:-\d{4})?$/.test(postalCode)) return null;
 	return { line1, city, state, postalCode, country: 'US' };
+}
+
+/** The same shape under `business_*` keys — the legal address on the invite and re-verify forms. */
+function parseBusinessAddress(body: Record<string, unknown>): StripeTaxAddress | null {
+	return parseStructuredAddress({
+		address_street: body.business_street,
+		address_city: body.business_city,
+		address_state: body.business_state,
+		address_zip: body.business_zip
+	});
 }
 
 function portalBaseUrl(): string {
@@ -287,7 +300,7 @@ async function handleCustomers(): Promise<Response> {
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
 			.from('businesses')
-			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
+			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,business_address_same,restaurant_address_verified,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
 			.in('id', businessIds);
 
 		if (businessError) return jsonResponse({ error: businessError.message }, 500);
@@ -353,6 +366,19 @@ async function handleCustomers(): Promise<Response> {
 				address_state: location?.state ?? business?.address_state ?? null,
 				address_zip: location?.postal_code ?? business?.address_postal_code ?? null,
 				address_verified: business?.address_verified ?? false,
+				// The LEGAL address (#13 follow-up). For DialTone.Menu it is the restaurant's
+				// when business_address_same, else the separately entered one.
+				business_address_same: business?.business_address_same ?? true,
+				restaurant_address_verified: business?.restaurant_address_verified ?? false,
+				business_address: formatAddressLine(legalAddressFor({
+					businessAddressSame: business?.business_address_same ?? true,
+					business: business ? { line1: business.address ?? undefined, city: business.address_city ?? undefined, state: business.address_state ?? undefined, postalCode: business.address_postal_code ?? undefined } : null,
+					restaurant: location ? { line1: location.address_line1 ?? undefined, city: location.city ?? undefined, state: location.state ?? undefined, postalCode: location.postal_code ?? undefined } : null
+				})),
+				business_address_street: business?.address ?? null,
+				business_address_city: business?.address_city ?? null,
+				business_address_state: business?.address_state ?? null,
+				business_address_zip: business?.address_postal_code ?? null,
 				phone: restaurant?.phone_number ?? business?.phone ?? null,
 				monthly_amount_cents: business?.monthly_amount_cents ?? null,
 				setup_fee_cents: business?.setup_fee_cents ?? 10000,
@@ -1026,6 +1052,12 @@ async function handleInvite(request: Request): Promise<Response> {
 		const tier = normalizeText(body.tier, 50);
 		const isFoodTruck = Boolean(body.is_food_truck);
 		const billingAddressSame = Boolean(body.billing_address_same);
+		// The LEGAL address can differ from the restaurant's (#13 follow-up): a
+		// business registered at an office or a home and trading elsewhere. TCR
+		// checks the brand against the EIN record, so the legal one is what the
+		// brand carries; the restaurant's stays on the locations row.
+		const businessAddressSame = body.business_address_same === undefined ? true : Boolean(body.business_address_same);
+		const businessAddress = businessAddressSame ? null : parseBusinessAddress(body);
 		// Priced from the tier table server-side. The client sends a tier, never an
 		// amount — trusting a client-supplied price lets any caller name their own.
 		const amountCents = TIER_AMOUNTS_CENTS[tier] ?? 0;
@@ -1033,6 +1065,7 @@ async function handleInvite(request: Request): Promise<Response> {
 		if (!restaurantName) return jsonResponse({ error: 'restaurant_name is required' }, 400);
 		if (!einDigits)      return jsonResponse({ error: 'ein is required' }, 400);
 		if (!address)        return jsonResponse({ error: 'Street, city, two-character state, and valid ZIP code are required' }, 400);
+		if (!businessAddressSame && !businessAddress) return jsonResponse({ error: 'Business street, city, two-character state, and valid ZIP code are required when the business address differs' }, 400);
 		if (!email)          return jsonResponse({ error: 'email is required' }, 400);
 		if (!phone)          return jsonResponse({ error: 'phone is required' }, 400);
 		if (!tier || !(tier in TIER_AMOUNTS_CENTS)) return jsonResponse({ error: 'A valid tier is required for DialTone.Menu' }, 400);
@@ -1041,8 +1074,11 @@ async function handleInvite(request: Request): Promise<Response> {
 			return jsonResponse({ error: 'Invalid email' }, 400);
 		}
 
-		// Address validation + geocoding via PostGrid
+		// Address validation + geocoding via PostGrid — the restaurant's, and the
+		// legal one separately when it differs.
 		const addrResult = await verifyAddressWithPostGrid(address);
+		const legalResult = businessAddress ? await verifyAddressWithPostGrid(businessAddress) : addrResult;
+		const legalAddress = businessAddress ?? address;
 
 		// EIN verification via Cobalt
 		const einVerified = await verifyEINWithCobalt({
@@ -1141,7 +1177,15 @@ async function handleInvite(request: Request): Promise<Response> {
 				ein: einDigits,
 				ein_verified: einVerified,
 				ein_verified_at: einVerified ? new Date().toISOString() : null,
-				address_verified: addrResult.verified,
+				// address_verified is the LEGAL address's result — what onboarding and
+				// the brand require; the restaurant's has its own column.
+				address_verified: legalResult.verified,
+				restaurant_address_verified: addrResult.verified,
+				business_address_same: businessAddressSame,
+				address: legalResult.line1 ?? legalAddress.line1,
+				address_city: legalResult.city ?? legalAddress.city,
+				address_state: legalResult.state ?? legalAddress.state,
+				address_postal_code: legalResult.postalCode ?? legalAddress.postalCode,
 				is_food_truck: isFoodTruck,
 				billing_address_same: billingAddressSame,
 				setup_fee_cents: 10000,
@@ -1203,15 +1247,16 @@ async function handleInvite(request: Request): Promise<Response> {
 
 		const warnings: string[] = [];
 		if (!addrResult.verified) warnings.push(env.POSTGRID_API_KEY
-			? 'Address was saved but could not be verified.'
+			? 'Restaurant address was saved but could not be verified.'
 			: 'Address verification skipped (POSTGRID_API_KEY not set).');
+		if (businessAddress && !legalResult.verified && env.POSTGRID_API_KEY) warnings.push('Business address was saved but could not be verified.');
 		if (!einVerified) warnings.push(env.COBALT_API_KEY
 			? 'EIN was saved but could not be verified.'
 			: 'EIN verification skipped (COBALT_API_KEY not set).');
 
 		if (!env.RESEND_API_KEY) {
 			return jsonResponse({
-				ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
+				ok: true, ein_verified: einVerified, address_verified: legalResult.verified, restaurant_address_verified: addrResult.verified,
 				warning: ['Customer created but setup invoice email not sent (RESEND_API_KEY not set).', ...warnings].join(' ')
 			});
 		}
@@ -1225,7 +1270,7 @@ async function handleInvite(request: Request): Promise<Response> {
 			billId: setupBill?.id ?? ''
 		});
 		return jsonResponse({
-			ok: true, ein_verified: einVerified, address_verified: addrResult.verified,
+			ok: true, ein_verified: einVerified, address_verified: legalResult.verified, restaurant_address_verified: addrResult.verified,
 			warning: [sent ? null : 'Setup invoice email failed to send.', ...warnings].filter(Boolean).join(' ') || undefined
 		});
 	}
@@ -1394,6 +1439,11 @@ type TcrBusiness = {
 	address_verified: boolean | null;
 	is_food_truck: boolean | null;
 	dialtone_location_id: string | null;
+	business_address_same: boolean | null;
+	address: string | null;
+	address_city: string | null;
+	address_state: string | null;
+	address_postal_code: string | null;
 	tcr_entity_type: string | null;
 	tcr_brand_id: string | null;
 	tcr_brand_status: string | null;
@@ -1401,7 +1451,7 @@ type TcrBusiness = {
 	tcr_campaign_status: string | null;
 };
 
-const TCR_BUSINESS_FIELDS = 'id,name,ein,ein_verified,address_verified,is_food_truck,dialtone_location_id,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status';
+const TCR_BUSINESS_FIELDS = 'id,name,ein,ein_verified,address_verified,is_food_truck,dialtone_location_id,business_address_same,address,address_city,address_state,address_postal_code,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status';
 
 function telnyxApiKey(): string | null {
 	return env.TELNYX_API_KEY?.trim() || null;
@@ -1484,6 +1534,14 @@ async function registerOrRefreshBrand(businessId: string): Promise<{ brand_id: s
 	if (!phone) return { brand_id: null, brand_status: null, message: 'The restaurant phone is not a valid US number; fix it before registering the brand.' };
 	if (!ownerEmail) return { brand_id: null, brand_status: null, message: 'No owner email on the portal account.' };
 	const entityType = (biz.tcr_entity_type ?? 'PRIVATE_PROFIT') as TcrEntityType;
+	// The LEGAL address, which TCR checks against the EIN record — not necessarily
+	// where the restaurant is.
+	const legal = legalAddressFor({
+		businessAddressSame: biz.business_address_same ?? true,
+		business: { line1: biz.address ?? undefined, city: biz.address_city ?? undefined, state: biz.address_state ?? undefined, postalCode: biz.address_postal_code ?? undefined },
+		restaurant: { line1: location.address_line1 ?? undefined, city: location.city ?? undefined, state: location.state ?? undefined, postalCode: location.postal_code ?? undefined }
+	});
+	if (!legal) return { brand_id: null, brand_status: null, message: 'The business address is incomplete; fix it before registering the brand.' };
 
 	try {
 		const brand = await createBrand(apiKey, buildBrandRequest({
@@ -1491,10 +1549,10 @@ async function registerOrRefreshBrand(businessId: string): Promise<{ brand_id: s
 			displayName: restaurant.name,
 			einDigits: biz.ein ?? '',
 			phoneE164: phone,
-			street: location.address_line1 ?? '',
-			city: location.city ?? '',
-			state: location.state ?? '',
-			postalCode: location.postal_code ?? '',
+			street: legal.line1,
+			city: legal.city,
+			state: legal.state,
+			postalCode: legal.postalCode,
 			email: ownerEmail,
 			website: `https://${restaurant.slug}.m.dialtone.menu`,
 			entityType
@@ -1802,16 +1860,24 @@ async function handleReverify(request: Request): Promise<Response> {
 		.some((field) => normalizeText(body[field], 200));
 	const newAddress = hasAddressInput ? parseStructuredAddress(body) : null;
 	const newEin = normalizeText(body.ein, 20).replace(/\D/g, '').slice(0, 9);
+	// The legal address (#13 follow-up): re-verified on its own when it differs
+	// from the restaurant's; "same" copies the restaurant's result onto it.
+	const sameFlagGiven = body.business_address_same !== undefined;
+	const businessAddressSame = sameFlagGiven ? Boolean(body.business_address_same) : null;
+	const hasBusinessInput = ['business_street', 'business_city', 'business_state', 'business_zip']
+		.some((field) => normalizeText(body[field], 200));
+	const newBusinessAddress = hasBusinessInput ? parseBusinessAddress(body) : null;
 
 	if (!businessId)            return jsonResponse({ error: 'business_id is required' }, 400);
 	if (hasAddressInput && !newAddress) return jsonResponse({ error: 'Street, city, two-character state, and valid ZIP code are required' }, 400);
-	if (!newAddress && !newEin) return jsonResponse({ error: 'address or ein is required' }, 400);
+	if (hasBusinessInput && !newBusinessAddress) return jsonResponse({ error: 'Business street, city, two-character state, and valid ZIP code are required' }, 400);
+	if (!newAddress && !newEin && !newBusinessAddress && !sameFlagGiven) return jsonResponse({ error: 'address or ein is required' }, 400);
 
 	const supabase = getSupabase();
 
 	const { data: business, error: bizError } = await supabase
 		.from('businesses')
-		.select('id,name,dialtone_location_id,address_state')
+		.select('id,name,dialtone_location_id,address_state,business_address_same,restaurant_address_verified')
 		.eq('id', businessId)
 		.single();
 
@@ -1824,9 +1890,21 @@ async function handleReverify(request: Request): Promise<Response> {
 	if (newAddress) {
 		const addrResult = await verifyAddressWithPostGrid(newAddress);
 		addrVerified = addrResult.verified;
-		bizUpdates.address_verified = addrVerified;
 
 		if (business.dialtone_location_id) {
+			// The restaurant's address. It is ALSO the legal one while the two are the
+			// same, so the legal columns follow it in that case.
+			bizUpdates.restaurant_address_verified = addrVerified;
+			const same = businessAddressSame ?? business.business_address_same ?? true;
+			if (same && !newBusinessAddress) {
+				Object.assign(bizUpdates, {
+					address_verified: addrVerified,
+					address: addrResult.line1 ?? newAddress.line1,
+					address_city: addrResult.city ?? newAddress.city,
+					address_state: addrResult.state ?? newAddress.state,
+					address_postal_code: addrResult.postalCode ?? newAddress.postalCode
+				});
+			}
 			await supabase.from('locations').update({
 				address_line1: addrResult.line1 ?? newAddress.line1,
 				city: addrResult.city ?? newAddress.city,
@@ -1836,6 +1914,7 @@ async function handleReverify(request: Request): Promise<Response> {
 				longitude: addrResult.lng ?? null,
 			}).eq('id', business.dialtone_location_id);
 		} else {
+			bizUpdates.address_verified = addrVerified;
 			Object.assign(bizUpdates, {
 				address: addrResult.line1 ?? newAddress.line1,
 				address_city: addrResult.city ?? newAddress.city,
@@ -1843,6 +1922,37 @@ async function handleReverify(request: Request): Promise<Response> {
 				address_postal_code: addrResult.postalCode ?? newAddress.postalCode
 			});
 		}
+	}
+
+	if (newBusinessAddress) {
+		// A legal address of its own: verified separately, and the two are no longer the same.
+		const legalResult = await verifyAddressWithPostGrid(newBusinessAddress);
+		Object.assign(bizUpdates, {
+			business_address_same: false,
+			address_verified: legalResult.verified,
+			address: legalResult.line1 ?? newBusinessAddress.line1,
+			address_city: legalResult.city ?? newBusinessAddress.city,
+			address_state: legalResult.state ?? newBusinessAddress.state,
+			address_postal_code: legalResult.postalCode ?? newBusinessAddress.postalCode
+		});
+		addrVerified = legalResult.verified;
+	} else if (businessAddressSame === true && business.dialtone_location_id && !newAddress) {
+		// Flipped back to "same" with no new restaurant address: the legal address
+		// becomes the restaurant's current one, with the restaurant's result.
+		const { data: loc } = await supabase
+			.from('locations')
+			.select('address_line1,city,state,postal_code')
+			.eq('id', business.dialtone_location_id)
+			.single();
+		Object.assign(bizUpdates, {
+			business_address_same: true,
+			address_verified: business.restaurant_address_verified ?? false,
+			address: loc?.address_line1 ?? null,
+			address_city: loc?.city ?? null,
+			address_state: loc?.state ?? null,
+			address_postal_code: loc?.postal_code ?? null
+		});
+		addrVerified = business.restaurant_address_verified ?? false;
 	}
 
 	if (newEin) {

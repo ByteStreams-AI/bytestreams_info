@@ -2133,6 +2133,18 @@ our account. What the docs leave open is how long TCR identity verification take
 a fresh brand — it is often immediate on a clean EIN match, and the Refresh button
 exists for when it is not.
 
+### Found by the first test before it ran: two addresses, not one
+
+The plan for the first live brand was Shorty's under ByteStreams LLC with the LLC's EIN —
+and the LLC is not registered at the restaurant. The form had one address block, used
+for the `locations` row and for the business alike. TCR verifies a brand against the
+EIN record, so the brand must carry the LEGAL address, and a restaurant that trades
+in one place and is registered in another is an ordinary case, not an edge. `012`
+adds `business_address_same` and `restaurant_address_verified`; the legal address now
+lives on `businesses.address*` for DialTone.Menu too, `address_verified` means the
+legal one, both forms carry the switch, the table shows two lines when they differ,
+and `legalAddressFor()` is the one place that decides which address the brand gets.
+
 ### Not built, on purpose
 
 Number assignment to the campaign (`POST /v2/10dlc/phone_number_campaigns`) waits on

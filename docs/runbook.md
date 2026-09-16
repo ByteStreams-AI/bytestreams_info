@@ -122,7 +122,7 @@ env.AI    AI
 
 ### 2b. Telnyx 10DLC (Portal Admin, #13)
 
-1. Apply `developer/migrations/portal/011_add_10dlc_registration.sql` to **`mxhyvvgjtqllohpvrwon`** — the project `PORTAL_SUPABASE_URL` points at, where `businesses` lives. Not `hltmzafywzqajjzjpqva` (the CRM project behind plain `SUPABASE_URL`), which has no `businesses` table and fails with `42P01`. `/portal-admin/api/config-debug` prints the host the portal reads.
+1. Apply `developer/migrations/portal/011_add_10dlc_registration.sql` and `012_add_business_legal_address.sql` to **`mxhyvvgjtqllohpvrwon`** — the project `PORTAL_SUPABASE_URL` points at, where `businesses` lives. Not `hltmzafywzqajjzjpqva` (the CRM project behind plain `SUPABASE_URL`), which has no `businesses` table and fails with `42P01`. `/portal-admin/api/config-debug` prints the host the portal reads.
 2. Store `TELNYX_API_KEY` as a Cloudflare Worker secret (`pnpm exec wrangler secret put TELNYX_API_KEY`).
    Use the same Telnyx account DialTone sends from; the brand and campaign are created under it.
 3. Unset, brand registration is skipped with a warning at onboarding; nothing else changes.

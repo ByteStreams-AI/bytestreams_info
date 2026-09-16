@@ -25,6 +25,13 @@
 			address_state: string | null;
 			address_zip: string | null;
 			address_verified: boolean;
+			business_address_same: boolean;
+			restaurant_address_verified: boolean;
+			business_address: string | null;
+			business_address_street: string | null;
+			business_address_city: string | null;
+			business_address_state: string | null;
+			business_address_zip: string | null;
 			phone: string | null;
 			monthly_amount_cents: number | null;
 			setup_fee_cents: number | null;
@@ -99,6 +106,25 @@
 					? `<span class="badge badge-danger">${escHtml(st.replace(/_/g, ' '))}</span>`
 					: `<span class="badge badge-info">Campaign in review</span>`;
 			return `${brand}<br>${campaign} ${btn('tcr-refresh', 'Refresh', 'fa-rotate')}${err}`;
+		}
+
+		/**
+		 * Two addresses when they differ (#13 follow-up): the RESTAURANT's (locations
+		 * row — geocoding, delivery, tax) and the LEGAL one (EIN record, TCR brand).
+		 * One line when they are the same, which is most single-site restaurants.
+		 */
+		function addressCell(r: PortalCustomerRow): string {
+			const badge = (ok: boolean, present: boolean) => ok
+				? '<span class="badge badge-success"><i class="fa-solid fa-location-check"></i> Verified</span>'
+				: present ? '<span class="badge badge-warning">Not Verified</span>' : '<span style="color:var(--muted)">—</span>';
+			const fix = `<button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`;
+			const isMenu = r.product === 'dialtone_menu';
+			if (!isMenu || r.business_address_same) {
+				return `${badge(r.address_verified, Boolean(r.address))}${r.address_verified ? '' : ' ' + fix}`;
+			}
+			return `<span class="text-mono">Restaurant</span> ${badge(r.restaurant_address_verified, Boolean(r.address))}<br>` +
+				`<span class="text-mono">Business</span> ${badge(r.address_verified, Boolean(r.business_address))}` +
+				`${r.address_verified && r.restaurant_address_verified ? '' : ' ' + fix}`;
 		}
 
 		function statusBadge(s: string) {
@@ -183,10 +209,7 @@
 						? '<span class="badge badge-success"><i class="fa-solid fa-shield-check"></i> Verified</span>'
 						: `${r.ein ? '<span class="badge badge-warning">Unverified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
 					}</td>
-					<td>${r.address_verified
-						? '<span class="badge badge-success"><i class="fa-solid fa-location-check"></i> Verified</span>'
-						: `${r.address ? '<span class="badge badge-warning">Not Verified</span>' : '<span style="color:var(--muted)">—</span>'} <button class="btn btn-ghost btn-xs fix-btn" data-biz="${escHtml(r.business_id??'')}"><i class="fa-solid fa-pen-to-square"></i></button>`
-					}</td>
+					<td>${addressCell(r)}</td>
 						<td>${tcrCell(r)}</td>
 						<td><strong>${fmtCents(r.setup_fee_cents ?? 10000)}</strong> setup<br><span class="text-mono">${fmtCents(r.monthly_amount_cents ?? 0)} recurring</span></td>
 						<td>${fmtDate(r.invited_at)}</td>
@@ -441,6 +464,13 @@
 			getEl<HTMLInputElement>('rv-address-state').value = customer.address_state ?? '';
 			getEl<HTMLInputElement>('rv-address-zip').value = customer.address_zip ?? '';
 			getEl<HTMLInputElement>('rv-ein').value = customer.ein ?? '';
+			const same = customer.product !== 'dialtone_menu' || customer.business_address_same;
+			getEl<HTMLInputElement>('rv-business-addr-same').checked = same;
+			getEl('rv-business-addr-wrap').classList.toggle('hidden', same);
+			getEl<HTMLInputElement>('rv-business-street').value = same ? '' : (customer.business_address_street ?? '');
+			getEl<HTMLInputElement>('rv-business-city').value = same ? '' : (customer.business_address_city ?? '');
+			getEl<HTMLInputElement>('rv-business-state').value = same ? '' : (customer.business_address_state ?? '');
+			getEl<HTMLInputElement>('rv-business-zip').value = same ? '' : (customer.business_address_zip ?? '');
 			getEl('rv-error').classList.add('hidden');
 			getEl('rv-success').classList.add('hidden');
 			getEl('rv-form').classList.remove('hidden');
@@ -471,6 +501,11 @@
 						address_city: getEl<HTMLInputElement>('rv-address-city').value.trim() || null,
 						address_state: getEl<HTMLInputElement>('rv-address-state').value.trim().toUpperCase() || null,
 						address_zip: getEl<HTMLInputElement>('rv-address-zip').value.trim() || null,
+						business_address_same: getEl<HTMLInputElement>('rv-business-addr-same').checked,
+						business_street: getEl<HTMLInputElement>('rv-business-street').value.trim() || null,
+						business_city: getEl<HTMLInputElement>('rv-business-city').value.trim() || null,
+						business_state: getEl<HTMLInputElement>('rv-business-state').value.trim().toUpperCase() || null,
+						business_zip: getEl<HTMLInputElement>('rv-business-zip').value.trim() || null,
 						ein: getEl<HTMLInputElement>('rv-ein').value.trim() || null,
 					})
 				});
@@ -576,6 +611,12 @@
 
 		// ── New Customer Modal ────────────────────────────────────────────────────
 		getEl('invite-btn').addEventListener('click',    () => { getEl('invite-modal').classList.remove('hidden'); });
+		getEl<HTMLInputElement>('inv-business-addr-same').addEventListener('change', e => {
+			getEl('inv-business-addr-wrap').classList.toggle('hidden', (e.target as HTMLInputElement).checked);
+		});
+		getEl<HTMLInputElement>('rv-business-addr-same').addEventListener('change', e => {
+			getEl('rv-business-addr-wrap').classList.toggle('hidden', (e.target as HTMLInputElement).checked);
+		});
 		getEl('invite-cancel').addEventListener('click', () => closeModal());
 		getEl('invite-modal').addEventListener('click',  e => { if (e.target === getEl('invite-modal')) closeModal(); });
 
@@ -678,6 +719,23 @@
 				if (!email)          { showErr('Email is required'); return; }
 				if (!phone)          { showErr('Phone is required'); return; }
 				if (!tier)           { showErr('Tier is required'); return; }
+
+				const businessAddrSame = getEl<HTMLInputElement>('inv-business-addr-same').checked;
+				if (!businessAddrSame) {
+					const bStreet = getEl<HTMLInputElement>('inv-business-street').value.trim();
+					const bCity = getEl<HTMLInputElement>('inv-business-city').value.trim();
+					const bState = getEl<HTMLInputElement>('inv-business-state').value.trim().toUpperCase();
+					const bZip = getEl<HTMLInputElement>('inv-business-zip').value.trim();
+					if (!bStreet) { showErr('Business street is required'); return; }
+					if (!bCity)   { showErr('Business city is required'); return; }
+					if (!/^[A-Z]{2}$/.test(bState)) { showErr('Business state must be a two-character code'); return; }
+					if (!/^\d{5}(?:-\d{4})?$/.test(bZip)) { showErr('Enter a valid business ZIP code'); return; }
+					reqBody.business_street = bStreet;
+					reqBody.business_city   = bCity;
+					reqBody.business_state  = bState;
+					reqBody.business_zip    = bZip;
+				}
+				reqBody.business_address_same = businessAddrSame;
 
 				reqBody.restaurant_name      = restaurantName;
 				reqBody.is_food_truck        = getEl<HTMLInputElement>('inv-food-truck').checked;
@@ -917,7 +975,32 @@
 			<div class="form-group">
 				<label for="rv-address-zip">ZIP Code</label>
 				<input id="rv-address-zip" type="text" inputmode="numeric" placeholder="98104" maxlength="10" pattern="[0-9][0-9][0-9][0-9][0-9](-[0-9][0-9][0-9][0-9])?">
-				<p class="form-note">Re-runs PostGrid verification and updates coordinates</p>
+				<p class="form-note">Restaurant address — re-runs PostGrid verification and updates coordinates</p>
+			</div>
+			<div class="form-check-row">
+				<input type="checkbox" id="rv-business-addr-same" checked>
+				<label for="rv-business-addr-same" class="check-label">Business (legal) address is the same as the restaurant address</label>
+			</div>
+			<div id="rv-business-addr-wrap" class="hidden">
+				<div class="form-group">
+					<label for="rv-business-street">Business Street</label>
+					<input id="rv-business-street" type="text" placeholder="500 Church St">
+				</div>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="rv-business-city">City</label>
+						<input id="rv-business-city" type="text" placeholder="Nashville">
+					</div>
+					<div class="form-group">
+						<label for="rv-business-state">State</label>
+						<input id="rv-business-state" type="text" placeholder="TN" minlength="2" maxlength="2" pattern="[A-Za-z][A-Za-z]">
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="rv-business-zip">ZIP Code</label>
+					<input id="rv-business-zip" type="text" inputmode="numeric" placeholder="37219" maxlength="10" pattern="[0-9][0-9][0-9][0-9][0-9](-[0-9][0-9][0-9][0-9])?">
+					<p class="form-note">The address on the EIN record; the 10DLC brand carries this one</p>
+				</div>
 			</div>
 			<div class="form-group">
 				<label for="rv-ein">EIN</label>
@@ -1066,6 +1149,31 @@
 					<div class="form-check-row" style="margin-top:8px;">
 						<input type="checkbox" id="inv-billing-addr">
 						<label for="inv-billing-addr" class="check-label">Also use as billing address</label>
+					</div>
+					<div class="form-check-row" style="margin-top:8px;">
+						<input type="checkbox" id="inv-business-addr-same" checked>
+						<label for="inv-business-addr-same" class="check-label">Business (legal) address is the same as the restaurant address</label>
+					</div>
+				</div>
+				<div id="inv-business-addr-wrap" class="hidden">
+					<div class="form-group">
+						<label for="inv-business-street">Business Street <span class="req">*</span></label>
+						<input id="inv-business-street" type="text" placeholder="500 Church St">
+					</div>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="inv-business-city">City <span class="req">*</span></label>
+							<input id="inv-business-city" type="text" placeholder="Nashville">
+						</div>
+						<div class="form-group">
+							<label for="inv-business-state">State <span class="req">*</span></label>
+							<input id="inv-business-state" type="text" placeholder="TN" minlength="2" maxlength="2" pattern="[A-Za-z][A-Za-z]">
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="inv-business-zip">ZIP Code <span class="req">*</span></label>
+						<input id="inv-business-zip" type="text" inputmode="numeric" placeholder="37219" maxlength="10" pattern="[0-9][0-9][0-9][0-9][0-9](-[0-9][0-9][0-9][0-9])?">
+						<p class="form-note">The address on the EIN record. Used for the 10DLC brand; the restaurant address stays on the location.</p>
 					</div>
 				</div>
 				<div class="form-row">

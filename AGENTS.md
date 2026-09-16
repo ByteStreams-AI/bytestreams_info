@@ -379,6 +379,19 @@ rules are `dialtone/developer/10dlc-campaign-registration.md`, written after cam
 - `TELNYX_API_KEY` Worker secret — the same Telnyx account DialTone sends from. Unset → brand
   registration is skipped with a warning, like PostGrid and Cobalt.
 
+### The legal address is not the restaurant's (same day)
+
+The first test, Shorty's under ByteStreams LLC, exposed it before the first brand was sent: the form
+captured ONE address and used it for the `locations` row (geocoding, delivery, tax) and for the
+business. TCR checks a brand against the EIN record, whose address is the LEGAL one — an office, a
+home, a holding company — not necessarily where the food is sold. `012_add_business_legal_address.sql`
+adds `business_address_same` (default true) and `restaurant_address_verified`; `businesses.address*`
+now hold the legal address for DialTone.Menu too (the restaurant's when same). `address_verified` is
+the legal address's result, which is what onboarding and the brand require. The invite and re-verify
+forms carry a "Business (legal) address is the same as the restaurant address" switch; the customer
+table shows two lines with two badges when they differ; the brand is built from
+`legalAddressFor()` (`src/lib/server/addresses.ts`). **Apply 012 to `mxhyvvgjtqllohpvrwon`.**
+
 ### Not done, on purpose
 
 - **Number assignment.** The tenant's marketing DID is still written on the DialTone side, and
