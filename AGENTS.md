@@ -371,8 +371,9 @@ rules are `dialtone/developer/10dlc-campaign-registration.md`, written after cam
   truck's second is a location message, policy links, embedded link = menu host, number pooling off)
   plus a thin client with an injectable `fetcher`. Unit-tested without a network.
 - `businesses.tcr_*` (`developer/migrations/portal/011_add_10dlc_registration.sql`) — entity type,
-  brand id/status, campaign id/status, last error, last checked. **Apply to the portal Supabase
-  project before deploying.** The marketing DID itself stays a DialTone provisioning step
+  brand id/status, campaign id/status, last error, last checked. **Apply to `mxhyvvgjtqllohpvrwon`
+  before deploying** — the project `PORTAL_SUPABASE_URL` reads; the CRM project has no `businesses`
+  and fails with `42P01`, which happened on first apply. The marketing DID itself stays a DialTone provisioning step
   (`restaurants.marketing_sms_from_number`); this repo never touches the DialTone schema.
 - API actions: `tcr-register-brand`, `tcr-refresh`, `tcr-submit-campaign`, all by `business_id`.
 - `TELNYX_API_KEY` Worker secret — the same Telnyx account DialTone sends from. Unset → brand
