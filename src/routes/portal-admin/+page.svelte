@@ -645,9 +645,14 @@
 						onboarded: getEl<HTMLInputElement>('edit-onboarded').checked
 					})
 				});
-				const data = await res.json() as { error?: string };
+				const data = await res.json() as { error?: string; tcr?: { message: string } };
 				if (!res.ok) throw new Error(data.error ?? 'Failed to update customer');
 				closeEditModal();
+				// Signoff is when the 10DLC brand is registered (#13). The server says
+				// what happened either way, and a precondition stop ("phone is not a
+				// valid US number") never reaches the row's error text, so this is the
+				// only place it is heard. Same surface the row's 10DLC buttons use.
+				if (data.tcr) alert(data.tcr.message);
 				await loadCustomers();
 			} catch (error: unknown) {
 				err.textContent = error instanceof Error ? error.message : 'Failed to update customer';
