@@ -376,6 +376,9 @@ rules are `dialtone/developer/10dlc-campaign-registration.md`, written after cam
   and fails with `42P01`, which happened on first apply. The marketing DID itself stays a DialTone provisioning step
   (`restaurants.marketing_sms_from_number`); this repo never touches the DialTone schema.
 - API actions: `tcr-register-brand`, `tcr-refresh`, `tcr-submit-campaign`, all by `business_id`.
+- **Operator procedure:** `developer/10dlc-tenant-runbook.md` — the click-by-click path from
+  verification through signoff, brand, campaign, review and number assignment, with the state
+  tables and the SQL to confirm each step.
 - `TELNYX_API_KEY` Worker secret — the same Telnyx account DialTone sends from. Unset → brand
   registration is skipped with a warning, like PostGrid and Cobalt.
 
