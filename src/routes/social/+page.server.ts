@@ -1,13 +1,13 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { approvePost, dismissRequest, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest } from '$lib/server/social';
+import { approvePost, dismissRequest, loadDigest, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest } from '$lib/server/social';
 import { GENERATED_FORMATS, GENERATED_PILLARS, localInputToIso, parseHashtags, quickCheck, upcomingOpenSlots, type GeneratedFormat } from '$lib/social';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) throw redirect(302, '/login');
-	const queue = await loadQueue();
+	const [queue, digest] = await Promise.all([loadQueue(), loadDigest()]);
 	const openSlots = upcomingOpenSlots(queue.slots, queue.occupiedIso);
-	return { ...queue, openSlots, user: locals.user };
+	return { ...queue, digest, openSlots, user: locals.user };
 };
 
 function str(form: FormData, key: string): string {

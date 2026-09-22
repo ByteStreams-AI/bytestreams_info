@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import Nav from '$lib/components/Nav.svelte';
 	import { FORMAT_ICON, GENERATED_FORMATS, GENERATED_PILLARS, PILLAR_NAMES, STATUS_COLOR, captionFirstLine, formatLocal, isoToLocalInput } from '$lib/social';
@@ -7,6 +8,43 @@
 	let { data, form } = $props();
 
 	let busy = $state<string | null>(null);
+
+	// Month view. Same library and shape as /calendar, which the intranet already runs —
+	// a second view of an existing pattern, not a new integration.
+	let calEl = $state<HTMLDivElement>();
+	let mix = $state<Array<[string, number]>>([]);
+	let monthLabel = $state('');
+
+	onMount(async () => {
+		const { Calendar } = await import('@fullcalendar/core');
+		const { default: dayGridPlugin } = await import('@fullcalendar/daygrid');
+		if (!calEl) return;
+		const cal = new Calendar(calEl, {
+			plugins: [dayGridPlugin],
+			initialView: 'dayGridMonth',
+			height: 'auto',
+			firstDay: 0,
+			// Times come from /social/events as Central wall time with no offset, which
+			// FullCalendar renders as given. That is deliberate: it makes the grid read Central
+			// for every viewer without @fullcalendar/luxon3 and its luxon peer. Do not set
+			// timeZone here — with no plugin installed it cannot convert and fails silently.
+			headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+			events: '/social/events',
+			eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
+			// The pillar-mix strip (PRD §4.3): what the month is actually made of. A calendar
+			// shows you that days are full; the mix shows you they are all the same thing.
+			eventsSet: (events) => {
+				const counts: Record<string, number> = {};
+				for (const e of events) {
+					const p = (e.extendedProps as { pillar?: string }).pillar ?? '?';
+					counts[p] = (counts[p] ?? 0) + 1;
+				}
+				mix = Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+			},
+			datesSet: (info) => { monthLabel = info.view.title; }
+		});
+		cal.render();
+	});
 	let open = $state<Record<string, 'reject' | 'regenerate' | 'reschedule' | 'remove' | null>>({});
 
 	function toggle(id: string, panel: 'reject' | 'regenerate' | 'reschedule' | 'remove') {
@@ -29,6 +67,40 @@
 </svelte:head>
 
 <Nav user={data.user} />
+
+{#if data.digest}
+	<section class="digest">
+		<div class="digest-figures">
+			<span><strong>{data.digest.publishedLast24h}</strong> published today</span>
+			<span><strong>{data.digest.awaitingReview}</strong> waiting to be read</span>
+			<span><strong>{data.digest.postsLast7}</strong> posts in 7 days <span class="muted">(floor {data.digest.postFloor}, limit {data.digest.postCeiling})</span></span>
+			<span><strong>{data.digest.reelsLast7}</strong> reels in 7 days <span class="muted">(floor {data.digest.reelFloor})</span></span>
+			<span>
+				{#if data.digest.daysSinceLastPost === null}<strong>Nothing published yet</strong>
+				{:else}<strong>{data.digest.daysSinceLastPost}</strong> days since the last post{/if}
+			</span>
+		</div>
+		{#if data.digest.warnings.length}
+			<ul class="digest-warnings">
+				{#each data.digest.warnings as w (w)}<li>{w}</li>{/each}
+			</ul>
+		{/if}
+	</section>
+
+	<section class="month">
+		<div class="month-head">
+			<h2>The month {monthLabel ? `— ${monthLabel}` : ''}</h2>
+			{#if mix.length}
+				<div class="mix">
+					{#each mix as [pillar, n] (pillar)}
+						<span class="chip">{pillar} · {PILLAR_NAMES[pillar] ?? pillar} <strong>{n}</strong></span>
+					{/each}
+				</div>
+			{/if}
+		</div>
+		<div bind:this={calEl}></div>
+	</section>
+{/if}
 
 <main class="social">
 	<header class="head">
@@ -291,4 +363,19 @@
 	.inline-actions form { display: inline; }
 	.small { padding: 4px 10px; font-size: 0.8rem; min-height: 32px; }
 	@media (min-width: 640px) { .actions { grid-template-columns: 2fr 1fr 1fr 1fr; } .actions .btn-primary { grid-column: auto; } }
+
+.digest {
+		margin: 0 0 1.25rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid var(--border, #2a2a2a);
+		border-radius: 8px;
+	}
+	.digest-figures { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 0.95rem; }
+	.digest-figures strong { font-size: 1.05rem; }
+	.digest-warnings { margin: 0.75rem 0 0; padding-left: 1.1rem; }
+	.digest-warnings li { color: var(--color-byte-amber, #e8a020); font-size: 0.9rem; }
+	.month { margin: 0 0 1.75rem; }
+	.month-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem; justify-content: space-between; }
+	.mix { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+	.mix .chip { font-size: 0.8rem; padding: 0.15rem 0.5rem; border: 1px solid var(--border, #2a2a2a); border-radius: 999px; }
 </style>
