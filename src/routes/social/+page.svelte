@@ -34,12 +34,12 @@
 			// The pillar-mix strip (PRD §4.3): what the month is actually made of. A calendar
 			// shows you that days are full; the mix shows you they are all the same thing.
 			eventsSet: (events) => {
-				const counts = new Map<string, number>();
+				const counts: Record<string, number> = {};
 				for (const e of events) {
 					const p = (e.extendedProps as { pillar?: string }).pillar ?? '?';
-					counts.set(p, (counts.get(p) ?? 0) + 1);
+					counts[p] = (counts[p] ?? 0) + 1;
 				}
-				mix = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+				mix = Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
 			},
 			datesSet: (info) => { monthLabel = info.view.title; }
 		});
@@ -82,7 +82,7 @@
 		</div>
 		{#if data.digest.warnings.length}
 			<ul class="digest-warnings">
-				{#each data.digest.warnings as w}<li>{w}</li>{/each}
+				{#each data.digest.warnings as w (w)}<li>{w}</li>{/each}
 			</ul>
 		{/if}
 	</section>
@@ -92,7 +92,7 @@
 			<h2>The month {monthLabel ? `— ${monthLabel}` : ''}</h2>
 			{#if mix.length}
 				<div class="mix">
-					{#each mix as [pillar, n]}
+					{#each mix as [pillar, n] (pillar)}
 						<span class="chip">{pillar} · {PILLAR_NAMES[pillar] ?? pillar} <strong>{n}</strong></span>
 					{/each}
 				</div>
