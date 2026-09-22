@@ -24,10 +24,10 @@
 			initialView: 'dayGridMonth',
 			height: 'auto',
 			firstDay: 0,
-			// No named-timezone plugin is installed (@fullcalendar/luxon3 or similar), and
-			// FullCalendar cannot convert to one without it — setting 'America/Chicago' here
-			// renders the wrong times silently. The default is the viewer's own zone, and the
-			// events endpoint puts the Central time in each title so it is never ambiguous.
+			// Times come from /social/events as Central wall time with no offset, which
+			// FullCalendar renders as given. That is deliberate: it makes the grid read Central
+			// for every viewer without @fullcalendar/luxon3 and its luxon peer. Do not set
+			// timeZone here — with no plugin installed it cannot convert and fails silently.
 			headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
 			events: '/social/events',
 			eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },

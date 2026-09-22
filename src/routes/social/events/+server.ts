@@ -5,7 +5,7 @@
  */
 import { error, json } from '@sveltejs/kit';
 import { loadCalendar } from '$lib/server/social';
-import { PILLAR_NAMES, STATUS_COLOR, FORMAT_ICON, formatLocal } from '$lib/social';
+import { PILLAR_NAMES, STATUS_COLOR, FORMAT_ICON, isoToLocalInput } from '$lib/social';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -18,9 +18,15 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	return json(
 		posts.map((p) => ({
 			id: p.id,
-			// Central in the title, because the grid itself renders in the viewer's own zone.
-			title: `${formatLocal(p.scheduled_for)} CT ${FORMAT_ICON[p.format] ?? ''} ${p.pillar} · ${p.caption.split('\n')[0].slice(0, 32)}`,
-			start: p.scheduled_for,
+			title: `${FORMAT_ICON[p.format] ?? ''} ${p.pillar} · ${p.caption.split('\n')[0].slice(0, 36)}`,
+			// Central WALL TIME with no offset, which FullCalendar treats as "floating" and
+			// renders exactly as given. So the grid reads Central for every viewer without a
+			// named-timezone plugin — @fullcalendar/luxon3 would drag in luxon for what is a
+			// display concern. Setting timeZone: 'America/Chicago' instead does NOT work: with
+			// no plugin installed FullCalendar cannot convert, and renders wrong times silently.
+			// Matters because the operator is moving from Central to Pacific; without this the
+			// grid would say 9:00 while the list beside it said 11:00 CT for the same post.
+			start: isoToLocalInput(p.scheduled_for),
 			backgroundColor: STATUS_COLOR[p.status],
 			borderColor: STATUS_COLOR[p.status],
 			extendedProps: { status: p.status, pillar: p.pillar, pillarLabel: PILLAR_NAMES[p.pillar] ?? p.pillar, format: p.format }
