@@ -266,6 +266,104 @@ async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string
 	}
 }
 
+/**
+ * The daily digest, as a panel rather than an email.
+ *
+ * PRD §4.3 specified a mailed digest, and the Worker has an ALERT_EMAIL var for it — but
+ * nothing in the Worker can send mail (no binding, no provider), and an email nobody opens
+ * is worse than a line at the top of the page somebody is already looking at. Computed
+ * here, rendered on /social. Email can follow if a nudge is wanted when nobody is looking.
+ *
+ * Floors and ceilings are PRD §3.2: at least one post a day and two reels a week, never
+ * more than three a day (21 in seven) or three reels.
+ */
+export interface Digest {
+	publishedLast24h: number;
+	awaitingReview: number;
+	daysSinceLastPost: number | null;
+	postsLast7: number;
+	reelsLast7: number;
+	postFloor: number;
+	postCeiling: number;
+	reelFloor: number;
+	warnings: string[];
+}
+
+export async function loadDigest(): Promise<Digest> {
+	const sb = client();
+	const now = Date.now();
+	const since24 = new Date(now - 86_400_000).toISOString();
+	const since7 = new Date(now - 7 * 86_400_000).toISOString();
+	const live = '("rejected","expired","failed")';
+
+	const [pub24, waiting, last, posts7, reels7] = await Promise.all([
+		sb.from('social_posts').select('id', { count: 'exact', head: true })
+			.eq('status', 'published').is('removed_at', null).gte('published_at', since24),
+		sb.from('social_posts').select('id', { count: 'exact', head: true })
+			.eq('status', 'draft').is('removed_at', null),
+		sb.from('social_posts').select('published_at')
+			.eq('status', 'published').is('removed_at', null)
+			.order('published_at', { ascending: false }).limit(1),
+		sb.from('social_posts').select('id', { count: 'exact', head: true })
+			.eq('origin', 'generated').is('removed_at', null).not('status', 'in', live)
+			.gte('scheduled_for', since7),
+		sb.from('social_posts').select('id', { count: 'exact', head: true })
+			.eq('format', 'reel').is('removed_at', null).not('status', 'in', live)
+			.gte('scheduled_for', since7)
+	]);
+	for (const r of [pub24, waiting, last, posts7, reels7]) if (r.error) throw new Error(r.error.message);
+
+	const lastAt = (last.data?.[0] as { published_at: string } | undefined)?.published_at;
+	const daysSinceLastPost = lastAt ? Math.floor((now - new Date(lastAt).getTime()) / 86_400_000) : null;
+
+	const postsLast7 = posts7.count ?? 0;
+	const reelsLast7 = reels7.count ?? 0;
+	const warnings: string[] = [];
+	if (daysSinceLastPost === null) warnings.push('Nothing has been published yet.');
+	else if (daysSinceLastPost >= 2) warnings.push(`${daysSinceLastPost} days since the last post — the floor is one a day.`);
+	if (postsLast7 < 7) warnings.push(`${postsLast7} posts in the last 7 days; the floor is 7.`);
+	if (reelsLast7 < 2) warnings.push(`${reelsLast7} reels in the last 7 days; the floor is 2. Only you can make those.`);
+	if ((waiting.count ?? 0) > 0) warnings.push(`${waiting.count} draft${waiting.count === 1 ? '' : 's'} waiting to be read.`);
+
+	return {
+		publishedLast24h: pub24.count ?? 0,
+		awaitingReview: waiting.count ?? 0,
+		daysSinceLastPost,
+		postsLast7,
+		reelsLast7,
+		postFloor: 7,
+		postCeiling: POSTS_PER_7_DAYS,
+		reelFloor: 2,
+		warnings
+	};
+}
+
+/**
+ * Everything with a date on it, for the month view — drafts and scheduled posts as well as
+ * published ones, because the question the calendar answers is "what is coming", not "what
+ * happened". Removed posts are left out; they are not coming and they did not happen.
+ */
+export interface CalendarPost {
+	id: string;
+	status: PostStatus;
+	format: PostFormat;
+	pillar: string;
+	scheduled_for: string;
+	caption: string;
+}
+
+export async function loadCalendar(fromIso: string, toIso: string): Promise<CalendarPost[]> {
+	const { data, error } = await client()
+		.from('social_posts')
+		.select('id, status, format, pillar, scheduled_for, caption')
+		.is('removed_at', null)
+		.gte('scheduled_for', fromIso)
+		.lte('scheduled_for', toIso)
+		.order('scheduled_for');
+	if (error) throw new Error(error.message);
+	return (data ?? []) as CalendarPost[];
+}
+
 export async function requestDraft(input: { format: GeneratedFormat; pillar: string; scheduledForIso: string; brief?: string }, actor: string): Promise<void> {
 	const sb = client();
 	const [{ data: live }, { data: pending }] = await Promise.all([
@@ -275,6 +373,13 @@ export async function requestDraft(input: { format: GeneratedFormat; pillar: str
 	if (live?.length) throw new Error('That slot already has a post');
 	if (pending?.length) throw new Error('That slot already has a draft on the way');
 	await assertUnderCeiling(sb, input.scheduledForIso);
+	// reschedulePost has always refused anything under 30 minutes; requestDraft never did,
+	// and the gap bites: reconcile drafts in step 0 and expires passed drafts in step 2 of
+	// the SAME run, so a slot ten minutes out produces a draft that vanishes before it can
+	// be read. The floor is the cron interval plus a real chance to review.
+	if (new Date(input.scheduledForIso).getTime() < Date.now() + 30 * 60_000) {
+		throw new Error('Pick a time at least 30 minutes from now — it takes up to 15 minutes to write the draft, and you need time to read it');
+	}
 	const { error } = await sb.from('social_generation_requests').insert({
 		platform: 'instagram',
 		format: input.format,
