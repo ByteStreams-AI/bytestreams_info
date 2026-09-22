@@ -1,5 +1,5 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { approvePost, dismissRequest, loadQueue, regeneratePost, rejectPost, requestDraft, reschedulePost, retryPost, retryRequest } from '$lib/server/social';
+import { approvePost, dismissRequest, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest } from '$lib/server/social';
 import { GENERATED_FORMATS, GENERATED_PILLARS, localInputToIso, parseHashtags, quickCheck, upcomingOpenSlots, type GeneratedFormat } from '$lib/social';
 import type { PageServerLoad, Actions } from './$types';
 
@@ -45,6 +45,7 @@ export const actions: Actions = {
 		if (!iso) throw new Error('Pick a date and time');
 		await reschedulePost(id, actor, iso);
 	}),
+	remove: withPost((id, actor, form) => removePost(id, actor, str(form, 'reason').trim())),
 	retry: withPost((id, actor) => retryPost(id, actor)),
 	retryRequest: withPost((id, actor) => retryRequest(id, actor)),
 	dismissRequest: withPost((id) => dismissRequest(id)),

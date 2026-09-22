@@ -36,6 +36,10 @@ export interface SocialPost {
 	approved_by: string | null;
 	approved_at: string | null;
 	rejection_reason: string | null;
+	/** Set when the post was taken out of the queue. For a published post this means it was
+	 *  deleted from the account BY HAND — Meta has no delete API. Null means live in the queue. */
+	removed_at: string | null;
+	removed_reason: string | null;
 	created_at: string;
 }
 
@@ -88,9 +92,9 @@ export async function loadQueue(): Promise<{
 	const sb = client();
 	const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
 	const [draftsRes, upcomingRes, recentRes, requestsRes, slotsRes, pendingRes] = await Promise.all([
-		sb.from('social_posts').select('*').eq('status', 'draft').order('scheduled_for'),
-		sb.from('social_posts').select('*').in('status', ['scheduled', 'publishing', 'failed', 'blocked']).gte('scheduled_for', since).order('scheduled_for'),
-		sb.from('social_posts').select('*').in('status', ['published', 'rejected', 'expired']).gte('scheduled_for', since).order('scheduled_for', { ascending: false }).limit(20),
+		sb.from('social_posts').select('*').eq('status', 'draft').is('removed_at', null).order('scheduled_for'),
+		sb.from('social_posts').select('*').in('status', ['scheduled', 'publishing', 'failed', 'blocked']).is('removed_at', null).gte('scheduled_for', since).order('scheduled_for'),
+		sb.from('social_posts').select('*').in('status', ['published', 'rejected', 'expired']).is('removed_at', null).gte('scheduled_for', since).order('scheduled_for', { ascending: false }).limit(20),
 		sb.from('social_generation_requests').select('*').in('status', ['pending', 'failed']).order('created_at', { ascending: false }).limit(20),
 		sb.from('schedule_slots').select('weekday, time_local, format, pillar, is_active').eq('is_active', true),
 		sb.from('social_generation_requests').select('scheduled_for').eq('status', 'pending')
@@ -155,12 +159,46 @@ export async function reschedulePost(id: string, actor: string, scheduledForIso:
 }
 
 /** Retry a failed publish without re-approval (PRD §6.2). */
+/**
+ * Take a post out of the queue without destroying its history.
+ *
+ * Two cases, labelled differently in the UI, stored identically here:
+ *   - a PUBLISHED post the operator deleted from the account by hand. Meta's content
+ *     publishing API has no delete, so this only records what happened outside the
+ *     system; the button must never claim to have removed it from Instagram.
+ *   - a post that never reached Instagram and is only clutter.
+ *
+ * Never a hard delete: social_post_events cascades on delete, so dropping the row would
+ * destroy every publish attempt, failure and rejection reason attached to it — the log
+ * that makes a failure diagnosable at all.
+ */
+export async function removePost(id: string, actor: string, reason: string): Promise<void> {
+	const sb = client();
+	const post = await getPost(sb, id);
+	if (post.removed_at) throw new Error('This post has already been removed');
+	if (post.status === 'publishing') throw new Error('This post is publishing right now — wait for it to finish, then remove it');
+	// A scheduled post still has a workflow asleep somewhere. Bumping the version makes
+	// that instance fail its claim and exit stale rather than publishing something the
+	// operator has just taken out of the queue.
+	const fields: Record<string, unknown> = { removed_at: new Date().toISOString(), removed_reason: reason || null };
+	if (post.status === 'scheduled') fields.schedule_version = post.schedule_version + 1;
+	await patch(sb, id, fields);
+	await logEvent(sb, id, 'removed', actor, { reason, fromStatus: post.status, published: post.status === 'published' });
+}
+
 export async function retryPost(id: string, actor: string): Promise<void> {
 	const sb = client();
 	const post = await getPost(sb, id);
 	if (post.status !== 'failed') throw new Error(`Only failed posts can be retried (this post is ${post.status})`);
-	await patch(sb, id, { status: 'scheduled', schedule_version: post.schedule_version + 1, publish_workflow_id: null, error: null });
-	await logEvent(sb, id, 'retry', actor, { scheduleVersion: post.schedule_version + 1 });
+	// A post that failed AT its slot always has a slot in the past, and Cloudflare
+	// Workflows refuses to sleep until a past time — the instance errors before claiming
+	// the post and the row sits at 'scheduled' forever, invisible to reconcile. The
+	// Worker now guards this too, but a retry should not depend on that: move the slot
+	// to two minutes out so the workflow has something real to wait for.
+	const slotHasPassed = new Date(post.scheduled_for).getTime() <= Date.now();
+	const scheduledFor = slotHasPassed ? new Date(Date.now() + 2 * 60_000).toISOString() : post.scheduled_for;
+	await patch(sb, id, { status: 'scheduled', scheduled_for: scheduledFor, schedule_version: post.schedule_version + 1, publish_workflow_id: null, error: null });
+	await logEvent(sb, id, 'retry', actor, { scheduleVersion: post.schedule_version + 1, movedSlot: slotHasPassed ? scheduledFor : null });
 }
 
 /** Reject the draft and ask the Worker for another for the same slot, with the reason as a negative example. */
