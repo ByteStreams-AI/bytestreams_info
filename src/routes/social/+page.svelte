@@ -7,9 +7,9 @@
 	let { data, form } = $props();
 
 	let busy = $state<string | null>(null);
-	let open = $state<Record<string, 'reject' | 'regenerate' | 'reschedule' | null>>({});
+	let open = $state<Record<string, 'reject' | 'regenerate' | 'reschedule' | 'remove' | null>>({});
 
-	function toggle(id: string, panel: 'reject' | 'regenerate' | 'reschedule') {
+	function toggle(id: string, panel: 'reject' | 'regenerate' | 'reschedule' | 'remove') {
 		open = { ...open, [id]: open[id] === panel ? null : panel };
 	}
 	const submit =
@@ -180,12 +180,33 @@
 					{#if errorFor(p.id)}<span class="err">{errorFor(p.id)}</span>{/if}
 					<span class="inline-actions">
 						{#if p.status === 'failed'}
-							<form method="POST" action="?/retry" use:enhance={submit(p.id)}><input type="hidden" name="id" value={p.id} /><button class="btn-outline small" type="submit">Retry</button></form>
+							<form method="POST" action="?/retry" use:enhance={submit(p.id)}><input type="hidden" name="id" value={p.id} /><button class="btn-outline small" type="submit">Try again</button></form>
 						{/if}
 						{#if p.status !== 'publishing'}
-							<form method="POST" action="?/reject" use:enhance={submit(p.id)}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="reason" value="pulled from schedule" /><button class="btn-outline small danger" type="submit">Pull</button></form>
+							<button class="btn-outline small" type="button" onclick={() => toggle(p.id, 'reschedule')}>Change the time</button>
+							<button class="btn-outline small danger" type="button" onclick={() => toggle(p.id, 'remove')}>Take it off</button>
 						{/if}
 					</span>
+					{#if open[p.id] === 'reschedule'}
+						<form method="POST" action="?/reschedule" class="panel" use:enhance={submit(p.id)}>
+							<input type="hidden" name="id" value={p.id} />
+							<label>
+								<span class="label">New time (Central) — at least 30 minutes from now</span>
+								<input type="datetime-local" name="scheduled_for" value={isoToLocalInput(p.scheduled_for)} required />
+							</label>
+							<button class="btn-outline" type="submit" disabled={busy === p.id}>Move it</button>
+						</form>
+					{:else if open[p.id] === 'remove'}
+						<form method="POST" action="?/remove" class="panel" use:enhance={submit(p.id)}>
+							<input type="hidden" name="id" value={p.id} />
+							<p class="muted">This takes the post out of the queue so it will not go out. It does not delete anything from Instagram — nothing has been posted yet.</p>
+							<label>
+								<span class="label">Why? (optional, for the record)</span>
+								<input name="reason" placeholder="e.g. wrong week for this one" />
+							</label>
+							<button class="btn-outline danger" type="submit" disabled={busy === p.id}>Yes, take it off</button>
+						</form>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -197,6 +218,33 @@
 					<span>{FORMAT_ICON[p.format]} {p.pillar} · {formatLocal(p.scheduled_for)} CT</span>
 					<span class="muted">{captionFirstLine(p.caption)}</span>
 					{#if p.rejection_reason}<span class="muted">— {p.rejection_reason}</span>{/if}
+					{#if errorFor(p.id)}<span class="err">{errorFor(p.id)}</span>{/if}
+					<span class="inline-actions">
+						<button class="btn-outline small danger" type="button" onclick={() => toggle(p.id, 'remove')}>
+							{p.status === 'published' ? 'I deleted this on Instagram' : 'Delete'}
+						</button>
+					</span>
+					{#if open[p.id] === 'remove'}
+						<form method="POST" action="?/remove" class="panel" use:enhance={submit(p.id)}>
+							<input type="hidden" name="id" value={p.id} />
+							{#if p.status === 'published'}
+								<p class="muted">
+									Use this <strong>after</strong> you have deleted the post in the Instagram app. It cannot delete
+									the post for you — Instagram does not allow that from here. It records that the post is gone, so
+									the queue stops counting it as live.
+								</p>
+							{:else}
+								<p class="muted">This hides the post from the queue. It was never posted, so there is nothing on Instagram to remove. The record is kept.</p>
+							{/if}
+							<label>
+								<span class="label">Why? (optional, for the record)</span>
+								<input name="reason" placeholder={p.status === 'published' ? 'e.g. wrong wording on the card' : 'e.g. not needed'} />
+							</label>
+							<button class="btn-outline danger" type="submit" disabled={busy === p.id}>
+								{p.status === 'published' ? 'Yes, it is deleted on Instagram' : 'Yes, delete it'}
+							</button>
+						</form>
+					{/if}
 				</li>
 			{/each}
 		</ul>
