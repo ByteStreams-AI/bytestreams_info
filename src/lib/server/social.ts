@@ -222,6 +222,50 @@ export async function regeneratePost(id: string, actor: string, reason: string):
 }
 
 /** Ask the Worker for a draft in an open slot. The next reconcile run (≤ 15 min) drafts it. */
+/** PRD §3.2: never more than 21 generated posts in any rolling 7 days. */
+export const POSTS_PER_7_DAYS = 21;
+
+/**
+ * Refuse a request that would break the ceiling.
+ *
+ * "No 7-day window holds more than 21" is awkward to prove on insert, so this checks the
+ * two windows a new post at T can push over on its own: the week ending at T and the week
+ * starting at T. Batching forward — which is how a day's worth of drafts actually gets
+ * queued — always lands in one of them. It is an approximation, and a deliberate one: the
+ * exact check is several queries to catch a case nobody produces by hand.
+ *
+ * Counts drafts and scheduled posts as well as published ones, because a pending request
+ * becomes a post; counting only what has gone out would let twenty drafts through and
+ * refuse the twenty-first the morning they all publish.
+ */
+async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string): Promise<void> {
+	const at = new Date(slotIso).getTime();
+	const week = 7 * 86_400_000;
+	const windows: Array<[string, string]> = [
+		[new Date(at - week).toISOString(), slotIso],
+		[slotIso, new Date(at + week).toISOString()]
+	];
+	for (const [from, to] of windows) {
+		const [posts, requests] = await Promise.all([
+			sb.from('social_posts').select('id', { count: 'exact', head: true })
+				.eq('origin', 'generated').is('removed_at', null)
+				.not('status', 'in', '("rejected","expired","failed")')
+				.gte('scheduled_for', from).lte('scheduled_for', to),
+			sb.from('social_generation_requests').select('id', { count: 'exact', head: true })
+				.eq('status', 'pending').gte('scheduled_for', from).lte('scheduled_for', to)
+		]);
+		if (posts.error) throw new Error(posts.error.message);
+		if (requests.error) throw new Error(requests.error.message);
+		const total = (posts.count ?? 0) + (requests.count ?? 0);
+		if (total >= POSTS_PER_7_DAYS) {
+			throw new Error(
+				`That would make ${total + 1} posts in seven days, and the limit is ${POSTS_PER_7_DAYS}. ` +
+				`Pick a time in a quieter week, or take something off the queue first.`
+			);
+		}
+	}
+}
+
 export async function requestDraft(input: { format: GeneratedFormat; pillar: string; scheduledForIso: string; brief?: string }, actor: string): Promise<void> {
 	const sb = client();
 	const [{ data: live }, { data: pending }] = await Promise.all([
@@ -230,6 +274,7 @@ export async function requestDraft(input: { format: GeneratedFormat; pillar: str
 	]);
 	if (live?.length) throw new Error('That slot already has a post');
 	if (pending?.length) throw new Error('That slot already has a draft on the way');
+	await assertUnderCeiling(sb, input.scheduledForIso);
 	const { error } = await sb.from('social_generation_requests').insert({
 		platform: 'instagram',
 		format: input.format,
