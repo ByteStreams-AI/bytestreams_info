@@ -6,7 +6,8 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import type { GeneratedFormat, PostFormat, PostStatus, ScheduleSlot } from '$lib/social';
+import { GENERATED_PILLARS, type GeneratedFormat, type PostFormat, type PostStatus, type ScheduleSlot } from '$lib/social';
+import { quickCheckKnowledge } from '$lib/social';
 
 const BUCKET = 'social-media-assets';
 const THUMB_TTL_SECONDS = 3600;
@@ -362,6 +363,44 @@ export async function loadCalendar(fromIso: string, toIso: string): Promise<Cale
 		.order('scheduled_for');
 	if (error) throw new Error(error.message);
 	return (data ?? []) as CalendarPost[];
+}
+
+/**
+ * The knowledge base, one row per generated pillar.
+ *
+ * Material the generator thinks WITH — never citable. Every pricing, tier, feature or
+ * savings claim still comes from worker/src/facts.ts with an id, which lives in code and
+ * is reviewed in a pull request. Knowledge moved out of code so the person running the
+ * account can add to it without a deploy; the guardrail that kept the two apart moved with
+ * it, and now runs on save.
+ *
+ * A pillar with no row falls back to the corpus compiled into the Worker from
+ * knowledge/*.md, so an empty table degrades to what shipped rather than to nothing.
+ */
+export interface KnowledgePillar {
+	pillar: string;
+	body: string;
+	updated_by: string | null;
+	updated_at: string | null;
+}
+
+export async function loadKnowledge(): Promise<KnowledgePillar[]> {
+	const { data, error } = await client().from('social_knowledge').select('pillar, body, updated_by, updated_at').order('pillar');
+	if (error) throw new Error(error.message);
+	const rows = new Map((data ?? []).map((r) => [(r as KnowledgePillar).pillar, r as KnowledgePillar]));
+	return GENERATED_PILLARS.map((p) => rows.get(p) ?? { pillar: p, body: '', updated_by: null, updated_at: null });
+}
+
+export async function saveKnowledge(pillar: string, body: string, actor: string): Promise<void> {
+	if (!GENERATED_PILLARS.includes(pillar as (typeof GENERATED_PILLARS)[number])) throw new Error(`${pillar} is not a pillar the generator writes`);
+	const reasons = quickCheckKnowledge(body);
+	// Refuse on save, so somebody typing gets told immediately and in plain words. This is a
+	// pre-flight, not the authority: the Worker re-checks every row and falls back to its
+	// compiled corpus for any that breaks the rules, the same way guardrails run at draft
+	// time and again inside the publish workflow.
+	if (reasons.length) throw new Error(reasons.join(' '));
+	const { error } = await client().from('social_knowledge').upsert({ pillar, body: body.trim(), updated_by: actor }, { onConflict: 'pillar' });
+	if (error) throw new Error(error.message);
 }
 
 export async function requestDraft(input: { format: GeneratedFormat; pillar: string; scheduledForIso: string; brief?: string }, actor: string): Promise<void> {

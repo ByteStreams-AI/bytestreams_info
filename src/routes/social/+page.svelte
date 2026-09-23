@@ -3,11 +3,18 @@
 	import { onMount } from 'svelte';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import Nav from '$lib/components/Nav.svelte';
-	import { FORMAT_ICON, GENERATED_FORMATS, GENERATED_PILLARS, PILLAR_NAMES, STATUS_COLOR, captionFirstLine, formatLocal, isoToLocalInput } from '$lib/social';
+	import { PILLAR_NAMES as PN, quickCheckKnowledge, FORMAT_ICON, GENERATED_FORMATS, GENERATED_PILLARS, PILLAR_NAMES, STATUS_COLOR, captionFirstLine, formatLocal, isoToLocalInput } from '$lib/social';
 
 	let { data, form } = $props();
 
 	let busy = $state<string | null>(null);
+	// Seeded from the server, then left alone. `??=` matters: after a REFUSED save the page
+	// reloads with the stored value, and overwriting would throw away what the person typed
+	// along with the explanation of why it was refused.
+	let knowledgeDraft = $state<Record<string, string>>({});
+	$effect(() => {
+		for (const k of data.knowledge ?? []) knowledgeDraft[k.pillar] ??= k.body;
+	});
 
 	// Month view. Same library and shape as /calendar, which the intranet already runs —
 	// a second view of an existing pattern, not a new integration.
@@ -323,6 +330,40 @@
 	</section>
 </main>
 
+{#if data.knowledge}
+	<section class="knowledge">
+		<h2>What Claude knows</h2>
+		<p class="muted">
+			Background material the writing draws on — the moments that cost an operator money, how
+			menus behave, how an owner reads a cost. It is <strong>never quoted as fact</strong>: every
+			price, tier and feature claim still comes from the fact sheet in code. So no figures here,
+			and no company names.
+			A pillar left empty falls back to the material built into the system.
+		</p>
+		{#each data.knowledge as k (k.pillar)}
+			<details class="pillar">
+				<summary>
+					{k.pillar} · {PN[k.pillar] ?? k.pillar}
+					<span class="muted">
+						{#if k.updated_at}edited {formatLocal(k.updated_at)} CT by {k.updated_by}{:else}using the built-in material{/if}
+					</span>
+				</summary>
+				<form method="POST" action="?/saveKnowledge" use:enhance={submit(k.pillar)}>
+					<input type="hidden" name="pillar" value={k.pillar} />
+					<textarea name="body" rows="16" bind:value={knowledgeDraft[k.pillar]}></textarea>
+					{#if knowledgeDraft[k.pillar] && quickCheckKnowledge(knowledgeDraft[k.pillar]).length}
+						<ul class="knowledge-problems">
+							{#each quickCheckKnowledge(knowledgeDraft[k.pillar]) as p (p)}<li>{p}</li>{/each}
+						</ul>
+					{/if}
+					{#if errorFor(k.pillar)}<p class="err">{errorFor(k.pillar)}</p>{/if}
+					<button class="btn-outline" type="submit" disabled={busy === k.pillar}>Save {k.pillar}</button>
+				</form>
+			</details>
+		{/each}
+	</section>
+{/if}
+
 <style>
 	.social { max-width: 760px; margin: 0 auto; padding: var(--space-lg) var(--space-md) var(--space-3xl); display: grid; gap: var(--space-lg); }
 	.head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md); }
@@ -377,5 +418,11 @@
 	.month { margin: 0 0 1.75rem; }
 	.month-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem; justify-content: space-between; }
 	.mix { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+	.knowledge { margin: 2rem 0 1rem; }
+	.knowledge .pillar { border: 1px solid var(--border, #2a2a2a); border-radius: 8px; margin: 0.5rem 0; padding: 0.6rem 0.9rem; }
+	.knowledge summary { cursor: pointer; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: baseline; }
+	.knowledge textarea { width: 100%; margin: 0.75rem 0 0.5rem; font-family: inherit; font-size: 0.9rem; line-height: 1.5; }
+	.knowledge-problems { margin: 0 0 0.5rem; padding-left: 1.1rem; }
+	.knowledge-problems li { color: var(--color-byte-amber, #e8a020); font-size: 0.85rem; }
 	.mix .chip { font-size: 0.8rem; padding: 0.15rem 0.5rem; border: 1px solid var(--border, #2a2a2a); border-radius: 999px; }
 </style>
