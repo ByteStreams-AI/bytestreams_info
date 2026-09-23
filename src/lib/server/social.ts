@@ -248,7 +248,9 @@ async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string
 	for (const [from, to] of windows) {
 		const [posts, requests] = await Promise.all([
 			sb.from('social_posts').select('id', { count: 'exact', head: true })
-				.eq('origin', 'generated').is('removed_at', null)
+				// `library` counts too (migration 017): a hand-assembled carousel takes a slot
+				// and reaches the same audience, so it goes against the ceiling like any post.
+				.in('origin', ['generated', 'library']).is('removed_at', null)
 				.not('status', 'in', '("rejected","expired","failed")')
 				.gte('scheduled_for', from).lte('scheduled_for', to),
 			sb.from('social_generation_requests').select('id', { count: 'exact', head: true })
@@ -305,7 +307,7 @@ export async function loadDigest(): Promise<Digest> {
 			.eq('status', 'published').is('removed_at', null)
 			.order('published_at', { ascending: false }).limit(1),
 		sb.from('social_posts').select('id', { count: 'exact', head: true })
-			.eq('origin', 'generated').is('removed_at', null).not('status', 'in', live)
+			.in('origin', ['generated', 'library']).is('removed_at', null).not('status', 'in', live)
 			.gte('scheduled_for', since7),
 		sb.from('social_posts').select('id', { count: 'exact', head: true })
 			.eq('format', 'reel').is('removed_at', null).not('status', 'in', live)
