@@ -159,3 +159,30 @@ export function quickCheck(caption: string, hashtags: string[]): string[] {
 export function captionFirstLine(caption: string): string {
 	return (caption ?? '').split('\n').find((l) => l.trim())?.trim() ?? '';
 }
+
+/**
+ * Pre-flight for the knowledge base, shown while somebody is editing a pillar in /social.
+ *
+ * A deliberate near-copy of the Worker's `checkKnowledge`, for the same reason `quickCheck`
+ * near-copies the caption guardrails: this runs in the browser and in the SvelteKit server,
+ * neither of which can import from the Worker. It is not the authority. The Worker re-checks
+ * every row before putting it in the prompt and falls back to its compiled corpus for any
+ * that fails, so drift here means a confusing save, never bad material reaching the model.
+ */
+export function quickCheckKnowledge(body: string): string[] {
+	const problems: string[] = [];
+	const lower = body.toLowerCase();
+	if (!body.trim()) problems.push('Nothing to save — an empty pillar falls back to the built-in material.');
+	if (body.length > 12000) problems.push(`This is ${body.length} characters; keep a pillar under 12,000.`);
+	// Clock times are fine and are the good kind of concrete ("Friday at 7:15 the phone
+	// rings out"). Money, percentages and bare quantities become an uncitable statistic.
+	const withoutTimes = body.replace(/\b\d{1,2}:\d{2}\b/g, '').replace(/\b\d{1,2}\s?[ap]m\b/gi, '');
+	const figures = [...new Set(withoutTimes.match(/\$\s?\d|\d+\s?%|\b\d{2,}\b/g) ?? [])];
+	if (figures.length)
+		problems.push(`Remove the figures (${figures.join(', ')}). Knowledge is never cited, so a number here becomes a statistic with nothing behind it.`);
+	for (const w of ['agentic', 'ai-powered', 'revolutionary', 'leverage', 'seamless', 'cutting-edge', 'game-changing', 'restaurant tech', 'pos system', 'not a pos'])
+		if (lower.includes(w)) problems.push(`Remove "${w}" — it is on the banned list.`);
+	for (const v of ['stripe', 'doordash', 'nash', 'telnyx', 'twilio', 'vapi', 'elevenlabs'])
+		if (new RegExp(`\\b${v}\\b`).test(lower)) problems.push(`Remove "${v}" — we never name the companies we build on.`);
+	return problems;
+}

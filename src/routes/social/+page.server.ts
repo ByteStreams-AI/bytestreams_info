@@ -1,13 +1,13 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { approvePost, dismissRequest, loadDigest, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest } from '$lib/server/social';
+import { approvePost, dismissRequest, loadDigest, loadKnowledge, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest, saveKnowledge } from '$lib/server/social';
 import { GENERATED_FORMATS, GENERATED_PILLARS, localInputToIso, parseHashtags, quickCheck, upcomingOpenSlots, type GeneratedFormat } from '$lib/social';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) throw redirect(302, '/login');
-	const [queue, digest] = await Promise.all([loadQueue(), loadDigest()]);
+	const [queue, digest, knowledge] = await Promise.all([loadQueue(), loadDigest(), loadKnowledge()]);
 	const openSlots = upcomingOpenSlots(queue.slots, queue.occupiedIso);
-	return { ...queue, digest, openSlots, user: locals.user };
+	return { ...queue, digest, knowledge, openSlots, user: locals.user };
 };
 
 function str(form: FormData, key: string): string {
@@ -46,6 +46,16 @@ export const actions: Actions = {
 		await reschedulePost(id, actor, iso);
 	}),
 	remove: withPost((id, actor, form) => removePost(id, actor, str(form, 'reason').trim())),
+	saveKnowledge: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+		const form = await request.formData();
+		try {
+			await saveKnowledge(str(form, 'pillar'), str(form, 'body'), locals.user.email);
+			return { saved: str(form, 'pillar') };
+		} catch (e) {
+			return fail(400, { id: str(form, 'pillar'), message: e instanceof Error ? e.message : String(e) });
+		}
+	},
 	retry: withPost((id, actor) => retryPost(id, actor)),
 	retryRequest: withPost((id, actor) => retryRequest(id, actor)),
 	dismissRequest: withPost((id) => dismissRequest(id)),
