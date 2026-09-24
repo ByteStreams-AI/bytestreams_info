@@ -1,5 +1,5 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { approvePost, dismissRequest, loadDigest, loadKnowledge, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest, saveKnowledge } from '$lib/server/social';
+import { approvePost, dismissRequest, editRequest, loadDigest, loadKnowledge, loadQueue, regeneratePost, rejectPost, removePost, requestDraft, reschedulePost, retryPost, retryRequest, saveKnowledge } from '$lib/server/social';
 import { GENERATED_FORMATS, GENERATED_PILLARS, localInputToIso, parseHashtags, quickCheck, upcomingOpenSlots, type GeneratedFormat } from '$lib/social';
 import type { PageServerLoad, Actions } from './$types';
 
@@ -59,6 +59,17 @@ export const actions: Actions = {
 	retry: withPost((id, actor) => retryPost(id, actor)),
 	retryRequest: withPost((id, actor) => retryRequest(id, actor)),
 	dismissRequest: withPost((id) => dismissRequest(id)),
+	editRequest: withPost(async (id, actor, form) => {
+		const format = str(form, 'format') as GeneratedFormat;
+		const pillar = str(form, 'pillar');
+		const iso = localInputToIso(str(form, 'scheduled_for'));
+		// Same three checks the draft action makes. They are repeated rather than shared because
+		// the messages are what the person reads, and an edit needs to name the field it rejected.
+		if (!GENERATED_FORMATS.includes(format)) throw new Error('Pick a format: story, image or carousel.');
+		if (!(GENERATED_PILLARS as readonly string[]).includes(pillar)) throw new Error('Pick a pillar P0–P3. Reels (P4–P6) are ingested, not drafted.');
+		if (!iso) throw new Error('Pick a date and time');
+		await editRequest(id, actor, { format, pillar, scheduledForIso: iso, brief: str(form, 'brief') });
+	}),
 
 	draft: async ({ request, locals }) => {
 		if (!locals.user) throw error(401, 'Unauthorized');
