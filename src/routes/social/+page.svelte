@@ -52,9 +52,10 @@
 		});
 		cal.render();
 	});
-	let open = $state<Record<string, 'reject' | 'regenerate' | 'reschedule' | 'remove' | null>>({});
+	type Panel = 'reject' | 'regenerate' | 'reschedule' | 'remove' | 'editRequest';
+	let open = $state<Record<string, Panel | null>>({});
 
-	function toggle(id: string, panel: 'reject' | 'regenerate' | 'reschedule' | 'remove') {
+	function toggle(id: string, panel: Panel) {
 		open = { ...open, [id]: open[id] === panel ? null : panel };
 	}
 	const submit =
@@ -215,7 +216,7 @@
 				</select>
 			</label>
 			<label><span class="label">Or a custom time (Central)</span><input type="datetime-local" name="scheduled_for" /></label>
-			<label><span class="label">Brief (optional)</span><input name="brief" placeholder="e.g. the Friday 7pm missed-call problem, for food trucks" /></label>
+			<label><span class="label">Brief (optional)</span><textarea name="brief" rows="3" placeholder="e.g. the Friday 7pm missed-call problem, for food trucks"></textarea></label>
 			{#if form && 'draftError' in form}<p class="err" role="alert">{form.draftError}</p>{/if}
 			{#if form && 'drafted' in form}<p class="ok" role="status">Requested. Check back after the next 15-minute run.</p>{/if}
 			<button class="btn-primary" type="submit" disabled={busy === 'draft'}>Request draft</button>
@@ -233,12 +234,38 @@
 						<span>{FORMAT_ICON[r.format]} {r.format} · {r.pillar} · {formatLocal(r.scheduled_for)} CT</span>
 						{#if r.brief}<span class="muted">“{r.brief}”</span>{/if}
 						{#if r.error}<span class="err">{r.error}</span>{/if}
+						{#if errorFor(r.id)}<span class="err">{errorFor(r.id)}</span>{/if}
 						<span class="inline-actions">
+							<button class="btn-outline small" type="button" onclick={() => toggle(r.id, 'editRequest')}>Edit</button>
 							{#if r.status === 'failed'}
 								<form method="POST" action="?/retryRequest" use:enhance={submit(r.id)}><input type="hidden" name="id" value={r.id} /><button class="btn-outline small" type="submit">Retry</button></form>
 							{/if}
 							<form method="POST" action="?/dismissRequest" use:enhance={submit(r.id)}><input type="hidden" name="id" value={r.id} /><button class="btn-outline small" type="submit">Dismiss</button></form>
 						</span>
+						{#if open[r.id] === 'editRequest'}
+							<!-- Everything the request was asked with, prefilled. Dismiss-and-retype was the
+							     only way to fix a word, and the brief is the longest thing typed on this page.
+							     Editing a FAILED request also puts it back in the queue — that is the only
+							     reason anyone edits one. -->
+							<form method="POST" action="?/editRequest" class="panel" use:enhance={submit(r.id)}>
+								<input type="hidden" name="id" value={r.id} />
+								<div class="row">
+									<label><span class="label">Format</span>
+										<select name="format">{#each GENERATED_FORMATS as f (f)}<option value={f} selected={f === r.format}>{FORMAT_ICON[f]} {f}</option>{/each}</select>
+									</label>
+									<label><span class="label">Pillar</span>
+										<select name="pillar">{#each GENERATED_PILLARS as pl (pl)}<option value={pl} selected={pl === r.pillar}>{pl} · {PILLAR_NAMES[pl]}</option>{/each}</select>
+									</label>
+								</div>
+								<label><span class="label">Time (Central) — at least 30 minutes from now</span>
+									<input type="datetime-local" name="scheduled_for" value={isoToLocalInput(r.scheduled_for)} required />
+								</label>
+								<label><span class="label">Brief</span><textarea name="brief" rows="5">{r.brief ?? ''}</textarea></label>
+								<button class="btn-outline" type="submit" disabled={busy === r.id}>
+									{r.status === 'failed' ? 'Save and try again' : 'Save'}
+								</button>
+							</form>
+						{/if}
 					</li>
 				{/each}
 			</ul>

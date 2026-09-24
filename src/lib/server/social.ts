@@ -245,7 +245,7 @@ export const POSTS_PER_7_DAYS = 21;
  * becomes a post; counting only what has gone out would let twenty drafts through and
  * refuse the twenty-first the morning they all publish.
  */
-async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string): Promise<void> {
+async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string, ignoreRequestId?: string): Promise<void> {
 	const at = new Date(slotIso).getTime();
 	const week = 7 * 86_400_000;
 	const windows: Array<[string, string]> = [
@@ -260,8 +260,13 @@ async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string
 				.in('origin', ['generated', 'library']).is('removed_at', null)
 				.not('status', 'in', '("rejected","expired","failed")')
 				.gte('scheduled_for', from).lte('scheduled_for', to),
-			sb.from('social_generation_requests').select('id', { count: 'exact', head: true })
-				.eq('status', 'pending').gte('scheduled_for', from).lte('scheduled_for', to)
+			// The row being edited already counts toward the ceiling, so counting it again
+			// would refuse an edit that changes nothing about how many posts go out.
+			(ignoreRequestId
+				? sb.from('social_generation_requests').select('id', { count: 'exact', head: true })
+					.eq('status', 'pending').neq('id', ignoreRequestId).gte('scheduled_for', from).lte('scheduled_for', to)
+				: sb.from('social_generation_requests').select('id', { count: 'exact', head: true })
+					.eq('status', 'pending').gte('scheduled_for', from).lte('scheduled_for', to))
 		]);
 		if (posts.error) throw new Error(posts.error.message);
 		if (requests.error) throw new Error(requests.error.message);
@@ -411,22 +416,31 @@ export async function saveKnowledge(pillar: string, body: string, actor: string)
 	if (error) throw new Error(error.message);
 }
 
-export async function requestDraft(input: { format: GeneratedFormat; pillar: string; scheduledForIso: string; brief?: string }, actor: string): Promise<void> {
-	const sb = client();
+/**
+ * Every rule a slot has to pass, whether the request is new or being edited. `ignoreRequestId`
+ * is the row being edited: it occupies its own slot and counts toward its own ceiling, so
+ * without this an edit that leaves the time alone would refuse itself.
+ */
+async function assertSlotUsable(sb: ReturnType<typeof client>, iso: string, ignoreRequestId?: string): Promise<void> {
 	const [{ data: live }, { data: pending }] = await Promise.all([
-		sb.from('social_posts').select('id').eq('scheduled_for', input.scheduledForIso).not('status', 'in', '("rejected","expired","failed")').limit(1),
-		sb.from('social_generation_requests').select('id').eq('scheduled_for', input.scheduledForIso).eq('status', 'pending').limit(1)
+		sb.from('social_posts').select('id').eq('scheduled_for', iso).not('status', 'in', '("rejected","expired","failed")').limit(1),
+		sb.from('social_generation_requests').select('id').eq('scheduled_for', iso).eq('status', 'pending').limit(2)
 	]);
 	if (live?.length) throw new Error('That slot already has a post');
-	if (pending?.length) throw new Error('That slot already has a draft on the way');
-	await assertUnderCeiling(sb, input.scheduledForIso);
+	if ((pending ?? []).some((r) => r.id !== ignoreRequestId)) throw new Error('That slot already has a draft on the way');
+	await assertUnderCeiling(sb, iso, ignoreRequestId);
 	// reschedulePost has always refused anything under 30 minutes; requestDraft never did,
 	// and the gap bites: reconcile drafts in step 0 and expires passed drafts in step 2 of
 	// the SAME run, so a slot ten minutes out produces a draft that vanishes before it can
 	// be read. The floor is the cron interval plus a real chance to review.
-	if (new Date(input.scheduledForIso).getTime() < Date.now() + 30 * 60_000) {
+	if (new Date(iso).getTime() < Date.now() + 30 * 60_000) {
 		throw new Error('Pick a time at least 30 minutes from now — it takes up to 15 minutes to write the draft, and you need time to read it');
 	}
+}
+
+export async function requestDraft(input: { format: GeneratedFormat; pillar: string; scheduledForIso: string; brief?: string }, actor: string): Promise<void> {
+	const sb = client();
+	await assertSlotUsable(sb, input.scheduledForIso);
 	const { error } = await sb.from('social_generation_requests').insert({
 		platform: 'instagram',
 		format: input.format,
@@ -436,6 +450,47 @@ export async function requestDraft(input: { format: GeneratedFormat; pillar: str
 		brief: input.brief?.trim() || null
 	});
 	if (error) throw new Error(error.message);
+}
+
+/**
+ * Change a request that has not been drafted yet. Dismiss-and-retype was the only way to fix
+ * a typo in a brief, and a brief is the longest thing anyone types on this page.
+ *
+ * Editing a FAILED request also puts it back in the queue, because that is the only reason
+ * anyone edits one — the brief is usually what made it fail. Leaving it failed would mean
+ * Edit then Retry, and the second click is easy to forget.
+ *
+ * There is a narrow race the status guard cannot close: the Worker reads pending rows and
+ * only marks them `done` once the draft is written, so an edit landing during generation is
+ * accepted and then discarded. Reconcile is every 15 minutes and the drain takes seconds, so
+ * the window is small; when it happens the draft simply reflects the old brief, and Reject
+ * with a reason is the way out.
+ */
+export async function editRequest(
+	id: string,
+	actor: string,
+	input: { format: GeneratedFormat; pillar: string; scheduledForIso: string; brief?: string }
+): Promise<void> {
+	const sb = client();
+	await assertSlotUsable(sb, input.scheduledForIso, id);
+	const { data, error } = await sb
+		.from('social_generation_requests')
+		.update({
+			format: input.format,
+			pillar: input.pillar,
+			scheduled_for: input.scheduledForIso,
+			brief: input.brief?.trim() || null,
+			requested_by: actor,
+			status: 'pending',
+			error: null
+		})
+		.eq('id', id)
+		.in('status', ['pending', 'failed'])
+		.select('id');
+	if (error) throw new Error(error.message);
+	if (!data?.length) {
+		throw new Error('That request is no longer waiting — the draft may already be written. Look under Needs review.');
+	}
 }
 
 export async function retryRequest(id: string, actor: string): Promise<void> {
