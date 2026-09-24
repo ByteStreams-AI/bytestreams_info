@@ -37,6 +37,12 @@ export interface SocialPost {
 	approved_by: string | null;
 	approved_at: string | null;
 	rejection_reason: string | null;
+	/** Facebook Page post id from the explicit publish (PRD §5). Null means not attempted,
+	 *  not yet published, or a story — Facebook stories are not published. */
+	fb_post_id: string | null;
+	/** Why Facebook failed when Instagram succeeded. The post is still `published`:
+	 *  Instagram is the primary channel and a Facebook failure never fails the post. */
+	fb_error: string | null;
 	/** Set when the post was taken out of the queue. For a published post this means it was
 	 *  deleted from the account BY HAND — Meta has no delete API. Null means live in the queue. */
 	removed_at: string | null;
