@@ -293,10 +293,24 @@
 		<ul class="list">
 			{#each data.recent as p (p.id)}
 				<li>
-					<span class="chip status" style="--c: {STATUS_COLOR[p.status]}">{p.status}</span>
+					<span class="chip status small" style="--c: {STATUS_COLOR[p.status]}">{p.status}</span>
+					{#if p.status === 'published'}
+						<!-- Facebook is published to explicitly (PRD §5); auto-share never reached the Page.
+						     Three states, because "nothing here" is ambiguous on its own: it went, it
+						     failed, or it was never tried. A failure is NOT a failed post — Instagram
+						     succeeded — so it reads as a warning rather than an error. -->
+						{#if p.fb_post_id}
+							<span class="chip fb ok small" title="Published to the DialTone Menu Page">f · on Facebook</span>
+						{:else if p.fb_error}
+							<span class="chip fb bad small" title={p.fb_error}>f · failed</span>
+						{:else}
+							<span class="chip fb none small" title="Facebook was not attempted for this post">f · not sent</span>
+						{/if}
+					{/if}
 					<span>{FORMAT_ICON[p.format]} {p.pillar} · {formatLocal(p.scheduled_for)} CT</span>
 					<span class="muted">{captionFirstLine(p.caption)}</span>
 					{#if p.rejection_reason}<span class="muted">— {p.rejection_reason}</span>{/if}
+					{#if p.fb_error}<span class="fb-reason">Facebook: {p.fb_error}</span>{/if}
 					{#if errorFor(p.id)}<span class="err">{errorFor(p.id)}</span>{/if}
 					<span class="inline-actions">
 						<button class="btn-outline small danger" type="button" onclick={() => toggle(p.id, 'remove')}>
@@ -377,6 +391,15 @@
 	.chip { padding: 2px 10px; border-radius: var(--radius-full); background: var(--bg-slate); color: var(--text-muted); }
 	.chip.status { --c: var(--text-muted); color: var(--c); border: 1px solid var(--c); background: transparent; text-transform: capitalize; }
 	.chip.when { color: var(--text-bright); }
+	/* Recent is a scan-the-list view, so its chips are labels rather than buttons. */
+	.chip.small { padding: 1px 7px; font-size: 0.72rem; line-height: 1.5; }
+	.chip.fb { border: 1px solid currentColor; background: transparent; }
+	.chip.fb.ok { color: var(--color-signal-green, #3fb950); }
+	.chip.fb.bad { color: var(--color-byte-amber, #e8a020); }
+	.chip.fb.none { color: var(--text-faded, #6b7280); }
+	/* The reason in full, not only in a tooltip: a failure nobody can read is a failure
+	   nobody acts on, and this page is handed to someone who will not open the database. */
+	.fb-reason { display: block; width: 100%; font-size: 0.8rem; color: var(--color-byte-amber, #e8a020); }
 	.thumbs { display: flex; gap: var(--space-sm); overflow-x: auto; scroll-snap-type: x mandatory; }
 	.thumbs img { height: 220px; width: auto; border-radius: var(--radius-md); scroll-snap-align: start; flex: 0 0 auto; }
 	.thumbs.story img { height: 320px; }
