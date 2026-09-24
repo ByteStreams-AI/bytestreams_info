@@ -296,10 +296,16 @@
 					<span class="chip status small" style="--c: {STATUS_COLOR[p.status]}">{p.status}</span>
 					{#if p.status === 'published'}
 						<!-- Facebook is published to explicitly (PRD §5); auto-share never reached the Page.
-						     Three states, because "nothing here" is ambiguous on its own: it went, it
-						     failed, or it was never tried. A failure is NOT a failed post — Instagram
-						     succeeded — so it reads as a warning rather than an error. -->
-						{#if p.fb_post_id}
+						     Four states, because "nothing here" is ambiguous on its own: not applicable,
+						     it went, it failed, or it was never tried. A failure is NOT a failed post —
+						     Instagram succeeded — so it reads as a warning rather than an error.
+						     FORMAT IS CHECKED FIRST, and deliberately before fb_error: a Story is never
+						     sent to Facebook, and the Worker used to record that skip IN fb_error, so
+						     rows published before 2026-09-24 still carry the text. Reading the format
+						     gets those right without a data migration. -->
+						{#if p.format === 'story'}
+							<span class="chip fb none small" title="Stories are never published to Facebook">f · n/a</span>
+						{:else if p.fb_post_id}
 							<span class="chip fb ok small" title="Published to the DialTone Menu Page">f · on Facebook</span>
 						{:else if p.fb_error}
 							<span class="chip fb bad small" title={p.fb_error}>f · failed</span>
@@ -310,7 +316,7 @@
 					<span>{FORMAT_ICON[p.format]} {p.pillar} · {formatLocal(p.scheduled_for)} CT</span>
 					<span class="muted">{captionFirstLine(p.caption)}</span>
 					{#if p.rejection_reason}<span class="muted">— {p.rejection_reason}</span>{/if}
-					{#if p.fb_error}<span class="fb-reason">Facebook: {p.fb_error}</span>{/if}
+					{#if p.fb_error && p.format !== 'story'}<span class="fb-reason">Facebook: {p.fb_error}</span>{/if}
 					{#if errorFor(p.id)}<span class="err">{errorFor(p.id)}</span>{/if}
 					<span class="inline-actions">
 						<button class="btn-outline small danger" type="button" onclick={() => toggle(p.id, 'remove')}>
