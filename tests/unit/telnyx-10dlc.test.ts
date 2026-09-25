@@ -5,6 +5,7 @@ import {
 	brandIsVerified,
 	buildBrandRequest,
 	buildCampaignRequest,
+	campaignLinkDefaults,
 	campaignStatusLabel,
 	checkUrlsResolve,
 	conventionalEvidenceBase,
@@ -204,6 +205,36 @@ describe('admin-confirmed links (the live tenant is the prod clone)', () => {
 		expect(base).toBe('https://app.supabase.co/storage/v1/object/public/compliance-evidence/rest-1');
 		expect(evidenceUrlsFromBase(base)).toEqual(conventionalEvidenceUrls('https://app.supabase.co', 'rest-1'));
 		expect(evidenceUrlsFromBase(base + '/').cartDisclosure).toBe(base + '/cart_disclosure.jpg');
+	});
+
+	it('prefills from the LIVE tenant when the row records one, and labels a staging fallback as such', () => {
+		const prod = campaignLinkDefaults({
+			prodSlug: 'shortys', prodRestaurantId: '8221b632-6f69-443d-b972-57a7a9f551d1', prodSupabaseUrl: 'https://klzznfagrtormretqsgb.supabase.co',
+			stagingSlug: 'shortys-mu4e1jpc', stagingRestaurantId: '418047c7-19c9-43a8-9187-51ba4d29018e', stagingSupabaseUrl: 'https://mxhyvvgjtqllohpvrwon.supabase.co'
+		});
+		expect(prod).toEqual({
+			menuHost: 'https://shortys.m.dialtone.menu',
+			evidenceBase: 'https://klzznfagrtormretqsgb.supabase.co/storage/v1/object/public/compliance-evidence/8221b632-6f69-443d-b972-57a7a9f551d1',
+			source: 'prod'
+		});
+		// Both links are what the submit handler validates as OURS.
+		expect(isMenuHost(prod.menuHost!)).toBe(true);
+		expect(isEvidenceBase(prod.evidenceBase!)).toBe(true);
+
+		// No live tenant recorded: the staging pair, labelled so the modal can say so.
+		const staging = campaignLinkDefaults({
+			prodSlug: null, prodRestaurantId: null, prodSupabaseUrl: 'https://klzznfagrtormretqsgb.supabase.co',
+			stagingSlug: 'shortys-mu4e1jpc', stagingRestaurantId: '418047c7-19c9-43a8-9187-51ba4d29018e', stagingSupabaseUrl: 'https://mxhyvvgjtqllohpvrwon.supabase.co'
+		});
+		expect(staging.source).toBe('staging');
+		expect(staging.menuHost).toBe('https://shortys-mu4e1jpc.m.dialtone.menu');
+		expect(staging.evidenceBase).toContain('mxhyvvgjtqllohpvrwon');
+
+		// Half a prod pair is no prod pair — the DB CHECK forbids it and so does this.
+		expect(campaignLinkDefaults({
+			prodSlug: 'shortys', prodRestaurantId: null, prodSupabaseUrl: 'https://p.supabase.co',
+			stagingSlug: null, stagingRestaurantId: null, stagingSupabaseUrl: 'https://s.supabase.co'
+		})).toEqual({ menuHost: null, evidenceBase: null, source: 'none' });
 	});
 
 	it('accepts only our hosts and a public evidence folder', () => {

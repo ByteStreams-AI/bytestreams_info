@@ -415,3 +415,27 @@ GET-checked, and what was submitted is recorded on the row (`013_add_10dlc_campa
   requires an EIN, and the sole-prop brand path is OTP-vetted rather than EIN-vetted.
 - **Webhooks.** Status is refreshed on demand from the row; a Telnyx `webhookURL` can replace that
   once the portal has a public endpoint for it.
+
+## 2026-09-25 — The portal records the LIVE tenant, so the 10DLC links prefill (#34)
+
+The first per-tenant campaign (ByteStreams LLC → Telnyx `4b3001a0-…`, `TCR_PENDING`) was
+submitted only after every prefilled link in the Submit Campaign modal failed the resolve
+check: they were the STAGING row's, and the branded `.m.` hosts stopped reaching staging in
+August. The admin had to know the prod slug and the prod restaurant id from elsewhere. The
+operator's ruling: **the portal records the prod ids at clone time.**
+
+- `014_add_prod_tenant.sql` — `businesses.prod_restaurant_id` / `prod_slug` (a CHECK keeps
+  them both-or-neither: half a pair builds one dead link beside one good one), plus
+  `prod_recorded_at` / `prod_recorded_by`. **Apply to `mxhyvvgjtqllohpvrwon`.**
+- **Written by `dialtone/scripts/clone-tenant-to-prod.sh`** after the sanitize step: it
+  updates the business whose `dialtone_location_id` belongs to the cloned restaurant, same
+  id and slug as staging by construction. Guarded on the table and column existing and on a
+  row pointing at the tenant; neither absence aborts a clone.
+- **Or set by an admin** in Edit → *Live tenant (prod)* for a tenant made another way
+  (Shorty's under ByteStreams LLC is one: the live Shorty's predates the portal row).
+- `campaignLinkDefaults()` (`telnyx-10dlc.ts`, unit-tested) builds the modal's prefill from
+  the prod pair when recorded, else the staging pair **labelled as such** in the modal so a
+  red note says why it will not resolve. Once a campaign exists, what was submitted wins.
+- The prod project URL is `DIALTONE_PROD_SUPABASE_URL_DEFAULT` (`klzznfagrtormretqsgb`),
+  overridable by the `DIALTONE_PROD_SUPABASE_URL` env; the portal builds public URLs from
+  it and holds no key.

@@ -47,6 +47,11 @@
 			tcr_last_checked_at: string | null;
 			tcr_menu_host: string | null;
 			tcr_evidence_base_url: string | null;
+			tcr_links_source: 'submitted' | 'prod' | 'staging' | 'none';
+			prod_restaurant_id: string | null;
+			prod_slug: string | null;
+			prod_recorded_at: string | null;
+			prod_recorded_by: string | null;
 			invited_at: string | null;
 			activated_at: string | null;
 		};
@@ -570,6 +575,19 @@
 			getEl('cmp-business-name').textContent = customer.business_name ?? '';
 			getEl<HTMLInputElement>('cmp-menu-host').value = customer.tcr_menu_host ?? '';
 			getEl<HTMLInputElement>('cmp-evidence-base').value = customer.tcr_evidence_base_url ?? '';
+			// Say which tenant the prefill describes. Only the live one can pass the
+			// resolve check; the staging pair is there so the fields are never blank.
+			const src = getEl('cmp-links-source');
+			src.classList.remove('error', 'success');
+			if (customer.tcr_links_source === 'prod') {
+				src.textContent = `Prefilled from the live tenant (${customer.prod_slug}), recorded ${fmtDate(customer.prod_recorded_at)} by ${customer.prod_recorded_by ?? 'unknown'}.`;
+				src.classList.add('success');
+			} else if (customer.tcr_links_source === 'staging') {
+				src.textContent = 'No live tenant is recorded for this business, so these are the STAGING paths and will not resolve. Set the live restaurant id and slug in Edit, or paste the live values here.';
+				src.classList.add('error');
+			} else {
+				src.textContent = customer.tcr_links_source === 'submitted' ? 'As submitted.' : '';
+			}
 			getEl('cmp-error').classList.add('hidden');
 			getEl<HTMLButtonElement>('cmp-submit').disabled = false;
 			getEl('campaign-modal').classList.remove('hidden');
@@ -622,6 +640,12 @@
 			tierSelect.value = customer.tier ?? '';
 			getEl('edit-entity-wrap').classList.toggle('hidden', !isMenu);
 			getEl<HTMLSelectElement>('edit-entity-type').value = customer.tcr_entity_type ?? 'PRIVATE_PROFIT';
+			getEl('edit-prod-wrap').classList.toggle('hidden', !isMenu);
+			getEl<HTMLInputElement>('edit-prod-restaurant-id').value = customer.prod_restaurant_id ?? '';
+			getEl<HTMLInputElement>('edit-prod-slug').value = customer.prod_slug ?? '';
+			getEl('edit-prod-note').textContent = customer.prod_restaurant_id
+				? `Recorded ${fmtDate(customer.prod_recorded_at)} by ${customer.prod_recorded_by ?? 'unknown'}. The 10DLC campaign links are built from these.`
+				: 'Not recorded. clone-tenant-to-prod.sh writes these at clone time; set them here if the live tenant was made another way. Both or neither.';
 			getEl<HTMLInputElement>('edit-amount').disabled = isMenu;
 			getEl('edit-amount-label').textContent = isMenu ? 'Recurring Charge USD (set by tier)' : 'Charge USD';
 
@@ -664,6 +688,8 @@
 						ein: getEl<HTMLInputElement>('edit-ein').value.trim(),
 						tier: getEl<HTMLSelectElement>('edit-tier').value,
 						tcr_entity_type: getEl<HTMLSelectElement>('edit-entity-type').value,
+						prod_restaurant_id: getEl<HTMLInputElement>('edit-prod-restaurant-id').value.trim(),
+						prod_slug: getEl<HTMLInputElement>('edit-prod-slug').value.trim(),
 						monthly_amount_cents: Math.round(parseFloat(getEl<HTMLInputElement>('edit-amount').value || '0') * 100),
 						onboarded: getEl<HTMLInputElement>('edit-onboarded').checked
 					})
@@ -1049,6 +1075,7 @@
 				<input id="cmp-evidence-base" type="url" placeholder="https://<project>.supabase.co/storage/v1/object/public/compliance-evidence/<restaurant_id>" required>
 				<p class="form-note">The public compliance-evidence folder holding cart_disclosure.jpg, home_qrcode.jpg, menu_footer_qrcode.jpg, kiosk_3_options.jpeg and kiosk_disclosure.jpeg for this tenant — in the project the live tenant runs in.</p>
 			</div>
+			<p id="cmp-links-source" class="status-msg" style="margin-bottom:8px;"></p>
 			<div id="cmp-error" class="status-msg error hidden"></div>
 			<div class="modal-footer">
 				<button type="button" id="cmp-cancel" class="btn btn-ghost">Cancel</button>
@@ -1179,6 +1206,14 @@
 					<option value="PUBLIC_PROFIT">Publicly traded</option>
 					<option value="NON_PROFIT">Non-profit</option>
 				</select>
+			</div>
+			<div id="edit-prod-wrap" class="form-group hidden">
+				<label for="edit-prod-slug">Live tenant (prod)</label>
+				<div style="display:flex;gap:8px;">
+					<input id="edit-prod-slug" type="text" placeholder="slug, e.g. shortys" pattern="[a-z0-9][a-z0-9-]*" style="flex:1;">
+					<input id="edit-prod-restaurant-id" type="text" placeholder="restaurant id (uuid)" style="flex:2;">
+				</div>
+				<p id="edit-prod-note" class="form-note"></p>
 			</div>
 			<div class="form-group">
 				<label id="edit-amount-label" for="edit-amount">Charge USD</label>

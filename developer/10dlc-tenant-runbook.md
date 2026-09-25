@@ -17,7 +17,7 @@ is live. Walked through end to end on Shorty's under ByteStreams LLC on 2026-09-
 
 | What | Where | How to confirm |
 |---|---|---|
-| Portal migrations `011`, `012`, `013` | Supabase SQL Editor on **`mxhyvvgjtqllohpvrwon`** (the project `PORTAL_SUPABASE_URL` reads — not the CRM project, which has no `businesses`) | `select tcr_menu_host from businesses limit 1;` returns a column, not `42703` |
+| Portal migrations `011`, `012`, `013`, `014` | Supabase SQL Editor on **`mxhyvvgjtqllohpvrwon`** (the project `PORTAL_SUPABASE_URL` reads — not the CRM project, which has no `businesses`) | `select tcr_menu_host from businesses limit 1;` returns a column, not `42703` |
 | `TELNYX_API_KEY` Worker secret | `wrangler secret put TELNYX_API_KEY` — the Telnyx account DialTone sends from | Signoff alert says something other than "skipped (TELNYX_API_KEY not set)" |
 | Compliance evidence bucket | DialTone **prod** project `klzznfagrtormretqsgb`, public bucket `compliance-evidence/<restaurant_id>/` | Each of the five URLs in step 4 returns 200 in a browser |
 
@@ -124,14 +124,26 @@ registered.
 ## 5. Submit the campaign
 
 Once the badge reads **Brand verified**, the button is **Submit Campaign**. The modal
-asks for two links, prefilled with the conventional values from the portal's own row.
-**Replace them with the live tenant's**, which is the prod clone and may carry a
-different restaurant id:
+asks for two links and says where its prefill came from:
+
+- **"Prefilled from the live tenant (<slug>), recorded <date> by <who>"** — the row
+  records the prod tenant (portal migration `014`). `clone-tenant-to-prod.sh` writes
+  it at clone time; both links are the live ones and will pass the check. Submit.
+- **"No live tenant is recorded … these are the STAGING paths"** (red) — the tenant
+  was made some other way. Open **Edit** and set **Live tenant (prod)**: the slug
+  and the restaurant id of the tenant that serves guests, both or neither. Save,
+  reopen Submit Campaign, and the prefill is the live pair. Or paste them here once.
+
+The live values are always of this shape (the prod project, the prod restaurant id):
 
 ```
-Menu host:      https://<slug>.m.dialtone.menu
+Menu host:      https://<prod slug>.m.dialtone.menu
 Evidence base:  https://klzznfagrtormretqsgb.supabase.co/storage/v1/object/public/compliance-evidence/<prod restaurant_id>
 ```
+
+To find them for a tenant that was never cloned: the slug is the branded host that
+answers 200; the restaurant id comes back from the prod project's anon
+`get_restaurant_branding_by_slug` RPC (the customer app calls it pre-auth).
 
 Before anything reaches Telnyx the portal GETs the host, `<host>/menu` and all five
 evidence images. A dead link is refused with its URL named, because a reviewer who
