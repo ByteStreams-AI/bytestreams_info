@@ -112,6 +112,55 @@ export const OPTIN_KEYWORDS = 'START,YES,UNSTOP';
 export const OPTOUT_KEYWORDS = 'STOP,UNSUBSCRIBE,CANCEL,QUIT,END,STOPALL';
 export const HELP_KEYWORDS = 'HELP,INFO';
 
+/**
+ * The DialTone PROD project — where the live tenants and the compliance-evidence
+ * bucket are. The portal holds no key for it and needs none: it only builds
+ * public URLs. Overridable for a fork or a rename.
+ */
+export const DIALTONE_PROD_SUPABASE_URL_DEFAULT = 'https://klzznfagrtormretqsgb.supabase.co';
+
+export type CampaignLinkSource = 'prod' | 'staging' | 'none';
+
+export type CampaignLinkDefaults = {
+	menuHost: string | null;
+	evidenceBase: string | null;
+	/** Which tenant the defaults describe. Only `prod` links can resolve. */
+	source: CampaignLinkSource;
+};
+
+/**
+ * The two links the reviewer clicks, prefilled from the LIVE tenant when the
+ * row records one (clone-tenant-to-prod.sh writes it; an admin can set it),
+ * else from the staging tenant the portal created. The staging pair is kept
+ * as a fallback so the modal is never blank, but it is labelled: the branded
+ * hosts stopped reaching staging in August 2026, so those links 404 and the
+ * submit's own check refuses them.
+ */
+export function campaignLinkDefaults(input: {
+	prodSlug: string | null | undefined;
+	prodRestaurantId: string | null | undefined;
+	prodSupabaseUrl: string;
+	stagingSlug: string | null | undefined;
+	stagingRestaurantId: string | null | undefined;
+	stagingSupabaseUrl: string;
+}): CampaignLinkDefaults {
+	if (input.prodSlug && input.prodRestaurantId) {
+		return {
+			menuHost: `https://${input.prodSlug}.m.dialtone.menu`,
+			evidenceBase: conventionalEvidenceBase(input.prodSupabaseUrl, input.prodRestaurantId),
+			source: 'prod'
+		};
+	}
+	if (input.stagingSlug || input.stagingRestaurantId) {
+		return {
+			menuHost: input.stagingSlug ? `https://${input.stagingSlug}.m.dialtone.menu` : null,
+			evidenceBase: input.stagingRestaurantId ? conventionalEvidenceBase(input.stagingSupabaseUrl, input.stagingRestaurantId) : null,
+			source: 'staging'
+		};
+	}
+	return { menuHost: null, evidenceBase: null, source: 'none' };
+}
+
 /** The conventional evidence folder in a Supabase project's public bucket. */
 export function conventionalEvidenceBase(appSupabaseUrl: string, restaurantId: string): string {
 	return `${appSupabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/compliance-evidence/${restaurantId}`;

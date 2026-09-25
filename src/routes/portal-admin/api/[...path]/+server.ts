@@ -8,6 +8,8 @@ import {
 	conventionalEvidenceBase,
 	createBrand,
 	evidenceUrlsFromBase,
+	campaignLinkDefaults,
+	DIALTONE_PROD_SUPABASE_URL_DEFAULT,
 	isEvidenceBase,
 	isMenuHost,
 	getBrand,
@@ -64,6 +66,11 @@ type BusinessRow = {
 	tcr_last_checked_at?: string | null;
 	tcr_menu_host?: string | null;
 	tcr_evidence_base_url?: string | null;
+	// The LIVE tenant (014): written by clone-tenant-to-prod.sh or set by an admin.
+	prod_restaurant_id?: string | null;
+	prod_slug?: string | null;
+	prod_recorded_at?: string | null;
+	prod_recorded_by?: string | null;
 	recurring_billing_starts_at: string | null;
 	dialtone_location_id: string | null;
 	address: string | null;
@@ -94,6 +101,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 function guard(locals: App.Locals): void {
 	if (!locals.user || !canAccessPortalAdmin(locals.user)) throw redirect(302, '/login');
+}
+
+/** The DialTone PROD project's public URL — for building evidence links only; no key. */
+function getDialtoneProdSupabaseUrl(): string {
+	return (env.DIALTONE_PROD_SUPABASE_URL?.trim() || DIALTONE_PROD_SUPABASE_URL_DEFAULT).replace(/\/$/, '');
 }
 
 function getPortalSupabaseConfig(): { url: string; key: string; source: 'portal' | 'app' } {
@@ -305,7 +317,7 @@ async function handleCustomers(): Promise<Response> {
 	if (businessIds.length > 0) {
 		const { data: businesses, error: businessError } = await supabase
 			.from('businesses')
-			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,business_address_same,restaurant_address_verified,tcr_menu_host,tcr_evidence_base_url,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at')
+			.select('id,name,business_type,monthly_amount_cents,setup_fee_cents,ein,ein_verified,address_verified,onboarded,onboarded_at,recurring_billing_starts_at,dialtone_location_id,address,address_city,address_state,address_postal_code,phone,business_address_same,restaurant_address_verified,tcr_menu_host,tcr_evidence_base_url,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,tcr_last_error,tcr_last_checked_at,prod_restaurant_id,prod_slug,prod_recorded_at,prod_recorded_by')
 			.in('id', businessIds);
 
 		if (businessError) return jsonResponse({ error: businessError.message }, 500);
@@ -350,6 +362,10 @@ async function handleCustomers(): Promise<Response> {
 			const business = account.business_id ? businessesById[account.business_id] : undefined;
 			const location = business?.dialtone_location_id ? locationsById[business.dialtone_location_id] : undefined;
 			const restaurant = location?.restaurant_id ? restaurantsById[location.restaurant_id] : undefined;
+			const links = campaignLinkDefaults({
+				prodSlug: business?.prod_slug, prodRestaurantId: business?.prod_restaurant_id, prodSupabaseUrl: getDialtoneProdSupabaseUrl(),
+				stagingSlug: restaurant?.slug, stagingRestaurantId: location?.restaurant_id, stagingSupabaseUrl: getPortalSupabaseConfig().url
+			});
 			const address = location
 				? [location.address_line1, location.city, location.state, location.postal_code].filter(Boolean).join(', ')
 				: [business?.address, business?.address_city, business?.address_state, business?.address_postal_code].filter(Boolean).join(', ') || null;
@@ -398,10 +414,16 @@ async function handleCustomers(): Promise<Response> {
 				tcr_campaign_status: business?.tcr_campaign_status ?? null,
 				tcr_last_error: business?.tcr_last_error ?? null,
 				tcr_last_checked_at: business?.tcr_last_checked_at ?? null,
-				// Defaults for the campaign's two reviewer-facing links, confirmed by the
-				// admin at submit time because the live tenant is the prod clone.
-				tcr_menu_host: business?.tcr_menu_host ?? (restaurant?.slug ? `https://${restaurant.slug}.m.dialtone.menu` : null),
-				tcr_evidence_base_url: business?.tcr_evidence_base_url ?? (location?.restaurant_id ? conventionalEvidenceBase(getPortalSupabaseConfig().url, location.restaurant_id) : null),
+				// The LIVE tenant (014). The campaign's two reviewer-facing links are
+				// prefilled from it when recorded; what was actually submitted wins
+				// once a campaign exists.
+				prod_restaurant_id: business?.prod_restaurant_id ?? null,
+				prod_slug: business?.prod_slug ?? null,
+				prod_recorded_at: business?.prod_recorded_at ?? null,
+				prod_recorded_by: business?.prod_recorded_by ?? null,
+				tcr_menu_host: business?.tcr_menu_host ?? links.menuHost,
+				tcr_evidence_base_url: business?.tcr_evidence_base_url ?? links.evidenceBase,
+				tcr_links_source: business?.tcr_menu_host ? 'submitted' : links.source,
 				invited_at: account.invited_at,
 				activated_at: account.activated_at
 			};
@@ -1458,9 +1480,11 @@ type TcrBusiness = {
 	tcr_brand_status: string | null;
 	tcr_campaign_id: string | null;
 	tcr_campaign_status: string | null;
+	prod_restaurant_id: string | null;
+	prod_slug: string | null;
 };
 
-const TCR_BUSINESS_FIELDS = 'id,name,ein,ein_verified,address_verified,is_food_truck,dialtone_location_id,business_address_same,address,address_city,address_state,address_postal_code,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status';
+const TCR_BUSINESS_FIELDS = 'id,name,ein,ein_verified,address_verified,is_food_truck,dialtone_location_id,business_address_same,address,address_city,address_state,address_postal_code,tcr_entity_type,tcr_brand_id,tcr_brand_status,tcr_campaign_id,tcr_campaign_status,prod_restaurant_id,prod_slug';
 
 function telnyxApiKey(): string | null {
 	return env.TELNYX_API_KEY?.trim() || null;
@@ -1656,8 +1680,14 @@ async function handleTcrSubmitCampaign(request: Request): Promise<Response> {
 			return jsonResponse({ error: `Brand is ${brand.identityStatus}; TCR must verify it before a campaign can be submitted.` }, 409);
 		}
 
-		const menuHost = menuHostInput || `https://${restaurant.slug}.m.dialtone.menu`;
-		const evidenceBase = evidenceInput || conventionalEvidenceBase(appUrl, restaurant.id);
+		// Blank inputs fall back to the LIVE tenant when the row records one (014),
+		// else to the staging convention — which the resolve check below refuses.
+		const fallback = campaignLinkDefaults({
+			prodSlug: biz.prod_slug, prodRestaurantId: biz.prod_restaurant_id, prodSupabaseUrl: getDialtoneProdSupabaseUrl(),
+			stagingSlug: restaurant.slug, stagingRestaurantId: restaurant.id, stagingSupabaseUrl: appUrl
+		});
+		const menuHost = menuHostInput || fallback.menuHost || `https://${restaurant.slug}.m.dialtone.menu`;
+		const evidenceBase = evidenceInput || fallback.evidenceBase || conventionalEvidenceBase(appUrl, restaurant.id);
 		const evidence = evidenceUrlsFromBase(evidenceBase);
 		// EVERY link a reviewer might click, before anything is sent. A dead evidence
 		// or embedded link was its own rejection bullet on CW2K3CT.
@@ -1768,6 +1798,18 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 	// purpose: the portal requires an EIN, and that path is OTP-vetted, not EIN-vetted.
 	const entityTypeInput = normalizeText(body.tcr_entity_type, 20).toUpperCase();
 	const tcrEntityType: TcrEntityType | null = (['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'NON_PROFIT'] as const).find((t) => t === entityTypeInput) ?? null;
+	// The LIVE tenant (014), set by hand when it was not made by clone-tenant-to-prod.sh.
+	// Both or neither: half a pair builds one dead link and one good one, which is
+	// worse than two dead ones — the DB CHECK refuses it too. `undefined` = not sent
+	// (an older client); '' = clear.
+	const prodIdSent = body.prod_restaurant_id !== undefined || body.prod_slug !== undefined;
+	const prodRestaurantId = normalizeText(body.prod_restaurant_id, 40).toLowerCase() || null;
+	const prodSlug = normalizeText(body.prod_slug, 80).toLowerCase() || null;
+	if (prodIdSent) {
+		if ((prodRestaurantId === null) !== (prodSlug === null)) return jsonResponse({ error: 'Live tenant needs both the restaurant id and the slug, or neither' }, 400);
+		if (prodRestaurantId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(prodRestaurantId)) return jsonResponse({ error: 'Live restaurant id must be a UUID' }, 400);
+		if (prodSlug && !/^[a-z0-9][a-z0-9-]{0,78}$/.test(prodSlug)) return jsonResponse({ error: 'Live slug must be lowercase letters, digits and hyphens' }, 400);
+	}
 
 	if (!accountId) return jsonResponse({ error: 'account_id is required' }, 400);
 	if (!businessName) return jsonResponse({ error: 'business_name is required' }, 400);
@@ -1783,7 +1825,7 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 
 	const { data: business, error: businessError } = await supabase
 		.from('businesses')
-		.select('id,name,ein,ein_verified,address_verified,onboarded,dialtone_location_id,billing_cycle_start')
+		.select('id,name,ein,ein_verified,address_verified,onboarded,dialtone_location_id,billing_cycle_start,prod_restaurant_id,prod_slug')
 		.eq('id', account.business_id)
 		.single();
 	if (businessError || !business) return jsonResponse({ error: businessError?.message ?? 'Business not found' }, 404);
@@ -1833,6 +1875,15 @@ async function handleUpdateCustomer(request: Request, actorEmail: string): Promi
 	}
 
 	if (tcrEntityType) businessUpdates.tcr_entity_type = tcrEntityType;
+	if (prodIdSent && account.product === 'dialtone_menu'
+		&& (prodRestaurantId !== (business.prod_restaurant_id ?? null) || prodSlug !== (business.prod_slug ?? null))) {
+		Object.assign(businessUpdates, {
+			prod_restaurant_id: prodRestaurantId,
+			prod_slug: prodSlug,
+			prod_recorded_at: prodRestaurantId ? new Date().toISOString() : null,
+			prod_recorded_by: prodRestaurantId ? actorEmail : null
+		});
+	}
 
 	const onboardingNow = requestedOnboarded && !business.onboarded;
 	if (onboardingNow) {
