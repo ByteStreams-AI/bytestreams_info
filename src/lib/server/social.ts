@@ -11,6 +11,8 @@ import { quickCheckKnowledge } from '$lib/social';
 
 const BUCKET = 'social-media-assets';
 const THUMB_TTL_SECONDS = 3600;
+const POST_FLOOR_PER_7_DAYS = 2;
+const REEL_FLOOR_PER_7_DAYS = 0;
 
 export interface SocialPost {
 	id: string;
@@ -288,8 +290,8 @@ async function assertUnderCeiling(sb: ReturnType<typeof client>, slotIso: string
  * is worse than a line at the top of the page somebody is already looking at. Computed
  * here, rendered on /social. Email can follow if a nudge is wanted when nobody is looking.
  *
- * Floors and ceilings are PRD §3.2: at least one post a day and two reels a week, never
- * more than three a day (21 in seven) or three reels.
+ * Floors and ceilings are PRD §3.2: at least two posts and zero reels a week, never more
+ * than three posts a day (21 in seven) or three reels a week.
  */
 export interface Digest {
 	publishedLast24h: number;
@@ -334,9 +336,9 @@ export async function loadDigest(): Promise<Digest> {
 	const reelsLast7 = reels7.count ?? 0;
 	const warnings: string[] = [];
 	if (daysSinceLastPost === null) warnings.push('Nothing has been published yet.');
-	else if (daysSinceLastPost >= 2) warnings.push(`${daysSinceLastPost} days since the last post — the floor is one a day.`);
-	if (postsLast7 < 7) warnings.push(`${postsLast7} posts in the last 7 days; the floor is 7.`);
-	if (reelsLast7 < 2) warnings.push(`${reelsLast7} reels in the last 7 days; the floor is 2. Only you can make those.`);
+	else if (daysSinceLastPost >= 4) warnings.push(`${daysSinceLastPost} days since the last post — the weekly floor is 2.`);
+	if (postsLast7 < POST_FLOOR_PER_7_DAYS) warnings.push(`${postsLast7} posts in the last 7 days; the floor is ${POST_FLOOR_PER_7_DAYS}.`);
+	if (reelsLast7 < REEL_FLOOR_PER_7_DAYS) warnings.push(`${reelsLast7} reels in the last 7 days; the floor is ${REEL_FLOOR_PER_7_DAYS}. Only you can make those.`);
 	if ((waiting.count ?? 0) > 0) warnings.push(`${waiting.count} draft${waiting.count === 1 ? '' : 's'} waiting to be read.`);
 
 	return {
@@ -345,9 +347,9 @@ export async function loadDigest(): Promise<Digest> {
 		daysSinceLastPost,
 		postsLast7,
 		reelsLast7,
-		postFloor: 7,
+		postFloor: POST_FLOOR_PER_7_DAYS,
 		postCeiling: POSTS_PER_7_DAYS,
-		reelFloor: 2,
+		reelFloor: REEL_FLOOR_PER_7_DAYS,
 		warnings
 	};
 }

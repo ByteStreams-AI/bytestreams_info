@@ -2163,3 +2163,11 @@ Number assignment to the campaign (`POST /v2/10dlc/phone_number_campaigns`) wait
 the DialTone-side DID and on dialtone #1614, where a brand-named opt-out needs one
 messaging profile per tenant. Telnyx status webhooks would replace the on-demand
 Refresh once the portal has a public endpoint for them.
+
+## 2026-10-25 — DialTone Social cadence floors reduced
+
+The `/social` digest now treats two posts and zero reels in a rolling seven days as
+the cadence floors. The warning threshold for time since the last post is four days,
+which matches two posts a week, and an empty reel week no longer produces a warning.
+Migration `020_reduce_cadence_floor.sql` replaces the daily post and twice-weekly reel
+slots with Monday P1 and Thursday P2 post slots; reels remain available at custom times.
