@@ -348,6 +348,55 @@ describe('CRM Page', () => {
 		expect(screen.queryByText('Buffalo Burger')).not.toBeInTheDocument();
 	});
 
+	it('classifies Med leads without exposing Menu research or script tools', async () => {
+		const medLead = {
+			...lead,
+			lead_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+			business_name: 'North Star Specialty Pharmacy',
+			product: 'dialtone_med',
+			business_type: 'specialty_pharmacy',
+			clinical_specialty: 'Oncology',
+			npi: '1234567893',
+			npi_entity_type: 'organization'
+		};
+		render(CrmPage, { props: { data: { user, leads: [lead, medLead], researchFindings: [] } } });
+
+		await fireEvent.change(screen.getByLabelText('Filter by product'), {
+			target: { value: 'dialtone_med' }
+		});
+		expect(screen.getByText('North Star Specialty Pharmacy')).toBeInTheDocument();
+		expect(screen.queryByText('Dialable Cafe')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+		expect(screen.getAllByText('Clinical specialty')).toHaveLength(2);
+		expect(screen.getByDisplayValue('1234567893')).toBeInTheDocument();
+		expect(screen.queryByText('Restaurant Research')).not.toBeInTheDocument();
+		expect(screen.queryByText('AI Call Script')).not.toBeInTheDocument();
+	});
+
+	it('limits the business type filter to the selected product', async () => {
+		const menuLead = { ...lead, business_type: 'food_truck' };
+		const medLead = {
+			...lead,
+			lead_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+			business_name: 'Sample Family Clinic',
+			product: 'dialtone_med',
+			business_type: 'general_practice'
+		};
+		render(CrmPage, { props: { data: { user, leads: [menuLead, medLead], researchFindings: [] } } });
+		const typeFilter = screen.getByLabelText('Filter by business type');
+
+		await fireEvent.change(typeFilter, { target: { value: 'food_truck' } });
+		await fireEvent.change(screen.getByLabelText('Filter by product'), {
+			target: { value: 'dialtone_med' }
+		});
+
+		expect(within(typeFilter).queryByRole('option', { name: 'Food Truck' })).not.toBeInTheDocument();
+		expect(within(typeFilter).getByRole('option', { name: 'General Practice' })).toBeInTheDocument();
+		expect(typeFilter).toHaveValue('');
+		expect(screen.getByText('Sample Family Clinic')).toBeInTheDocument();
+	});
+
 	it('edits contact phone between contact name and email', async () => {
 		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));

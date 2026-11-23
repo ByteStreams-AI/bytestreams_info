@@ -62,6 +62,11 @@ function lead(overrides: Partial<Lead> = {}): Lead {
 }
 
 describe('buildCallScriptPrompt', () => {
+	it('rejects a Med lead because the canonical template is Menu-only', () => {
+		expect(() => buildCallScriptPrompt(lead({ product: 'dialtone_med' }), 'Alex'))
+			.toThrow('DialTone.Menu call scripts cannot be generated for DialTone.Med leads');
+	});
+
 	it('includes known CRM facts and omits unknown values', () => {
 		const prompt = buildCallScriptPrompt(lead(), 'Alex');
 

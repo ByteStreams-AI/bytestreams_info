@@ -240,10 +240,175 @@ DialTone.Menu`;
 				business_name: 'New Cafe',
 				city: 'Houston',
 				state: 'TX',
+				product: 'dialtone_menu',
 				contact_phone: 'tel:+17135550102'
 			},
 			'sales@bytestreams.ai'
 		);
 		expect(result).toEqual({ success: true });
+	});
+
+	it('creates a DialTone.Med specialty-pharmacy prospect with organization-only data', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.create({
+			request: request({
+				business_name: 'North Star Specialty Pharmacy',
+				city: 'Houston',
+				state: 'TX',
+				product: 'dialtone_med',
+				business_type: 'specialty_pharmacy',
+				clinical_specialty: 'Oncology',
+				npi: '1234567893',
+				npi_entity_type: 'organization'
+			}),
+			locals: { user }
+		} as never);
+
+		expect(mocks.insertLead).toHaveBeenCalledWith(
+			{
+				business_name: 'North Star Specialty Pharmacy',
+				city: 'Houston',
+				state: 'TX',
+				product: 'dialtone_med',
+				business_type: 'specialty_pharmacy',
+				clinical_specialty: 'Oncology',
+				npi: '1234567893',
+				npi_entity_type: 'organization'
+			},
+			'sales@bytestreams.ai'
+		);
+		expect(result).toEqual({ success: true });
+	});
+
+	it('rejects an invalid Med NPI before writing a prospect', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.create({
+			request: request({
+				business_name: 'Example Practice',
+				city: 'Houston',
+				state: 'TX',
+				product: 'dialtone_med',
+				npi: '1234567890'
+			}),
+			locals: { user }
+		} as never);
+
+		expect(result).toMatchObject({ status: 400, data: { message: expect.stringContaining('NPI') } });
+		expect(mocks.insertLead).not.toHaveBeenCalled();
+	});
+
+	it('does not apply the Menu call template to a Med lead', async () => {
+		mocks.fetchLead.mockResolvedValue({ ...lead, product: 'dialtone_med' });
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.generateScript({
+			request: request({ lead_id: 'lead-1' }),
+			locals: { user },
+			platform: { env: { AI: { run: vi.fn() }, CALLER_NAME: 'Alex' } }
+		} as never);
+
+		expect(result).toMatchObject({ status: 400, data: { message: expect.stringContaining('DialTone.Menu') } });
+		expect(mocks.generateCallScript).not.toHaveBeenCalled();
+	});
+
+	it('does not research a Med lead as a restaurant', async () => {
+		mocks.fetchLead.mockResolvedValue({ ...lead, product: 'dialtone_med' });
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.researchRestaurant({
+			request: request({ lead_id: 'lead-1' }),
+			locals: { user }
+		} as never);
+
+		expect(result).toMatchObject({ status: 400, data: { message: expect.stringContaining('DialTone.Menu') } });
+		expect(mocks.createLeadResearchRun).not.toHaveBeenCalled();
+	});
+
+	it('rejects a business type from the other product', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.create({
+			request: request({
+				business_name: 'Sample Clinic',
+				city: 'Houston',
+				state: 'TX',
+				product: 'dialtone_med',
+				business_type: 'food_truck'
+			}),
+			locals: { user }
+		} as never);
+
+		expect(result).toMatchObject({ status: 400, data: { message: expect.stringContaining('business type') } });
+		expect(mocks.insertLead).not.toHaveBeenCalled();
+	});
+
+	it('rejects an unknown product', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.create({
+			request: request({ business_name: 'X', city: 'Houston', state: 'TX', product: 'dialtone_vet' }),
+			locals: { user }
+		} as never);
+
+		expect(result).toMatchObject({ status: 400 });
+		expect(mocks.insertLead).not.toHaveBeenCalled();
+	});
+
+	it('ignores Med fields on a Menu lead', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		await actions.create({
+			request: request({ business_name: 'New Cafe', city: 'Houston', state: 'TX', npi: '1234567893' }),
+			locals: { user }
+		} as never);
+
+		expect(mocks.insertLead).toHaveBeenCalledWith(
+			{ business_name: 'New Cafe', city: 'Houston', state: 'TX', product: 'dialtone_menu' },
+			'sales@bytestreams.ai'
+		);
+	});
+
+	it('updates Med fields, ignores product changes and Menu-only fields', async () => {
+		mocks.fetchLead.mockResolvedValue({ ...lead, product: 'dialtone_med' });
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.update({
+			request: request({
+				lead_id: 'lead-1',
+				product: 'dialtone_menu',
+				business_type: 'general_practice',
+				clinical_specialty: ' Pediatric dentistry ',
+				npi: '1234567893',
+				npi_entity_type: '',
+				call_script: 'Menu script',
+				uses_kds: 'true'
+			}),
+			locals: { user }
+		} as never);
+
+		expect(mocks.updateLeadSalesFields).toHaveBeenCalledWith('lead-1', 'sales@bytestreams.ai', {
+			business_type: 'general_practice',
+			clinical_specialty: 'Pediatric dentistry',
+			npi: '1234567893',
+			npi_entity_type: null
+		});
+		expect(result).toEqual({ success: true });
+	});
+
+	it('rejects an invalid Med field on update', async () => {
+		mocks.fetchLead.mockResolvedValue({ ...lead, product: 'dialtone_med' });
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.update({
+			request: request({ lead_id: 'lead-1', npi_entity_type: 'group' }),
+			locals: { user }
+		} as never);
+
+		expect(result).toMatchObject({ status: 400 });
+		expect(mocks.updateLeadSalesFields).not.toHaveBeenCalled();
+	});
+
+	it('returns 404 when updating a missing lead', async () => {
+		mocks.fetchLead.mockResolvedValue(null);
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.update({
+			request: request({ lead_id: 'missing' }),
+			locals: { user }
+		} as never);
+
+		expect(result).toMatchObject({ status: 404 });
 	});
 });

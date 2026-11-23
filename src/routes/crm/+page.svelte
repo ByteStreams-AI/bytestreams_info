@@ -2,6 +2,15 @@
 	import Nav from '$lib/components/Nav.svelte';
 	import { phoneHref } from '$lib/phone';
 	import type { Lead, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
+	import {
+		PRODUCTS,
+		PRODUCT_LABELS,
+		businessTypeLabel,
+		businessTypesFor,
+		leadProduct,
+		productLabel,
+		type Product
+	} from '$lib/products';
 	import { onMount } from 'svelte';
 	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -73,10 +82,12 @@
 	let showAddModal = $state(false);
 	let addSaving = $state(false);
 	let addError = $state<string | null>(null);
+	let newLeadProduct = $state<Product>('dialtone_menu');
 
 	function openAddModal() {
 		showAddModal = true;
 		addError = null;
+		newLeadProduct = 'dialtone_menu';
 	}
 
 	function closeAddModal() {
@@ -89,6 +100,7 @@
 	let filterStatus = $state('');
 	let filterCity = $state('');
 	let filterBusinessType = $state('');
+	let filterProduct = $state<'' | Product>('');
 	type OutreachFilter = '' | 'yes' | 'no';
 	let filterPhoned = $state<OutreachFilter>('');
 	let filterEmailed = $state<OutreachFilter>('');
@@ -97,14 +109,6 @@
 	let outreachSort = $state<{ field: OutreachSortField; direction: SortDirection } | null>(null);
 	let currentPage = $state(1);
 	const PAGE_SIZE = 50;
-
-	const BUSINESS_TYPE_LABELS: Record<string, string> = {
-		food_truck: 'Food Truck',
-		single_location: 'Single Location',
-		multi_configuration: 'Multi-Configuration',
-		multi_location: 'Multi-Location',
-		enterprise: 'Enterprise'
-	};
 
 	const cities = $derived.by(() => {
 		return data.leads
@@ -126,6 +130,7 @@
 
 	const businessTypes = $derived.by(() => {
 		return data.leads
+			.filter((lead) => !filterProduct || leadProduct(lead) === filterProduct)
 			.map((lead) => lead.business_type?.trim())
 			.filter((value): value is string => Boolean(value))
 			.reduce<string[]>((values, type) => (values.includes(type) ? values : [...values, type]), [])
@@ -133,14 +138,10 @@
 			.sort((left, right) => left.label.localeCompare(right.label));
 	});
 
-	function businessTypeLabel(value: string | null): string {
-		if (!value) return '—';
-		return BUSINESS_TYPE_LABELS[value] ?? value.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-	}
-
 	const filteredLeads = $derived.by(() => {
 		return data.leads.filter((lead) => {
 			if (search && !lead.business_name.toLowerCase().includes(search.toLowerCase())) return false;
+			if (filterProduct && leadProduct(lead) !== filterProduct) return false;
 			if (filterStatus && lead.status !== filterStatus) return false;
 			if (filterCity && lead.city?.trim().toLocaleLowerCase() !== filterCity) return false;
 			if (filterBusinessType && (lead.business_type ?? '') !== filterBusinessType) return false;
@@ -164,15 +165,23 @@
 	const pageEnd = $derived(Math.min(pageStart + PAGE_SIZE, sortedLeads.length));
 	const paginatedLeads = $derived(sortedLeads.slice(pageStart, pageEnd));
 	const hasActiveFilters = $derived(Boolean(
-		search || filterStatus || filterCity || filterBusinessType || filterPhoned || filterEmailed
+		search || filterProduct || filterStatus || filterCity || filterBusinessType || filterPhoned || filterEmailed
 	));
 
 	function resetPage() {
 		currentPage = 1;
 	}
 
+	function changeProductFilter() {
+		if (filterProduct && filterBusinessType && !businessTypesFor(filterProduct).includes(filterBusinessType)) {
+			filterBusinessType = '';
+		}
+		resetPage();
+	}
+
 	function resetFilters() {
 		search = '';
+		filterProduct = '';
 		filterStatus = '';
 		filterCity = '';
 		filterBusinessType = '';
@@ -377,6 +386,17 @@
 					<th>Business</th>
 					<th>
 						<div class="th-filter">
+							<span>Product</span>
+							<select bind:value={filterProduct} onchange={changeProductFilter} aria-label="Filter by product">
+								<option value="">All</option>
+								{#each PRODUCTS as product (product)}
+									<option value={product}>{PRODUCT_LABELS[product]}</option>
+								{/each}
+							</select>
+						</div>
+					</th>
+					<th>
+						<div class="th-filter">
 							<span>Business Type</span>
 							<select bind:value={filterBusinessType} onchange={resetPage} aria-label="Filter by business type">
 								<option value="">All</option>
@@ -440,6 +460,7 @@
 				{#each paginatedLeads as lead (lead.lead_id)}
 					<tr class="crm-row" class:crm-row--selected={selectedLead?.lead_id === lead.lead_id}>
 						<td class="crm-name">{lead.business_name}</td>
+						<td>{productLabel(lead.product)}</td>
 						<td>{businessTypeLabel(lead.business_type)}</td>
 						<td>{lead.city ?? '—'}</td>
 						<td>
@@ -462,7 +483,7 @@
 						</td>
 					</tr>
 				{:else}
-					<tr><td colspan="8" class="crm-empty">No leads match the current filters.</td></tr>
+					<tr><td colspan="9" class="crm-empty">No leads match the current filters.</td></tr>
 				{/each}
 			</tbody>
 		</table>
@@ -516,6 +537,15 @@
 				};
 			}}
 		>
+			<label class="field-row field-row--inline">
+				<span>Product</span>
+				<select name="product" bind:value={newLeadProduct}>
+					{#each PRODUCTS as product (product)}
+						<option value={product}>{PRODUCT_LABELS[product]}</option>
+					{/each}
+				</select>
+			</label>
+
 			<label class="field-row">
 				<span><span class="req">*</span> Business Name</span>
 				<input type="text" name="business_name" required autocomplete="off" />
@@ -562,16 +592,34 @@
 			</label>
 
 			<label class="field-row field-row--inline">
-				<span>Business Type</span>
+				<span>{newLeadProduct === 'dialtone_med' ? 'Organization type' : 'Business type'}</span>
 				<select name="business_type">
 					<option value="">Unknown</option>
-					<option value="food_truck">Food Truck</option>
-					<option value="single_location">Single Location</option>
-					<option value="multi_configuration">Multi-Configuration</option>
-					<option value="multi_location">Multi-Location</option>
-					<option value="enterprise">Enterprise</option>
+					{#each businessTypesFor(newLeadProduct) as businessType (businessType)}
+						<option value={businessType}>{businessTypeLabel(businessType)}</option>
+					{/each}
 				</select>
 			</label>
+
+			{#if newLeadProduct === 'dialtone_med'}
+				<p class="form-note">Store organization prospect details only. Do not enter patient information, Tax IDs, or provider credential evidence in the CRM.</p>
+				<label class="field-row">
+					<span>Clinical specialty</span>
+					<input type="text" name="clinical_specialty" maxlength="120" placeholder="e.g. cardiology or oncology" />
+				</label>
+				<label class="field-row">
+					<span>NPI</span>
+					<input type="text" name="npi" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" placeholder="10-digit NPI" />
+				</label>
+				<label class="field-row field-row--inline">
+					<span>NPI entity type</span>
+					<select name="npi_entity_type">
+						<option value="">Unknown</option>
+						<option value="organization">Organization</option>
+						<option value="individual">Individual</option>
+					</select>
+				</label>
+			{/if}
 
 			<label class="field-row">
 				<span>Notes</span>
@@ -610,6 +658,7 @@
 		<section class="panel-section">
 			<h3>Lead Info <span class="readonly-tag">read-only</span></h3>
 			<dl class="field-list">
+				<dt>Product</dt><dd>{productLabel(selectedLead.product)}</dd>
 				<dt>Phone</dt>
 				<dd>
 					{#if selectedLead.phone && phoneHref(selectedLead.phone)}
@@ -621,15 +670,22 @@
 				</dd>
 				<dt>Address</dt><dd>{selectedLead.address ?? '—'}</dd>
 				<dt>City</dt><dd>{selectedLead.city ?? '—'}</dd>
-				<dt>Price</dt><dd>{selectedLead.price_range ?? '—'}</dd>
-				<dt>Yelp Rating</dt><dd>{selectedLead.yelp_rating != null ? `${selectedLead.yelp_rating} ★ (${selectedLead.yelp_review_count ?? 0} reviews)` : '—'}</dd>
-				<dt>Delivery</dt><dd>{flag(selectedLead.offers_delivery)}</dd>
-				<dt>Pickup</dt><dd>{flag(selectedLead.offers_pickup)}</dd>
-				<dt>Marketplace</dt><dd>{selectedLead.marketplace_providers ?? '—'}</dd>
-				<dt>First-Party</dt><dd>{selectedLead.first_party_ordering ?? '—'}</dd>
+				{#if selectedLead.product === 'dialtone_med'}
+					<dt>Clinical specialty</dt><dd>{selectedLead.clinical_specialty ?? '—'}</dd>
+					<dt>NPI</dt><dd>{selectedLead.npi ?? '—'}</dd>
+					<dt>NPI entity type</dt><dd>{selectedLead.npi_entity_type ?? '—'}</dd>
+				{:else}
+					<dt>Price</dt><dd>{selectedLead.price_range ?? '—'}</dd>
+					<dt>Yelp Rating</dt><dd>{selectedLead.yelp_rating != null ? `${selectedLead.yelp_rating} ★ (${selectedLead.yelp_review_count ?? 0} reviews)` : '—'}</dd>
+					<dt>Delivery</dt><dd>{flag(selectedLead.offers_delivery)}</dd>
+					<dt>Pickup</dt><dd>{flag(selectedLead.offers_pickup)}</dd>
+					<dt>Marketplace</dt><dd>{selectedLead.marketplace_providers ?? '—'}</dd>
+					<dt>First-Party</dt><dd>{selectedLead.first_party_ordering ?? '—'}</dd>
+				{/if}
 			</dl>
 		</section>
 
+		{#if selectedLead.product !== 'dialtone_med'}
 		<section class="panel-section research-section">
 			<div class="research-heading">
 				<div>
@@ -669,6 +725,7 @@
 				<p class="research-empty">No saved findings.</p>
 			{/if}
 		</section>
+		{/if}
 
 		<!-- Editable sales fields -->
 		<section class="panel-section">
@@ -769,6 +826,7 @@
 					<textarea name="notes" rows="15" maxlength="5000" style="resize: vertical; overflow-y: auto; min-height: 200px;" bind:value={selectedLead.notes}></textarea>
 				</label>
 
+				{#if selectedLead.product !== 'dialtone_med'}
 				<div class="field-row call-script-field">
 					<div class="call-script-heading">
 						<span>AI Call Script</span>
@@ -794,23 +852,41 @@
 						bind:value={selectedLead.call_script}
 					></textarea>
 				</div>
+				{/if}
 
 				<label class="field-row field-row--inline">
-					<span>Business type</span>
+					<span>{selectedLead.product === 'dialtone_med' ? 'Organization type' : 'Business type'}</span>
 					<select
 						name="business_type"
 						value={selectedLead.business_type ?? ''}
 						onchange={(e) => { selectedLead!.business_type = (e.currentTarget as HTMLSelectElement).value || null; }}
 					>
 						<option value="">Unknown</option>
-						<option value="food_truck">Food Truck</option>
-						<option value="single_location">Single Location</option>
-						<option value="multi_configuration">Multi-Configuration</option>
-						<option value="multi_location">Multi-Location</option>
-						<option value="enterprise">Enterprise</option>
+						{#each businessTypesFor(leadProduct(selectedLead)) as businessType (businessType)}
+							<option value={businessType}>{businessTypeLabel(businessType)}</option>
+						{/each}
 					</select>
 				</label>
 
+				{#if selectedLead.product === 'dialtone_med'}
+					<p class="form-note">This is prospect qualification only. Keep patient data, Tax IDs, and credential evidence out of the CRM.</p>
+					<label class="field-row">
+						<span>Clinical specialty</span>
+						<input type="text" name="clinical_specialty" maxlength="120" bind:value={selectedLead.clinical_specialty} />
+					</label>
+					<label class="field-row">
+						<span>NPI</span>
+						<input type="text" name="npi" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" bind:value={selectedLead.npi} />
+					</label>
+					<label class="field-row field-row--inline">
+						<span>NPI entity type</span>
+						<select name="npi_entity_type" bind:value={selectedLead.npi_entity_type}>
+							<option value={null}>Unknown</option>
+							<option value="organization">Organization</option>
+							<option value="individual">Individual</option>
+						</select>
+					</label>
+				{:else}
 				<label class="field-row field-row--inline">
 					<span>Michelin</span>
 					<select
@@ -826,6 +902,7 @@
 						<option value="green_star">Green Star</option>
 					</select>
 				</label>
+				{/if}
 
 				<label class="field-row">
 					<span># Locations</span>
@@ -841,19 +918,21 @@
 					</select>
 				</label>
 
-				<label class="field-row">
-					<span>POS system</span>
-					<input type="text" name="uses_pos" bind:value={selectedLead.uses_pos} />
-				</label>
+				{#if selectedLead.product !== 'dialtone_med'}
+					<label class="field-row">
+						<span>POS system</span>
+						<input type="text" name="uses_pos" bind:value={selectedLead.uses_pos} />
+					</label>
 
-				<label class="field-row field-row--inline">
-					<span>Uses KDS</span>
-					<select name="uses_kds" bind:value={selectedLead.uses_kds}>
-						<option value={null}>Unknown</option>
-						<option value={true}>Yes</option>
-						<option value={false}>No</option>
-					</select>
-				</label>
+					<label class="field-row field-row--inline">
+						<span>Uses KDS</span>
+						<select name="uses_kds" bind:value={selectedLead.uses_kds}>
+							<option value={null}>Unknown</option>
+							<option value={true}>Yes</option>
+							<option value={false}>No</option>
+						</select>
+					</label>
+				{/if}
 
 				<label class="field-row field-row--inline">
 					<span>Uses SMS</span>
@@ -1252,6 +1331,13 @@
 	}
 
 	.field-row textarea { resize: vertical; }
+
+	.form-note {
+		margin: 0 0 var(--space-md);
+		color: var(--text-muted);
+		font-size: 0.8125rem;
+		line-height: 1.45;
+	}
 
 	.field-row--inline {
 		flex-direction: row;

@@ -1,4 +1,5 @@
 import type { Lead, LeadResearchFinding } from '$lib/types';
+import { leadProduct } from '$lib/products';
 import callTemplate from '$lib/server/prompts/DialTone_Cold_Call_Template.md?raw';
 
 const START_MARKER = '******START HERE******';
@@ -273,6 +274,9 @@ export function buildCallScriptPrompt(
 	callerName: string,
 	approvedFindings: LeadResearchFinding[] = []
 ): string {
+	if (leadProduct(lead) !== 'dialtone_menu') {
+		throw new Error('DialTone.Menu call scripts cannot be generated for DialTone.Med leads');
+	}
 	const facts = Object.fromEntries(
 		Object.entries({
 			business_name: lead.business_name,
