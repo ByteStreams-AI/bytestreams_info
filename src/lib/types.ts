@@ -47,6 +47,7 @@ export interface Lead {
 	// Sales-editable fields
 	contact_name: string | null;
 	email: string | null;
+	linkedin_url?: string | null;
 	emailed?: boolean;
 	called?: boolean;
 	website_url: string | null;

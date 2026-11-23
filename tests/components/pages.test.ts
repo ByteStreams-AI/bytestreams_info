@@ -397,6 +397,21 @@ describe('CRM Page', () => {
 		expect(screen.getByText('Sample Family Clinic')).toBeInTheDocument();
 	});
 
+	it('places LinkedIn between Email and Website URL in both lead forms', async () => {
+		render(CrmPage, { props: { data: { user, leads: [{ ...lead, linkedin_url: 'https://www.linkedin.com/company/dialable' }], researchFindings: [] } } });
+		const order = (form: HTMLElement) => Array.from(form.querySelectorAll('input[name]')).map((input) => input.getAttribute('name'));
+		const between = (names: (string | null)[]) => names.slice(names.indexOf('email'), names.indexOf('website_url') + 1);
+
+		await fireEvent.click(screen.getByRole('button', { name: '+ Add Lead' }));
+		expect(between(order(screen.getByRole('dialog', { name: 'Add new lead' })))).toEqual(['email', 'linkedin_url', 'website_url']);
+		await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+		const panel = screen.getByRole('complementary', { name: 'Edit lead' });
+		expect(between(order(panel))).toEqual(['email', 'linkedin_url', 'website_url']);
+		expect(screen.getByDisplayValue('https://www.linkedin.com/company/dialable')).toBeInTheDocument();
+	});
+
 	it('edits contact phone between contact name and email', async () => {
 		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
