@@ -587,6 +587,11 @@
 			</label>
 
 			<label class="field-row">
+				<span>LinkedIn</span>
+				<input type="url" name="linkedin_url" placeholder="https://www.linkedin.com/company/…" />
+			</label>
+
+			<label class="field-row">
 				<span>Website URL</span>
 				<input type="url" name="website_url" placeholder="https://…" />
 			</label>
@@ -800,6 +805,26 @@
 					<span>Email</span>
 					<input type="email" name="email" bind:value={selectedLead.email} />
 				</label>
+
+				<div class="field-row">
+					<label class="field-row" style="margin-bottom:0">
+						<span>LinkedIn</span>
+						<input
+							type="url"
+							name="linkedin_url"
+							bind:value={selectedLead.linkedin_url}
+							placeholder="https://www.linkedin.com/company/…"
+						/>
+					</label>
+					{#if selectedLead.linkedin_url?.startsWith('https://')}
+						<a
+							href={selectedLead.linkedin_url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="website-link"
+						>Open ↗</a>
+					{/if}
+				</div>
 
 				<div class="field-row">
 					<label class="field-row" style="margin-bottom:0">

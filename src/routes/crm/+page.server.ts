@@ -73,6 +73,22 @@ const MENU_ONLY_MESSAGE = `${PRODUCT_LABELS.dialtone_menu} restaurant tools are 
 
 type Payload = Record<string, string | number | boolean | null>;
 
+const LINKEDIN_MESSAGE = 'LinkedIn must be a linkedin.com URL, such as https://www.linkedin.com/company/example.';
+
+/** Returns the normalized LinkedIn URL, or null when the value is not a linkedin.com URL. */
+function normalizeLinkedInUrl(value: string): string | null {
+	try {
+		const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+		const host = url.hostname.toLowerCase();
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+		if (host !== 'linkedin.com' && !host.endsWith('.linkedin.com')) return null;
+		url.protocol = 'https:';
+		return url.toString();
+	} catch {
+		return null;
+	}
+}
+
 function optionalText(form: FormData, field: string): string | null | undefined {
 	const val = form.get(field);
 	if (val === null) return undefined;
@@ -177,6 +193,13 @@ export const actions: Actions = {
 
 		const productFieldError = readProductFields(form, product, payload);
 		if (productFieldError) return fail(400, { message: productFieldError });
+
+		const linkedIn = optionalText(form, 'linkedin_url');
+		if (linkedIn !== undefined) {
+			const normalized = linkedIn === null ? null : normalizeLinkedInUrl(linkedIn);
+			if (linkedIn !== null && !normalized) return fail(400, { message: LINKEDIN_MESSAGE });
+			payload.linkedin_url = normalized;
+		}
 
 		const contactPhone = form.get('contact_phone');
 		if (typeof contactPhone === 'string') {
@@ -368,6 +391,13 @@ export const actions: Actions = {
 		for (const field of ['address', 'contact_name', 'email', 'website_url', 'notes'] as const) {
 			const val = (form.get(field) as string | null)?.trim() || null;
 			if (val) row[field] = val;
+		}
+
+		const linkedIn = optionalText(form, 'linkedin_url');
+		if (linkedIn) {
+			const normalized = normalizeLinkedInUrl(linkedIn);
+			if (!normalized) return fail(400, { message: LINKEDIN_MESSAGE });
+			row.linkedin_url = normalized;
 		}
 
 		const productFields: Payload = {};

@@ -13,7 +13,7 @@ type InsertRow = Record<string, string | number | boolean | null>;
 const LEAD_FIELDS = `lead_id, business_name, phone, contact_phone, address, city, state, status, business_type, michelin_rating,
 	offers_delivery, offers_pickup, marketplace_providers, first_party_ordering,
 	price_range, yelp_rating, yelp_review_count,
-	contact_name, email, emailed, called, website_url, notes, call_script, num_locations, has_website, has_app,
+	contact_name, email, linkedin_url, emailed, called, website_url, notes, call_script, num_locations, has_website, has_app,
 	uses_pos, uses_kds, uses_sms, product, clinical_specialty, npi, npi_entity_type, created_at`;
 const LEAD_PAGE_SIZE = 1000;
 
@@ -22,7 +22,7 @@ const RESTORABLE_LEAD_FIELDS = new Set([
 	'source_url', 'scrape_source', 'status', 'business_type', 'michelin_rating', 'num_locations',
 	'has_website', 'has_app', 'offers_delivery', 'offers_pickup', 'delivery_platforms',
 	'marketplace_providers', 'first_party_ordering', 'uses_pos', 'uses_kds', 'uses_sms', 'notes',
-	'call_script', 'website_url', 'price_range', 'yelp_rating', 'yelp_review_count',
+	'call_script', 'website_url', 'linkedin_url', 'price_range', 'yelp_rating', 'yelp_review_count',
 	'product', 'clinical_specialty', 'npi', 'npi_entity_type',
 	'created_at', 'updated_at'
 ]);
@@ -83,6 +83,7 @@ export async function updateLeadSalesFields(
 		emailed?: boolean;
 		called?: boolean;
 		website_url?: string | null;
+		linkedin_url?: string | null;
 		notes?: string | null;
 		call_script?: string | null;
 		num_locations?: number | null;

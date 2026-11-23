@@ -411,4 +411,65 @@ DialTone.Menu`;
 
 		expect(result).toMatchObject({ status: 404 });
 	});
+
+	it('normalizes a LinkedIn URL when creating a lead', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.create({
+			request: request({
+				business_name: 'New Cafe',
+				city: 'Houston',
+				state: 'TX',
+				linkedin_url: 'linkedin.com/company/new-cafe'
+			}),
+			locals: { user }
+		} as never);
+
+		expect(mocks.insertLead).toHaveBeenCalledWith(
+			{
+				business_name: 'New Cafe',
+				city: 'Houston',
+				state: 'TX',
+				product: 'dialtone_menu',
+				linkedin_url: 'https://linkedin.com/company/new-cafe'
+			},
+			'sales@bytestreams.ai'
+		);
+		expect(result).toEqual({ success: true });
+	});
+
+	it('rejects a non-LinkedIn URL', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const created = await actions.create({
+			request: request({ business_name: 'X', city: 'Houston', state: 'TX', linkedin_url: 'https://evil.example/linkedin.com' }),
+			locals: { user }
+		} as never);
+		const updated = await actions.update({
+			request: request({ lead_id: 'lead-1', linkedin_url: 'javascript:alert(1)' }),
+			locals: { user }
+		} as never);
+
+		expect(created).toMatchObject({ status: 400, data: { message: expect.stringContaining('LinkedIn') } });
+		expect(updated).toMatchObject({ status: 400, data: { message: expect.stringContaining('LinkedIn') } });
+		expect(mocks.insertLead).not.toHaveBeenCalled();
+		expect(mocks.updateLeadSalesFields).not.toHaveBeenCalled();
+	});
+
+	it('updates and clears a LinkedIn URL', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		await actions.update({
+			request: request({ lead_id: 'lead-1', linkedin_url: 'http://www.linkedin.com/in/someone' }),
+			locals: { user }
+		} as never);
+		await actions.update({
+			request: request({ lead_id: 'lead-1', linkedin_url: ' ' }),
+			locals: { user }
+		} as never);
+
+		expect(mocks.updateLeadSalesFields).toHaveBeenNthCalledWith(1, 'lead-1', 'sales@bytestreams.ai', {
+			linkedin_url: 'https://www.linkedin.com/in/someone'
+		});
+		expect(mocks.updateLeadSalesFields).toHaveBeenNthCalledWith(2, 'lead-1', 'sales@bytestreams.ai', {
+			linkedin_url: null
+		});
+	});
 });
