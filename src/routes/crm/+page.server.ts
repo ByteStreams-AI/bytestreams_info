@@ -14,6 +14,15 @@ import {
 import { generateCallScript } from '$lib/server/call-script';
 import { researchRestaurantWebsite } from '$lib/server/restaurant-research';
 import { normalizePhoneUri } from '$lib/phone';
+import {
+	NPI_ENTITY_TYPES,
+	PRODUCT_LABELS,
+	businessTypesFor,
+	isProduct,
+	isValidNpi,
+	leadProduct,
+	type Product
+} from '$lib/products';
 import type { PageServerLoad, Actions } from './$types';
 
 /** Editable status values — all valid lead statuses. */
@@ -57,6 +66,58 @@ const CONTACTED_OR_LATER_STATUSES = new Set([
 	'closed_lost'
 ]);
 
+/** Fields that only apply to DialTone.Menu restaurant leads. */
+const MENU_ONLY_FIELDS = new Set(['call_script', 'uses_pos', 'michelin_rating', 'uses_kds']);
+
+const MENU_ONLY_MESSAGE = `${PRODUCT_LABELS.dialtone_menu} restaurant tools are not available for ${PRODUCT_LABELS.dialtone_med} leads.`;
+
+type Payload = Record<string, string | number | boolean | null>;
+
+function optionalText(form: FormData, field: string): string | null | undefined {
+	const val = form.get(field);
+	if (val === null) return undefined;
+	return typeof val === 'string' && val.trim() !== '' ? val.trim() : null;
+}
+
+/**
+ * Reads business_type and the Med-only fields for a lead of the given product.
+ * Fields absent from the form are left out of the payload; Med fields on a Menu
+ * lead are ignored. Returns an error message when a value is invalid.
+ */
+function readProductFields(form: FormData, product: Product, payload: Payload): string | null {
+	const businessType = optionalText(form, 'business_type');
+	if (businessType !== undefined) {
+		if (businessType !== null && !businessTypesFor(product).includes(businessType)) {
+			return `"${businessType}" is not a valid business type for ${PRODUCT_LABELS[product]}.`;
+		}
+		payload.business_type = businessType;
+	}
+
+	if (product !== 'dialtone_med') return null;
+
+	const specialty = optionalText(form, 'clinical_specialty');
+	if (specialty !== undefined) {
+		if (specialty && specialty.length > 120) return 'Clinical specialty must be 120 characters or fewer.';
+		payload.clinical_specialty = specialty;
+	}
+
+	const npi = optionalText(form, 'npi');
+	if (npi !== undefined) {
+		if (npi !== null && !isValidNpi(npi)) return 'NPI must be a valid 10-digit National Provider Identifier.';
+		payload.npi = npi;
+	}
+
+	const entityType = optionalText(form, 'npi_entity_type');
+	if (entityType !== undefined) {
+		if (entityType !== null && !(NPI_ENTITY_TYPES as readonly string[]).includes(entityType)) {
+			return 'NPI entity type must be Organization or Individual.';
+		}
+		payload.npi_entity_type = entityType;
+	}
+
+	return null;
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
 		throw redirect(302, '/login');
@@ -83,9 +144,14 @@ export const actions: Actions = {
 			throw error(400, 'Missing lead_id');
 		}
 
+		const lead = await fetchLead(leadId);
+		if (!lead) return fail(404, { message: 'Lead not found.' });
+		// Product is fixed at creation; a submitted product field is ignored.
+		const product = leadProduct(lead);
+
 		// Build update payload — only sales-editable fields
 		const status = form.get('status');
-		const payload: Record<string, string | number | boolean | null> = {};
+		const payload: Payload = {};
 
 		if (status && typeof status === 'string' && VALID_STATUSES.includes(status as never)) {
 			payload.status = status;
@@ -99,14 +165,18 @@ export const actions: Actions = {
 			payload.called = false;
 		}
 
-		const textFields = ['contact_name', 'email', 'website_url', 'notes', 'call_script', 'uses_pos', 'business_type', 'michelin_rating'] as const;
+		const textFields = ['contact_name', 'email', 'website_url', 'notes', 'call_script', 'uses_pos', 'michelin_rating'] as const;
 		for (const field of textFields) {
 			if (READONLY_FIELDS.has(field)) continue;
+			if (product === 'dialtone_med' && MENU_ONLY_FIELDS.has(field)) continue;
 			const val = form.get(field);
 			if (val !== null) {
 				payload[field] = typeof val === 'string' && val.trim() === '' ? null : (val as string);
 			}
 		}
+
+		const productFieldError = readProductFields(form, product, payload);
+		if (productFieldError) return fail(400, { message: productFieldError });
 
 		const contactPhone = form.get('contact_phone');
 		if (typeof contactPhone === 'string') {
@@ -126,6 +196,7 @@ export const actions: Actions = {
 		}
 
 		for (const boolField of ['uses_kds', 'uses_sms', 'has_app'] as const) {
+			if (product === 'dialtone_med' && MENU_ONLY_FIELDS.has(boolField)) continue;
 			const val = form.get(boolField);
 			if (val !== null) {
 				payload[boolField] = val === '' ? null : val === 'true';
@@ -155,6 +226,9 @@ export const actions: Actions = {
 		try {
 			const lead = await fetchLead(leadId);
 			if (!lead) return fail(404, { message: 'Lead not found.' });
+			if (leadProduct(lead) !== 'dialtone_menu') {
+				return fail(400, { message: MENU_ONLY_MESSAGE });
+			}
 			if (lead.status !== 'researched' && lead.status !== 'reviewed') {
 				return fail(400, { message: 'Save the lead as Researched or Reviewed before generating a script.' });
 			}
@@ -196,6 +270,9 @@ export const actions: Actions = {
 
 		const lead = await fetchLead(leadId);
 		if (!lead) return fail(404, { message: 'Lead not found.' });
+		if (leadProduct(lead) !== 'dialtone_menu') {
+			return fail(400, { message: MENU_ONLY_MESSAGE });
+		}
 		if (!lead.website_url?.trim()) {
 			return fail(400, { message: 'Add and save the official website before researching this restaurant.' });
 		}
@@ -260,7 +337,11 @@ export const actions: Actions = {
 		if (!city) return fail(400, { message: 'City is required.' });
 		if (!state) return fail(400, { message: 'State is required.' });
 
-		const row: Record<string, string | null> = { business_name, city, state };
+		const productValue = optionalText(form, 'product') ?? 'dialtone_menu';
+		if (!isProduct(productValue)) return fail(400, { message: 'Choose DialTone.Menu or DialTone.Med.' });
+		const product: Product = productValue;
+
+		const row: Payload = { business_name, city, state, product };
 
 		const phone = (form.get('phone') as string | null)?.trim();
 		if (phone) {
@@ -284,9 +365,16 @@ export const actions: Actions = {
 			}
 		}
 
-		for (const field of ['address', 'contact_name', 'email', 'website_url', 'notes', 'business_type'] as const) {
+		for (const field of ['address', 'contact_name', 'email', 'website_url', 'notes'] as const) {
 			const val = (form.get(field) as string | null)?.trim() || null;
 			if (val) row[field] = val;
+		}
+
+		const productFields: Payload = {};
+		const productFieldError = readProductFields(form, product, productFields);
+		if (productFieldError) return fail(400, { message: productFieldError });
+		for (const [field, val] of Object.entries(productFields)) {
+			if (val !== null) row[field] = val;
 		}
 
 		try {

@@ -59,6 +59,12 @@ export interface Lead {
 	uses_pos: string | null;
 	uses_kds: boolean | null;
 	uses_sms: boolean | null;
+	// Leads predating the product column are DialTone.Menu leads.
+	product?: string;
+	// DialTone.Med organization fields
+	clinical_specialty?: string | null;
+	npi?: string | null;
+	npi_entity_type?: string | null;
 	created_at: string;
 }
 
