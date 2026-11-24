@@ -415,3 +415,50 @@ GET-checked, and what was submitted is recorded on the row (`013_add_10dlc_campa
   requires an EIN, and the sole-prop brand path is OTP-vetted rather than EIN-vetted.
 - **Webhooks.** Status is refreshed on demand from the row; a Telnyx `webhookURL` can replace that
   once the portal has a public endpoint for it.
+
+## 2026-11-24 — Apollo decision-maker lookup in the CRM
+
+### Summary
+
+Every lead (Menu and Med) has a **Decision Maker** section with a Find Contact / Enrich Contact
+button. It asks Apollo for the person to email, stores the result as reviewable findings, and
+writes a finding to the lead only when a human approves it.
+
+### How it works
+
+- `src/lib/server/apollo.ts`. A contact name on the lead → `POST /people/match` with name + domain
+  (or `organization_name` when the website is not the business's own). No contact → free
+  `POST /mixed_people/api_search` on the website's domain, ranked by `DECISION_MAKER_TITLES` for
+  the lead's product, then one `/people/match` by Apollo id.
+- **Credits:** search is free; enrichment is 1 credit when an email comes back.
+  `reveal_phone_number` and `reveal_personal_emails` are always `false`. A mobile number would add 8
+  credits per person, and we do not want phones. Do not turn either on.
+- Findings reuse `lead_research_runs` / `lead_research_findings` with categories `contact_name`,
+  `contact_title`, `contact_email`, `contact_linkedin`; the UI splits them from restaurant research by
+  the `contact_` prefix. Approval writes `contact_name` → `contact_name`, `contact_email` → `email`,
+  `contact_linkedin` → `linkedin_url` (normalized). Titles are informational only; `leads` has no title column.
+- Apollo returns `email_not_unlocked@…` for an email it did not reveal; that placeholder is dropped.
+
+### Configuration
+
+`APOLLO_API_KEY` Worker secret: an Apollo key with **Set as master key** on (People Search 403s
+otherwise). Unset → the action returns 503. No migration.
+
+### NPI Registry lead import (same branch)
+
+`pnpm crm:import-npi --type <general_practice|specialty_pharmacy|specialty_practice> --state FL --city <city> [--taxonomy "<registry specialty>"] [--apply]`
+is the DialTone.Med counterpart of the Yelp import in `dialtone_outreach`. Source: the free NPPES
+NPI Registry API, no key. Every organization carries an **authorized official** (owner/president/
+administrator), imported as `contact_name` / `contact_phone`, with their title in `notes`.
+
+- Logic in `developer/npi-leads.mjs` (types in `npi-leads.d.mts`, tests in `tests/unit/npi-leads.test.ts`);
+  CLI in `developer/import-npi-leads.mjs`. Dry run by default.
+- The registry matches a search against ANY of an organization's taxonomies and its city filter matches
+  mailing addresses too. The importer therefore filters on the **primary** taxonomy (`NPI_TYPES`) and
+  the **LOCATION** address, and drops hospitalist groups.
+- Never modifies existing leads. Skips an NPI already present, a (name, city) match ignoring case,
+  punctuation and LLC/PA/INC suffixes, or a phone owned by another lead (`phone` and
+  `(business_name, city)` are UNIQUE).
+- `scrape_source = 'npi_registry'`; `source_url` is the registry provider page.
+- Max 1,200 results per registry query; the CLI warns when a search hits it. Narrow with `--city` or
+  `--postal-code`.
