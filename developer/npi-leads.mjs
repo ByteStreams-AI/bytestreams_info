@@ -34,7 +34,7 @@ export const NPI_TYPES = {
 
 const UPPER_TOKENS = new Set([
 	'LLC', 'PLLC', 'PA', 'P.A.', 'PC', 'P.C.', 'INC', 'INC.', 'LLP', 'LTD', 'MD', 'M.D.', 'DO', 'DDS', 'DMD',
-	'APRN', 'NP', 'FNP', 'II', 'III', 'IV', 'USA', 'US', 'FL', 'TX', 'GA', 'ENT', 'MSO', 'RX', 'DPC'
+	'APRN', 'NP', 'FNP', 'II', 'III', 'IV', 'USA', 'US', 'FL', 'TX', 'GA', 'TN', 'AL', 'MS', 'SC', 'NC', 'AR', 'KY', 'VA', 'NY', 'NJ', 'PC', 'ENT', 'MSO', 'RX', 'DPC'
 ]);
 const LOWER_TOKENS = new Set(['of', 'and', 'the', 'at', 'for', 'in', 'on', 'to']);
 

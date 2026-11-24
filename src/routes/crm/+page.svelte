@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Nav from '$lib/components/Nav.svelte';
-	import { phoneHref } from '$lib/phone';
+	import { formatPhone, phoneHref } from '$lib/phone';
 	import type { Lead, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
 	import {
 		PRODUCTS,
@@ -509,7 +509,7 @@
 							</select>
 						</div>
 					</th>
-					<th></th>
+					<th class="col-edit"></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -522,7 +522,7 @@
 						<td>
 							{#if lead.phone && phoneHref(lead.phone)}
 								{@const tel = phoneHref(lead.phone)!}
-								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{lead.phone}</a>
+								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{formatPhone(lead.phone)}</a>
 							{:else}
 								{lead.phone ?? '—'}
 							{/if}
@@ -534,7 +534,7 @@
 						</td>
 						<td>{lead.called ? 'Yes' : 'No'}</td>
 						<td>{lead.emailed ? 'Yes' : 'No'}</td>
-						<td>
+						<td class="col-edit">
 							<button class="btn-edit" onclick={() => openPanel(lead)}>Edit</button>
 						</td>
 					</tr>
@@ -724,7 +724,7 @@
 				<dd>
 					{#if selectedLead.phone && phoneHref(selectedLead.phone)}
 						{@const tel = phoneHref(selectedLead.phone)!}
-						<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{selectedLead.phone}</a>
+						<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{formatPhone(selectedLead.phone)}</a>
 					{:else}
 						{selectedLead.phone ?? '—'}
 					{/if}
@@ -1088,7 +1088,7 @@
 
 <style>
 	.crm-layout {
-		max-width: 1200px;
+		max-width: 1440px;
 		margin: 0 auto;
 		padding: var(--space-2xl) var(--space-xl);
 	}
@@ -1274,6 +1274,13 @@
 		border-bottom: 1px solid var(--border-edge);
 		color: var(--text-bright);
 		vertical-align: middle;
+	}
+
+	/* Edit stays visible when the table is wider than the page and scrolls sideways. */
+	.col-edit {
+		position: sticky;
+		right: 0;
+		background: var(--bg-void);
 	}
 
 	.crm-row:hover td {

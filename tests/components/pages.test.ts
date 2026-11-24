@@ -195,11 +195,11 @@ describe('CRM Page', () => {
 	it('renders a dialable business phone link in the leads table', () => {
 		render(CrmPage, { props: { data: { user, leads: [lead], researchFindings: [] } } });
 
-		expect(screen.getByRole('link', { name: 'tel:+17135550101' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: '(713) 555-0101' })).toHaveAttribute(
 			'href',
 			'tel:+17135550101'
 		);
-		expect(screen.queryByRole('link', { name: 'tel:+17135550102' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: '(713) 555-0102' })).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'PHONED' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'EMAILED' })).toBeInTheDocument();
 	});

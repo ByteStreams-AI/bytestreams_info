@@ -51,6 +51,7 @@ describe('displayName', () => {
 		expect(displayName('GAINES C MARTIN MD PHD PA')).toBe('Gaines C Martin MD PhD PA');
 		expect(displayName('THE 904 HEALTH CLINIC 2ND FLOOR')).toBe('The 904 Health Clinic 2nd Floor');
 		expect(displayName('R K VISHEN MD P A')).toBe('R K Vishen MD P A');
+		expect(displayName('GUIDESTAR ELDERCARE - TN, P.C.')).toBe('Guidestar Eldercare - TN, P.C.');
 		expect(displayName(null)).toBe('');
 	});
 });
