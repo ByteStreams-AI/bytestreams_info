@@ -17,6 +17,9 @@ STRIPE_SECRET_KEY=           # Stripe restricted or secret key with Tax Calculat
 STRIPE_TAX_CODE=txcd_10103001 # Software as a service (SaaS) for business use
 ENABLE_TAX_ASSESSMENT=true   # Set to "true" to enable tax assessment on payments, "false" to disable
 
+# --- Apollo (CRM decision-maker lookup) ---
+APOLLO_API_KEY=              # Apollo master API key; emails only, no phone reveal
+
 # --- Call Script ---
 CALLER_NAME=Steve
 

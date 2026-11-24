@@ -201,13 +201,17 @@ export async function reviewLeadResearchFinding(
 	findingId: string,
 	status: ResearchReviewStatus,
 	actorEmail: string
-): Promise<void> {
+): Promise<Pick<LeadResearchFinding, 'lead_id' | 'category' | 'value'>> {
 	const client = getClient(actorEmail);
-	const { error } = await client
+	const { data, error } = await client
 		.from('lead_research_findings')
 		.update({ review_status: status, reviewed_by_email: actorEmail, reviewed_at: new Date().toISOString() })
-		.eq('finding_id', findingId);
+		.eq('finding_id', findingId)
+		.select('lead_id, category, value')
+		.maybeSingle();
 	if (error) throw new Error(error.message);
+	if (!data) throw new Error('Finding not found.');
+	return data as Pick<LeadResearchFinding, 'lead_id' | 'category' | 'value'>;
 }
 
 export async function fetchLeadChanges(limit = 500): Promise<LeadChange[]> {

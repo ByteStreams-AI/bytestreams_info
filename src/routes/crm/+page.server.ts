@@ -13,6 +13,8 @@ import {
 } from '$lib/server/supabase';
 import { generateCallScript } from '$lib/server/call-script';
 import { researchRestaurantWebsite } from '$lib/server/restaurant-research';
+import { APOLLO_FINDING_FIELDS, findLeadContact } from '$lib/server/apollo';
+import { env } from '$env/dynamic/private';
 import { normalizePhoneUri } from '$lib/phone';
 import {
 	NPI_ENTITY_TYPES,
@@ -68,6 +70,8 @@ const CONTACTED_OR_LATER_STATUSES = new Set([
 
 /** Fields that only apply to DialTone.Menu restaurant leads. */
 const MENU_ONLY_FIELDS = new Set(['call_script', 'uses_pos', 'michelin_rating', 'uses_kds']);
+
+const APOLLO_SOURCE_URL = 'https://api.apollo.io/api/v1/people/match';
 
 const MENU_ONLY_MESSAGE = `${PRODUCT_LABELS.dialtone_menu} restaurant tools are not available for ${PRODUCT_LABELS.dialtone_med} leads.`;
 
@@ -325,6 +329,55 @@ export const actions: Actions = {
 		}
 	},
 
+	findContact: async ({ request, locals }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+
+		const form = await request.formData();
+		const leadId = form.get('lead_id');
+		if (!leadId || typeof leadId !== 'string') {
+			return fail(400, { message: 'Missing lead ID.' });
+		}
+
+		const apiKey = env.APOLLO_API_KEY?.trim();
+		if (!apiKey) return fail(503, { message: 'Apollo is not configured in this environment (APOLLO_API_KEY).' });
+
+		const lead = await fetchLead(leadId);
+		if (!lead) return fail(404, { message: 'Lead not found.' });
+
+		let runId: string | null = null;
+		try {
+			runId = await createLeadResearchRun(leadId, APOLLO_SOURCE_URL, locals.user.email);
+			const result = await findLeadContact(
+				{
+					business_name: lead.business_name,
+					contact_name: lead.contact_name,
+					linkedin_url: lead.linkedin_url,
+					website_url: lead.website_url,
+					product: leadProduct(lead)
+				},
+				apiKey
+			);
+			const findings = await completeLeadResearchRun(runId, leadId, result.findings, locals.user.email);
+			return { success: true, findings };
+		} catch (contactError) {
+			const errorMessage = contactError instanceof Error ? contactError.message : String(contactError);
+			if (runId) {
+				try {
+					await failLeadResearchRun(runId, errorMessage, locals.user.email);
+				} catch (persistenceError) {
+					console.error(JSON.stringify({
+						message: 'failed to record Apollo contact failure',
+						leadId,
+						runId,
+						error: persistenceError instanceof Error ? persistenceError.message : String(persistenceError)
+					}));
+				}
+			}
+			console.error(JSON.stringify({ message: 'Apollo contact lookup failed', leadId, error: errorMessage }));
+			return fail(502, { message: `Unable to find a contact: ${errorMessage}` });
+		}
+	},
+
 	reviewResearchFinding: async ({ request, locals }) => {
 		if (!locals.user) throw error(401, 'Unauthorized');
 
@@ -339,8 +392,20 @@ export const actions: Actions = {
 		}
 
 		try {
-			await reviewLeadResearchFinding(findingId, reviewStatus, locals.user.email);
-			return { success: true, finding_id: findingId, review_status: reviewStatus };
+			const finding = await reviewLeadResearchFinding(findingId, reviewStatus, locals.user.email);
+			const field = APOLLO_FINDING_FIELDS[finding.category as keyof typeof APOLLO_FINDING_FIELDS];
+			if (reviewStatus !== 'approved' || !field) {
+				return { success: true, finding_id: findingId, review_status: reviewStatus };
+			}
+
+			let value = finding.value;
+			if (field === 'linkedin_url') {
+				const normalized = normalizeLinkedInUrl(value);
+				if (!normalized) return fail(400, { message: LINKEDIN_MESSAGE });
+				value = normalized;
+			}
+			await updateLeadSalesFields(finding.lead_id, locals.user.email, { [field]: value });
+			return { success: true, finding_id: findingId, review_status: reviewStatus, applied: { field, value } };
 		} catch (reviewError) {
 			return fail(500, {
 				message: reviewError instanceof Error ? reviewError.message : 'Unable to review this finding.'

@@ -12,7 +12,16 @@ const mocks = vi.hoisted(() => ({
 	reviewLeadResearchFinding: vi.fn(),
 	updateLeadSalesFields: vi.fn(),
 	generateCallScript: vi.fn(),
-	researchRestaurantWebsite: vi.fn()
+	researchRestaurantWebsite: vi.fn(),
+	findLeadContact: vi.fn(),
+	env: {} as Record<string, string | undefined>
+}));
+
+vi.mock('$env/dynamic/private', () => ({ env: mocks.env }));
+
+vi.mock('$lib/server/apollo', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/server/apollo')>()),
+	findLeadContact: mocks.findLeadContact
 }));
 
 vi.mock('@sveltejs/kit', () => ({
@@ -99,6 +108,8 @@ describe('CRM restaurant research actions', () => {
 		mocks.completeLeadResearchRun.mockResolvedValue([finding]);
 		mocks.fetchApprovedLeadResearchFindings.mockResolvedValue([{ ...finding, review_status: 'approved' }]);
 		mocks.generateCallScript.mockResolvedValue('## First 30 Seconds');
+		mocks.reviewLeadResearchFinding.mockResolvedValue(finding);
+		mocks.env.APOLLO_API_KEY = 'apollo-key';
 	});
 
 	it('persists cited findings from the official website', async () => {
@@ -147,6 +158,103 @@ describe('CRM restaurant research actions', () => {
 			'sales@bytestreams.ai'
 		);
 		expect(result).toMatchObject({ success: true, review_status: 'approved' });
+	});
+
+	it('stores Apollo decision-maker findings for review', async () => {
+		const contactFinding = { ...finding, category: 'contact_email', value: 'owner@sample.example' };
+		mocks.fetchLead.mockResolvedValue({ ...lead, product: 'dialtone_med', contact_name: null });
+		mocks.findLeadContact.mockResolvedValue({
+			sourceUrl: 'https://app.apollo.io/#/people/p-1',
+			findings: [{ category: 'contact_email', value: 'owner@sample.example', sourceUrl: 'https://app.apollo.io/#/people/p-1', confidence: 0.95 }]
+		});
+		mocks.completeLeadResearchRun.mockResolvedValue([contactFinding]);
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.findContact({ request: request({ lead_id: 'lead-1' }), locals: { user } } as never);
+
+		expect(mocks.findLeadContact).toHaveBeenCalledWith(
+			{ business_name: 'Sample Kitchen', contact_name: null, linkedin_url: undefined, website_url: 'https://sample.example', product: 'dialtone_med' },
+			'apollo-key'
+		);
+		expect(mocks.createLeadResearchRun).toHaveBeenCalledWith('lead-1', 'https://api.apollo.io/api/v1/people/match', 'sales@bytestreams.ai');
+		expect(result).toEqual({ success: true, findings: [contactFinding] });
+	});
+
+	it('refuses an Apollo lookup without an API key', async () => {
+		mocks.env.APOLLO_API_KEY = ' ';
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.findContact({ request: request({ lead_id: 'lead-1' }), locals: { user } } as never);
+
+		expect(result).toMatchObject({ status: 503 });
+		expect(mocks.findLeadContact).not.toHaveBeenCalled();
+	});
+
+	it('validates the Apollo lookup request', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		await expect(actions.findContact({ request: request({}), locals: { user: null } } as never)).rejects.toMatchObject({ status: 401 });
+		expect(await actions.findContact({ request: request({}), locals: { user } } as never)).toMatchObject({ status: 400 });
+		mocks.fetchLead.mockResolvedValue(null);
+		expect(await actions.findContact({ request: request({ lead_id: 'x' }), locals: { user } } as never)).toMatchObject({ status: 404 });
+	});
+
+	it('records a failed Apollo lookup on the run', async () => {
+		mocks.findLeadContact.mockRejectedValue(new Error('Apollo rejected the API key (401).'));
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.findContact({ request: request({ lead_id: 'lead-1' }), locals: { user } } as never);
+
+		expect(mocks.failLeadResearchRun).toHaveBeenCalledWith('run-1', 'Apollo rejected the API key (401).', 'sales@bytestreams.ai');
+		expect(result).toMatchObject({ status: 502, data: { message: expect.stringContaining('401') } });
+	});
+
+	it('still reports the Apollo failure when recording it fails', async () => {
+		mocks.findLeadContact.mockRejectedValue('offline');
+		mocks.failLeadResearchRun.mockRejectedValue(new Error('db down'));
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.findContact({ request: request({ lead_id: 'lead-1' }), locals: { user } } as never);
+
+		expect(result).toMatchObject({ status: 502, data: { message: 'Unable to find a contact: offline' } });
+	});
+
+	it('writes an approved Apollo email to the lead', async () => {
+		mocks.reviewLeadResearchFinding.mockResolvedValue({ lead_id: 'lead-1', category: 'contact_email', value: 'owner@sample.example' });
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const result = await actions.reviewResearchFinding({
+			request: request({ finding_id: 'finding-1', review_status: 'approved' }),
+			locals: { user }
+		} as never);
+
+		expect(mocks.updateLeadSalesFields).toHaveBeenCalledWith('lead-1', 'sales@bytestreams.ai', { email: 'owner@sample.example' });
+		expect(result).toMatchObject({ success: true, applied: { field: 'email', value: 'owner@sample.example' } });
+	});
+
+	it('normalizes an approved Apollo LinkedIn URL and refuses a bad one', async () => {
+		mocks.reviewLeadResearchFinding.mockResolvedValue({ lead_id: 'lead-1', category: 'contact_linkedin', value: 'http://www.linkedin.com/in/owner' });
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		const approve = () => actions.reviewResearchFinding({
+			request: request({ finding_id: 'finding-1', review_status: 'approved' }),
+			locals: { user }
+		} as never);
+
+		await approve();
+		expect(mocks.updateLeadSalesFields).toHaveBeenCalledWith('lead-1', 'sales@bytestreams.ai', { linkedin_url: 'https://www.linkedin.com/in/owner' });
+
+		mocks.reviewLeadResearchFinding.mockResolvedValue({ lead_id: 'lead-1', category: 'contact_linkedin', value: 'https://evil.example/in/owner' });
+		expect(await approve()).toMatchObject({ status: 400 });
+	});
+
+	it('does not write a rejected Apollo finding or a title to the lead', async () => {
+		const { actions } = await import('$lib/../routes/crm/+page.server');
+		mocks.reviewLeadResearchFinding.mockResolvedValue({ lead_id: 'lead-1', category: 'contact_email', value: 'a@b.example' });
+		await actions.reviewResearchFinding({
+			request: request({ finding_id: 'finding-1', review_status: 'rejected' }),
+			locals: { user }
+		} as never);
+		mocks.reviewLeadResearchFinding.mockResolvedValue({ lead_id: 'lead-1', category: 'contact_title', value: 'Owner' });
+		await actions.reviewResearchFinding({
+			request: request({ finding_id: 'finding-1', review_status: 'approved' }),
+			locals: { user }
+		} as never);
+
+		expect(mocks.updateLeadSalesFields).not.toHaveBeenCalled();
 	});
 
 	it('passes approved findings to script generation', async () => {
