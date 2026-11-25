@@ -26,6 +26,7 @@ export default defineConfig({
 				'src/routes/files/**',
 					'src/routes/portal-admin/**',
 				'src/routes/social/**',
+				'src/routes/outreach/**',
 				'src/lib/server/supabase.ts',
 				'src/lib/server/social.ts',
 				'src/routes/+page.server.ts'

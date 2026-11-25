@@ -24,6 +24,7 @@ import {
 	createEvent,
 	deleteEvent,
 	disconnectAccount,
+	hasGmailAccess,
 	isConnected,
 	listEvents,
 	updateEvent
@@ -63,6 +64,27 @@ describe('Google Calendar integration', () => {
 		expect(url.searchParams.get('access_type')).toBe('offline');
 		expect(url.searchParams.get('prompt')).toBe('consent');
 		expect(url.searchParams.get('state')).toBe('csrf-state');
+	});
+
+	it('adds the outreach Gmail scopes only when asked, keeping earlier grants', () => {
+		const url = new URL(buildAuthUrl('state', true));
+		expect(url.searchParams.get('scope')).toBe([
+			'https://www.googleapis.com/auth/calendar.events',
+			'https://www.googleapis.com/auth/gmail.send',
+			'https://www.googleapis.com/auth/gmail.metadata'
+		].join(' '));
+		expect(url.searchParams.get('include_granted_scopes')).toBe('true');
+	});
+
+	it('knows whether the stored grant covers Gmail', async () => {
+		expect(await hasGmailAccess(userEmail)).toBe(false);
+		mocks.getGoogleCalendarTokens.mockResolvedValue({
+			...validTokens,
+			scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.metadata'
+		});
+		expect(await hasGmailAccess(userEmail)).toBe(true);
+		mocks.getGoogleCalendarTokens.mockResolvedValue(null);
+		expect(await hasGmailAccess(userEmail)).toBe(false);
 	});
 
 	it('requires complete OAuth configuration', () => {

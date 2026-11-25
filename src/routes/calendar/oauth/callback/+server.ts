@@ -8,7 +8,9 @@ export const GET: RequestHandler = async ({ locals, url, cookies }) => {
 
 	const state = url.searchParams.get('state');
 	const savedState = cookies.get('gcal_oauth_state');
+	const returnTo = cookies.get('gcal_oauth_return') === '/outreach' ? '/outreach' : '/calendar';
 	cookies.delete('gcal_oauth_state', { path: '/' });
+	cookies.delete('gcal_oauth_return', { path: '/' });
 
 	if (!state || !savedState || state !== savedState) {
 		throw error(400, 'Invalid OAuth state');
@@ -16,7 +18,7 @@ export const GET: RequestHandler = async ({ locals, url, cookies }) => {
 
 	const googleError = url.searchParams.get('error');
 	if (googleError) {
-		throw redirect(302, `/calendar?gcal_error=${encodeURIComponent(googleError)}`);
+		throw redirect(302, `${returnTo}?gcal_error=${encodeURIComponent(googleError)}`);
 	}
 
 	const code = url.searchParams.get('code');
@@ -26,8 +28,8 @@ export const GET: RequestHandler = async ({ locals, url, cookies }) => {
 		await connectAccount(locals.user.email, code);
 	} catch (e) {
 		const message = e instanceof Error ? e.message : 'Failed to connect Google Calendar';
-		throw redirect(302, `/calendar?gcal_error=${encodeURIComponent(message)}`);
+		throw redirect(302, `${returnTo}?gcal_error=${encodeURIComponent(message)}`);
 	}
 
-	throw redirect(302, '/calendar');
+	throw redirect(302, returnTo);
 };
