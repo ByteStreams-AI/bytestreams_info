@@ -24,6 +24,7 @@
 		<a href="/calendar" class="nav-link">Calendar</a>
 		<a href="/files" class="nav-link">Files</a>
 		<a href="/social" class="nav-link">Social</a>
+		<a href="/outreach" class="nav-link">Outreach</a>
 	</nav>
 
 	<div class="nav-user">

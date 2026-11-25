@@ -2,7 +2,7 @@
 	"name": "bytestreams-intranet",
 	"compatibility_date": "2026-07-25",
 	"compatibility_flags": ["nodejs_compat"],
-	"main": ".svelte-kit/cloudflare/_worker.js",
+	"main": "worker/index.js",
 	"ai": {
 		"binding": "AI"
 	},
@@ -11,6 +11,11 @@
 	},
 	"assets": {
 		"directory": ".svelte-kit/cloudflare"
+	},
+	// Outreach runs every 15 minutes, Mon-Fri, 12:00-17:45 UTC: 06:00-11:45 Central in winter,
+	// 07:00-12:45 in summer. The run itself decides what to do from the Central time.
+	"triggers": {
+		"crons": ["*/15 12-17 * * 1-5"]
 	},
 	"routes": [
 		{ "pattern": "www.bytestreams.info/*", "zone_name": "bytestreams.info" },

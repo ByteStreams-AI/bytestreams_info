@@ -201,13 +201,17 @@ export async function reviewLeadResearchFinding(
 	findingId: string,
 	status: ResearchReviewStatus,
 	actorEmail: string
-): Promise<void> {
+): Promise<Pick<LeadResearchFinding, 'lead_id' | 'category' | 'value'>> {
 	const client = getClient(actorEmail);
-	const { error } = await client
+	const { data, error } = await client
 		.from('lead_research_findings')
 		.update({ review_status: status, reviewed_by_email: actorEmail, reviewed_at: new Date().toISOString() })
-		.eq('finding_id', findingId);
+		.eq('finding_id', findingId)
+		.select('lead_id, category, value')
+		.maybeSingle();
 	if (error) throw new Error(error.message);
+	if (!data) throw new Error('Finding not found.');
+	return data as Pick<LeadResearchFinding, 'lead_id' | 'category' | 'value'>;
 }
 
 export async function fetchLeadChanges(limit = 500): Promise<LeadChange[]> {
@@ -400,4 +404,259 @@ export async function deleteFile(path: string): Promise<void> {
 	const client = getClient();
 	const { error } = await client.storage.from(BUCKET).remove([path]);
 	if (error) throw new Error(error.message);
+}
+
+// ── Outreach (developer/migrations/024_create_outreach.sql) ─────────────────
+
+export type OutreachMessageStatus = 'pending' | 'approved' | 'sending' | 'sent' | 'skipped' | 'failed';
+export type OutreachSequenceState = 'active' | 'replied' | 'bounced' | 'opted_out' | 'completed' | 'stopped';
+
+export interface OutreachMessageRow {
+	message_id: string;
+	lead_id: string;
+	step: 1 | 2 | 3;
+	to_email: string;
+	subject: string;
+	body: string;
+	status: OutreachMessageStatus;
+	planned_for: string;
+	send_after: string | null;
+	sent_at: string | null;
+	error: string | null;
+	leads?: { business_name: string; city: string | null; contact_name: string | null } | null;
+}
+
+export interface OutreachSequenceRow {
+	lead_id: string;
+	to_email: string;
+	state: OutreachSequenceState;
+	gmail_thread_id: string | null;
+	last_rfc_message_id: string | null;
+	first_subject: string | null;
+	last_sent_at: string | null;
+	stopped_reason: string | null;
+	updated_at?: string;
+	leads?: { business_name: string; city: string | null } | null;
+}
+
+export interface OutreachCandidate {
+	lead_id: string;
+	business_name: string;
+	contact_name: string | null;
+	email: string | null;
+	business_type: string | null;
+	clinical_specialty: string | null;
+	product: string;
+	status: string;
+	emailed: boolean | null;
+}
+
+const OUTREACH_MESSAGE_FIELDS =
+	'message_id, lead_id, step, to_email, subject, body, status, planned_for, send_after, sent_at, error';
+
+/** Med leads that could start a sequence: not emailed, with an email, never sequenced. Oldest first. */
+export async function fetchOutreachCandidates(): Promise<OutreachCandidate[]> {
+	const client = getClient();
+	const { data: sequenced, error: sequenceError } = await client.from('outreach_sequences').select('lead_id');
+	if (sequenceError) throw new Error(sequenceError.message);
+	// A first email that was removed or failed keeps its (lead_id, step) row, so the planner cannot
+	// queue it again. Left in, such a lead would hold one of the day's slots forever.
+	const { data: queued, error: queuedError } = await client.from('outreach_messages').select('lead_id').eq('step', 1);
+	if (queuedError) throw new Error(queuedError.message);
+	const skip = new Set([...(sequenced ?? []), ...(queued ?? [])].map((row) => row.lead_id as string));
+
+	const { data, error } = await client
+		.from('leads')
+		.select('lead_id, business_name, contact_name, email, business_type, clinical_specialty, product, status, emailed')
+		.eq('product', 'dialtone_med')
+		.not('email', 'is', null)
+		.or('emailed.is.null,emailed.eq.false')
+		.in('status', ['new', 'researched', 'reviewed', 'prospect'])
+		.order('created_at', { ascending: true })
+		.limit(1000);
+	if (error) throw new Error(error.message);
+	return ((data ?? []) as OutreachCandidate[]).filter((lead) => !skip.has(lead.lead_id));
+}
+
+export async function fetchSuppressedEmails(): Promise<Set<string>> {
+	const { data, error } = await getClient().from('outreach_suppressions').select('email');
+	if (error) throw new Error(error.message);
+	return new Set((data ?? []).map((row) => row.email as string));
+}
+
+export async function addOutreachSuppression(email: string, reason: 'opted_out' | 'bounced' | 'manual', actorEmail: string | null): Promise<void> {
+	const { error } = await getClient(actorEmail ?? undefined)
+		.from('outreach_suppressions')
+		.upsert({ email: email.trim().toLowerCase(), reason, created_by_email: actorEmail }, { onConflict: 'email' });
+	if (error) throw new Error(error.message);
+}
+
+export async function fetchOutreachSequences(states?: OutreachSequenceState[]): Promise<OutreachSequenceRow[]> {
+	let query = getClient()
+		.from('outreach_sequences')
+		.select('lead_id, to_email, state, gmail_thread_id, last_rfc_message_id, first_subject, last_sent_at, stopped_reason, updated_at, leads(business_name, city)')
+		.order('updated_at', { ascending: false })
+		.limit(500);
+	if (states) query = query.in('state', states);
+	const { data, error } = await query;
+	if (error) throw new Error(error.message);
+	return (data ?? []) as unknown as OutreachSequenceRow[];
+}
+
+/** The highest step sent per lead, for active sequences. */
+export async function fetchSentSteps(leadIds: string[]): Promise<Map<string, number>> {
+	const steps = new Map<string, number>();
+	if (leadIds.length === 0) return steps;
+	const { data, error } = await getClient()
+		.from('outreach_messages')
+		.select('lead_id, step')
+		.eq('status', 'sent')
+		.in('lead_id', leadIds);
+	if (error) throw new Error(error.message);
+	for (const row of data ?? []) steps.set(row.lead_id, Math.max(steps.get(row.lead_id) ?? 0, row.step));
+	return steps;
+}
+
+export async function upsertOutreachSequence(row: Partial<OutreachSequenceRow> & { lead_id: string }): Promise<void> {
+	const { error } = await getClient().from('outreach_sequences').upsert(row, { onConflict: 'lead_id' });
+	if (error) throw new Error(error.message);
+}
+
+export async function hasPlannedDay(day: string): Promise<boolean> {
+	const { data, error } = await getClient().from('outreach_plan_days').select('day').eq('day', day).maybeSingle();
+	if (error) throw new Error(error.message);
+	return data !== null;
+}
+
+export async function recordPlannedDay(day: string, plannedCount: number): Promise<void> {
+	const { error } = await getClient()
+		.from('outreach_plan_days')
+		.upsert({ day, planned_count: plannedCount }, { onConflict: 'day' });
+	if (error) throw new Error(error.message);
+}
+
+export async function insertOutreachMessages(
+	rows: Omit<OutreachMessageRow, 'message_id' | 'sent_at' | 'error' | 'leads'>[]
+): Promise<void> {
+	if (rows.length === 0) return;
+	const { error } = await getClient()
+		.from('outreach_messages')
+		.upsert(rows, { onConflict: 'lead_id,step', ignoreDuplicates: true });
+	if (error) throw new Error(error.message);
+}
+
+export async function fetchOutreachMessagesFor(day: string): Promise<OutreachMessageRow[]> {
+	const { data, error } = await getClient()
+		.from('outreach_messages')
+		.select(`${OUTREACH_MESSAGE_FIELDS}, leads(business_name, city, contact_name)`)
+		.eq('planned_for', day)
+		.order('step', { ascending: false })
+		.order('created_at', { ascending: true });
+	if (error) throw new Error(error.message);
+	return (data ?? []) as unknown as OutreachMessageRow[];
+}
+
+/** Approves pending messages, giving each its send time. Returns how many were approved. */
+export async function approveOutreachMessages(
+	approvals: { message_id: string; send_after: string }[],
+	actorEmail: string
+): Promise<number> {
+	const client = getClient(actorEmail);
+	let approved = 0;
+	for (const approval of approvals) {
+		const { data, error } = await client
+			.from('outreach_messages')
+			.update({ status: 'approved', send_after: approval.send_after, approved_by_email: actorEmail, approved_at: new Date().toISOString() })
+			.eq('message_id', approval.message_id)
+			.eq('status', 'pending')
+			.select('message_id');
+		if (error) throw new Error(error.message);
+		approved += data?.length ?? 0;
+	}
+	return approved;
+}
+
+export async function skipOutreachMessage(messageId: string, actorEmail: string): Promise<void> {
+	const { error } = await getClient(actorEmail)
+		.from('outreach_messages')
+		.update({ status: 'skipped', error: `Removed by ${actorEmail}` })
+		.eq('message_id', messageId)
+		.in('status', ['pending', 'approved']);
+	if (error) throw new Error(error.message);
+}
+
+/** Puts a failed email back in the queue to go out on the next run. */
+export async function retryOutreachMessage(messageId: string, actorEmail: string): Promise<void> {
+	const { error } = await getClient(actorEmail)
+		.from('outreach_messages')
+		.update({ status: 'approved', send_after: new Date().toISOString(), error: null })
+		.eq('message_id', messageId)
+		.eq('status', 'failed');
+	if (error) throw new Error(error.message);
+}
+
+/** Atomically claims approved messages that are due, so two overlapping runs cannot both send one. */
+export async function claimDueOutreachMessages(nowIso: string, limit: number): Promise<OutreachMessageRow[]> {
+	const client = getClient();
+	const { data: due, error: dueError } = await client
+		.from('outreach_messages')
+		.select('message_id')
+		.eq('status', 'approved')
+		.lte('send_after', nowIso)
+		.order('send_after', { ascending: true })
+		.limit(limit);
+	if (dueError) throw new Error(dueError.message);
+	const ids = (due ?? []).map((row) => row.message_id as string);
+	if (ids.length === 0) return [];
+
+	const { data, error } = await client
+		.from('outreach_messages')
+		.update({ status: 'sending' })
+		.in('message_id', ids)
+		.eq('status', 'approved')
+		.select(OUTREACH_MESSAGE_FIELDS);
+	if (error) throw new Error(error.message);
+	return (data ?? []) as OutreachMessageRow[];
+}
+
+export async function finishOutreachMessage(
+	messageId: string,
+	result: { status: 'sent'; gmail_message_id: string } | { status: 'failed' | 'skipped'; error: string }
+): Promise<void> {
+	const update = result.status === 'sent'
+		? { status: 'sent', gmail_message_id: result.gmail_message_id, sent_at: new Date().toISOString(), error: null }
+		: { status: result.status, error: result.error.slice(0, 1000) };
+	const { error } = await getClient().from('outreach_messages').update(update).eq('message_id', messageId);
+	if (error) throw new Error(error.message);
+}
+
+/** Cancels every unsent message for a lead whose sequence has stopped. */
+export async function cancelOutreachMessages(leadId: string, reason: string): Promise<void> {
+	const { error } = await getClient()
+		.from('outreach_messages')
+		.update({ status: 'skipped', error: reason })
+		.eq('lead_id', leadId)
+		.in('status', ['pending', 'approved']);
+	if (error) throw new Error(error.message);
+}
+
+export async function updateLeadFromOutreach(
+	leadId: string,
+	fields: { emailed?: boolean; status?: string },
+	onlyFromStatuses?: string[]
+): Promise<void> {
+	let query = getClient('outreach@bytestreams.info').from('leads').update(fields).eq('lead_id', leadId);
+	if (onlyFromStatuses) query = query.in('status', onlyFromStatuses);
+	const { error } = await query;
+	if (error) throw new Error(error.message);
+}
+
+export async function fetchLeadsForOutreach(leadIds: string[]): Promise<OutreachCandidate[]> {
+	if (leadIds.length === 0) return [];
+	const { data, error } = await getClient()
+		.from('leads')
+		.select('lead_id, business_name, contact_name, email, business_type, clinical_specialty, product, status, emailed')
+		.in('lead_id', leadIds);
+	if (error) throw new Error(error.message);
+	return (data ?? []) as OutreachCandidate[];
 }

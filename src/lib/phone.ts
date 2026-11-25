@@ -25,3 +25,11 @@ export function phoneHref(phone: string): string | null {
 		return null;
 	}
 }
+
+/** Readable form of a stored tel URI: "(574) 546-1900" for US numbers, otherwise without the "tel:" prefix. */
+export function formatPhone(phone: string): string {
+	const href = phoneHref(phone);
+	if (!href) return phone;
+	const us = href.match(/^tel:\+1(\d{3})(\d{3})(\d{4})$/);
+	return us ? `(${us[1]}) ${us[2]}-${us[3]}` : href.slice(4);
+}

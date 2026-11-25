@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Nav from '$lib/components/Nav.svelte';
-	import { phoneHref } from '$lib/phone';
+	import { formatPhone, phoneHref } from '$lib/phone';
 	import type { Lead, LeadResearchFinding, ResearchReviewStatus } from '$lib/types';
 	import {
 		PRODUCTS,
@@ -75,6 +75,8 @@
 	let generatingScript = $state(false);
 	let scriptMessage = $state<string | null>(null);
 	let researching = $state(false);
+	let findingContact = $state(false);
+	let contactMessage = $state<string | null>(null);
 	let researchMessage = $state<string | null>(null);
 	let reviewingFindingId = $state<string | null>(null);
 	let researchFindings = $derived<LeadResearchFinding[]>(data.researchFindings);
@@ -208,6 +210,7 @@
 		saveMessage = null;
 		scriptMessage = null;
 		researchMessage = null;
+		contactMessage = null;
 	}
 
 	function closePanel() {
@@ -217,13 +220,50 @@
 		saveMessage = null;
 		scriptMessage = null;
 		researchMessage = null;
+		contactMessage = null;
 	}
 
-	const selectedResearchFindings = $derived(
+	/** Mirrors personLinkedInUrl in $lib/server/apollo: a linkedin.com/in/ profile switches Find to Enrich. */
+	const hasPersonLinkedIn = (lead: Lead) => /linkedin\.com\/in\/[^/]+/i.test(lead.linkedin_url ?? '');
+
+	/** Apollo decision-maker findings use contact_* categories; the rest come from restaurant research. */
+	const isContactFinding = (finding: LeadResearchFinding) => finding.category.startsWith('contact_');
+
+	const selectedLeadFindings = $derived(
 		selectedLead
 			? researchFindings.filter((finding) => finding.lead_id === selectedLead!.lead_id)
 			: []
 	);
+	const selectedResearchFindings = $derived(selectedLeadFindings.filter((finding) => !isContactFinding(finding)));
+	const selectedContactFindings = $derived(selectedLeadFindings.filter(isContactFinding));
+
+	async function findContact() {
+		if (!selectedLead) return;
+		findingContact = true;
+		contactMessage = null;
+		const body = new FormData();
+		body.set('lead_id', selectedLead.lead_id);
+
+		try {
+			const response = await fetch('?/findContact', { method: 'POST', body });
+			const result = deserialize(await response.text()) as {
+				type?: string;
+				data?: { findings?: LeadResearchFinding[]; message?: string };
+			};
+			if (result.type === 'success' && result.data?.findings) {
+				researchFindings = [...result.data.findings, ...researchFindings];
+				contactMessage = `Found ${result.data.findings.length} items to review`;
+			} else {
+				contactMessage = result.data?.message ?? `Unable to find a contact (HTTP ${response.status})`;
+			}
+		} catch (contactError) {
+			contactMessage = contactError instanceof Error
+				? `Unable to find a contact: ${contactError.message}`
+				: 'Unable to find a contact';
+		} finally {
+			findingContact = false;
+		}
+	}
 
 	async function researchRestaurant() {
 		if (!selectedLead) return;
@@ -258,22 +298,38 @@
 
 	async function reviewFinding(finding: LeadResearchFinding, reviewStatus: ResearchReviewStatus) {
 		reviewingFindingId = finding.finding_id;
-		researchMessage = null;
+		const contact = isContactFinding(finding);
+		const report = (message: string) => {
+			if (contact) contactMessage = message;
+			else researchMessage = message;
+		};
+		report('');
 		const body = new FormData();
 		body.set('finding_id', finding.finding_id);
 		body.set('review_status', reviewStatus);
 
 		try {
 			const response = await fetch('?/reviewResearchFinding', { method: 'POST', body });
-			const result = deserialize(await response.text()) as { type?: string; data?: { message?: string } };
+			const result = deserialize(await response.text()) as {
+				type?: string;
+				data?: { message?: string; applied?: { field: string; value: string } };
+			};
 			if (result.type === 'success') {
 				finding.review_status = reviewStatus;
-				researchMessage = reviewStatus === 'approved' ? 'Finding approved' : 'Finding rejected';
+				const applied = result.data?.applied;
+				if (applied && selectedLead?.lead_id === finding.lead_id) {
+					selectedLead = { ...selectedLead, [applied.field]: applied.value };
+					const index = data.leads.findIndex((lead) => lead.lead_id === finding.lead_id);
+					if (index !== -1) data.leads[index] = { ...data.leads[index], [applied.field]: applied.value };
+				}
+				report(reviewStatus === 'approved'
+					? applied ? 'Approved and saved to the lead' : 'Finding approved'
+					: 'Finding rejected');
 			} else {
-				researchMessage = result.data?.message ?? `Unable to review finding (HTTP ${response.status})`;
+				report(result.data?.message ?? `Unable to review finding (HTTP ${response.status})`);
 			}
 		} catch (reviewError) {
-			researchMessage = reviewError instanceof Error ? reviewError.message : 'Unable to review finding';
+			report(reviewError instanceof Error ? reviewError.message : 'Unable to review finding');
 		} finally {
 			reviewingFindingId = null;
 		}
@@ -453,7 +509,7 @@
 							</select>
 						</div>
 					</th>
-					<th></th>
+					<th class="col-edit"></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -466,7 +522,7 @@
 						<td>
 							{#if lead.phone && phoneHref(lead.phone)}
 								{@const tel = phoneHref(lead.phone)!}
-								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{lead.phone}</a>
+								<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{formatPhone(lead.phone)}</a>
 							{:else}
 								{lead.phone ?? '—'}
 							{/if}
@@ -478,7 +534,7 @@
 						</td>
 						<td>{lead.called ? 'Yes' : 'No'}</td>
 						<td>{lead.emailed ? 'Yes' : 'No'}</td>
-						<td>
+						<td class="col-edit">
 							<button class="btn-edit" onclick={() => openPanel(lead)}>Edit</button>
 						</td>
 					</tr>
@@ -668,7 +724,7 @@
 				<dd>
 					{#if selectedLead.phone && phoneHref(selectedLead.phone)}
 						{@const tel = phoneHref(selectedLead.phone)!}
-						<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{selectedLead.phone}</a>
+						<a class="phone-link" href={tel} onclick={(e) => dialPhone(e, tel)}>{formatPhone(selectedLead.phone)}</a>
 					{:else}
 						{selectedLead.phone ?? '—'}
 					{/if}
@@ -731,6 +787,52 @@
 			{/if}
 		</section>
 		{/if}
+
+		<section class="panel-section research-section">
+			<div class="research-heading">
+				<div>
+					<h3>Decision Maker</h3>
+					<span class="research-autosave">Apollo · 1 credit per email found · no phone numbers</span>
+				</div>
+				<button
+					type="button"
+					class="btn-research"
+					disabled={findingContact || (!selectedLead.website_url?.trim() && !selectedLead.contact_name?.trim() && !hasPersonLinkedIn(selectedLead))}
+					onclick={findContact}
+				>
+					{findingContact ? 'Searching…' : selectedLead.contact_name?.trim() || hasPersonLinkedIn(selectedLead) ? 'Enrich Contact' : 'Find Contact'}
+				</button>
+			</div>
+			{#if contactMessage}
+				<p class:script-error={contactMessage.startsWith('Unable')} class="research-message" aria-live="polite">{contactMessage}</p>
+			{/if}
+			{#if selectedContactFindings.length > 0}
+				<ul class="research-list">
+					{#each selectedContactFindings as finding (finding.finding_id)}
+						<li class="research-item">
+							<div class="research-copy">
+								<span class="research-category">{finding.category.replace('contact_', '')}</span>
+								{#if finding.category === 'contact_email'}
+									<a href="mailto:{finding.value}">{finding.value}</a>
+								{:else if finding.category === 'contact_linkedin'}
+									<a href={finding.value} target="_blank" rel="noopener noreferrer">{finding.value}</a>
+								{:else}
+									<span class="research-value">{finding.value}</span>
+								{/if}
+								<span class="research-source">Source: <a href={finding.source_url} target="_blank" rel="noopener noreferrer">Apollo</a> · {Math.round(finding.confidence * 100)}% confidence</span>
+							</div>
+							<div class="research-review">
+								<span class="review-status review-status--{finding.review_status}">{finding.review_status}</span>
+								<button type="button" title="Approve and save to lead" aria-label="Approve finding" disabled={reviewingFindingId === finding.finding_id} onclick={() => reviewFinding(finding, 'approved')}>✓</button>
+								<button type="button" title="Reject finding" aria-label="Reject finding" disabled={reviewingFindingId === finding.finding_id} onclick={() => reviewFinding(finding, 'rejected')}>✕</button>
+							</div>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="research-empty">No decision maker found yet.</p>
+			{/if}
+		</section>
 
 		<!-- Editable sales fields -->
 		<section class="panel-section">
@@ -986,7 +1088,7 @@
 
 <style>
 	.crm-layout {
-		max-width: 1200px;
+		max-width: 1440px;
 		margin: 0 auto;
 		padding: var(--space-2xl) var(--space-xl);
 	}
@@ -1172,6 +1274,13 @@
 		border-bottom: 1px solid var(--border-edge);
 		color: var(--text-bright);
 		vertical-align: middle;
+	}
+
+	/* Edit stays visible when the table is wider than the page and scrolls sideways. */
+	.col-edit {
+		position: sticky;
+		right: 0;
+		background: var(--bg-void);
 	}
 
 	.crm-row:hover td {
@@ -1620,7 +1729,8 @@
 	}
 
 	.research-copy { display: grid; min-width: 0; gap: 3px; }
-	.research-copy > a { color: var(--text-bright); font-size: 0.75rem; overflow-wrap: anywhere; }
+	.research-copy > a,
+	.research-value { color: var(--text-bright); font-size: 0.75rem; overflow-wrap: anywhere; }
 	.research-category { color: var(--text-muted); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; }
 	.research-source { color: var(--text-faded); font-size: 0.68rem; }
 	.research-source a { color: var(--color-stream-blue); }
