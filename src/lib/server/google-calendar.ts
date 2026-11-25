@@ -16,6 +16,11 @@ import {
 } from '$lib/server/supabase';
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+/** Outreach sends from the user's Gmail and reads only message headers (never bodies). */
+export const GMAIL_SCOPES = [
+	'https://www.googleapis.com/auth/gmail.send',
+	'https://www.googleapis.com/auth/gmail.metadata'
+];
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const EVENTS_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
@@ -67,14 +72,18 @@ function getOAuthConfig() {
 	return { clientId, clientSecret, redirectUri };
 }
 
-/** Builds the Google consent screen URL for a user to connect their calendar. */
-export function buildAuthUrl(state: string): string {
+/**
+ * Builds the Google consent screen URL. Calendar access is always requested; `withGmail`
+ * adds the outreach scopes. include_granted_scopes keeps whatever the user granted before.
+ */
+export function buildAuthUrl(state: string, withGmail = false): string {
 	const { clientId, redirectUri } = getOAuthConfig();
 	const params = new URLSearchParams({
 		client_id: clientId,
 		redirect_uri: redirectUri,
 		response_type: 'code',
-		scope: SCOPE,
+		scope: [SCOPE, ...(withGmail ? GMAIL_SCOPES : [])].join(' '),
+		include_granted_scopes: 'true',
 		access_type: 'offline',
 		// Force Google to reissue a refresh_token even on repeat consent.
 		prompt: 'consent',
@@ -129,8 +138,15 @@ export async function disconnectAccount(userEmail: string): Promise<void> {
 	await deleteGoogleCalendarTokens(userEmail);
 }
 
+/** Whether the user's stored Google grant includes every outreach Gmail scope. */
+export async function hasGmailAccess(userEmail: string): Promise<boolean> {
+	const tokens = await getGoogleCalendarTokens(userEmail);
+	const granted = new Set((tokens?.scope ?? '').split(/\s+/));
+	return GMAIL_SCOPES.every((scope) => granted.has(scope));
+}
+
 /** Returns a valid (non-expired) access token, refreshing it via Google if needed. */
-async function getValidAccessToken(userEmail: string): Promise<string> {
+export async function getValidAccessToken(userEmail: string): Promise<string> {
 	const tokens = await getGoogleCalendarTokens(userEmail);
 	if (!tokens) throw new Error('Google Calendar is not connected for this user.');
 
