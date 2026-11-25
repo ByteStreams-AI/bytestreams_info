@@ -40,6 +40,13 @@ describe('outreachSettings', () => {
 		});
 	});
 
+	it('refuses a From header with no address', () => {
+		expect(outreachSettings({ ...configured, OUTREACH_FROM: 'Steve Cotton' })).toEqual({
+			settings: null,
+			missing: ['OUTREACH_FROM (has no email address)']
+		});
+	});
+
 	it('defaults the From header, limit and approval', () => {
 		expect(outreachSettings(configured).settings).toEqual({
 			senderAccount: 'steve@bytestreams.ai',

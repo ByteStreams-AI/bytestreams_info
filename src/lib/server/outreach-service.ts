@@ -29,10 +29,13 @@ export function outreachSettings(source: Record<string, string | undefined> = en
 	const senderAccount = get('OUTREACH_SENDER').toLowerCase();
 	const fromName = get('OUTREACH_FROM_NAME');
 	const postalAddress = get('OUTREACH_POSTAL_ADDRESS');
+	const from = get('OUTREACH_FROM');
 	const missing = [
 		!senderAccount && 'OUTREACH_SENDER',
 		!fromName && 'OUTREACH_FROM_NAME',
-		!postalAddress && 'OUTREACH_POSTAL_ADDRESS'
+		!postalAddress && 'OUTREACH_POSTAL_ADDRESS',
+		// A name alone ("Steve Cotton") is not a From header; Gmail would refuse or rewrite it.
+		from && !from.includes('@') && 'OUTREACH_FROM (has no email address)'
 	].filter((name): name is string => Boolean(name));
 	if (missing.length) return { settings: null, missing };
 
@@ -41,7 +44,7 @@ export function outreachSettings(source: Record<string, string | undefined> = en
 		missing,
 		settings: {
 			senderAccount,
-			from: get('OUTREACH_FROM') || `${fromName} <${senderAccount}>`,
+			from: from || `${fromName} <${senderAccount}>`,
 			fromName,
 			postalAddress,
 			dailyLimit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 25,
