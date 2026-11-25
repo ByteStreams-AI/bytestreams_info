@@ -1,5 +1,5 @@
 import { redirect, error, fail } from '@sveltejs/kit';
-import { localDate, sendTimesFrom } from '$lib/server/outreach';
+import { isSendingDay, localDate, nextSendingDay, sendTimesFrom } from '$lib/server/outreach';
 import { planToday } from '$lib/server/outreach-run';
 import { outreachDeps, outreachSettings, senderHasGmail } from '$lib/server/outreach-service';
 import {
@@ -9,6 +9,7 @@ import {
 	fetchOutreachMessagesFor,
 	fetchOutreachSequences,
 	hasPlannedDay,
+	retryOutreachMessage,
 	skipOutreachMessage,
 	upsertOutreachSequence
 } from '$lib/server/supabase';
@@ -29,6 +30,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		user: locals.user,
 		today,
+		nextSendingDay: isSendingDay(today) ? null : nextSendingDay(today),
 		missing,
 		sender: settings ? { account: settings.senderAccount, from: settings.from, dailyLimit: settings.dailyLimit, autoApprove: settings.autoApprove } : null,
 		isSender: settings?.senderAccount === locals.user.email.toLowerCase(),
@@ -51,7 +53,7 @@ export const actions: Actions = {
 		const { settings, missing } = outreachSettings();
 		if (!settings) return fail(503, { message: `Outreach is not configured: ${missing.join(', ')}.` });
 		const planned = await planToday(outreachDeps(settings), settings, new Date());
-		return { message: planned ? `Planned ${planned} emails for today.` : 'Nothing to plan: today is already planned, it is before 7:00, or it is a weekend.' };
+		return { message: planned ? `Planned ${planned} emails for today.` : 'Nothing to plan: today is already planned, it is before 7:00, or it is a weekend or holiday.' };
 	},
 
 	approveAll: async ({ locals }) => {
@@ -59,12 +61,18 @@ export const actions: Actions = {
 		const today = localDate(new Date());
 		const pending = (await fetchOutreachMessagesFor(today)).filter((message) => message.status === 'pending');
 		if (pending.length === 0) return fail(400, { message: 'Nothing is waiting for approval.' });
-		const times = sendTimesFrom(today, pending.length, new Date());
+		// Approved on a weekend or holiday: spread over the next sending day's window instead.
+		const sendDay = nextSendingDay(today);
+		const times = sendTimesFrom(sendDay, pending.length, new Date());
 		const approved = await approveOutreachMessages(
 			pending.map((message, index) => ({ message_id: message.message_id, send_after: times[index] })),
 			locals.user.email
 		);
-		return { message: `Approved ${approved} emails. They go out spread across the morning.` };
+		return {
+			message: isSendingDay(today)
+				? `Approved ${approved} emails. They go out spread across the morning.`
+				: `Approved ${approved} emails. Today is a weekend or holiday, so they go out ${sendDay} between 9:00 and 11:30 Central.`
+		};
 	},
 
 	skip: async ({ request, locals }) => {
@@ -73,6 +81,14 @@ export const actions: Actions = {
 		if (!id) return fail(400, { message: 'Missing message.' });
 		await skipOutreachMessage(id, locals.user.email);
 		return { message: 'Removed from today.' };
+	},
+
+	retry: async ({ request, locals }) => {
+		if (!locals.user) throw error(401, 'Unauthorized');
+		const id = text(await request.formData(), 'message_id');
+		if (!id) return fail(400, { message: 'Missing message.' });
+		await retryOutreachMessage(id, locals.user.email);
+		return { message: 'Queued again. It goes out on the next run, within 15 minutes before noon Central.' };
 	},
 
 	optOut: async ({ request, locals }) => {

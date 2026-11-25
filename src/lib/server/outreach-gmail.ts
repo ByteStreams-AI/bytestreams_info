@@ -64,10 +64,18 @@ async function gmail<T>(accessToken: string, path: string, init: RequestInit, fe
 	});
 	if (!response.ok) {
 		const text = await response.text().catch(() => '');
-		const hint = response.status === 403 ? ' Reconnect Google from the Outreach page to grant Gmail access.' : '';
-		throw new GmailError(`Gmail returned HTTP ${response.status}: ${text.slice(0, 200)}${hint}`, response.status);
+		throw new GmailError(`Gmail returned HTTP ${response.status}: ${text.slice(0, 200)}${failureHint(response.status, text)}`, response.status);
 	}
 	return (await response.json()) as T;
+}
+
+/** A 403 is either the API switched off in Google Cloud or a token without the Gmail scopes. */
+function failureHint(status: number, body: string): string {
+	if (status !== 403) return '';
+	if (/has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(body)) {
+		return ' Enable the Gmail API in the Google Cloud project, wait a few minutes, then click Retry.';
+	}
+	return ' Reconnect Google from the Outreach page to grant Gmail access.';
 }
 
 export async function sendMessage(

@@ -208,12 +208,74 @@ export function isWeekday(date: string): boolean {
 	return day !== 0 && day !== 6;
 }
 
-/** `days` calendar days after `date`, moved forward to Monday if that lands on a weekend. */
+function ymd(year: number, month: number, day: number): string {
+	return new Date(Date.UTC(year, month - 1, day, 12)).toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number): string {
+	const next = new Date(`${date}T12:00:00Z`);
+	next.setUTCDate(next.getUTCDate() + days);
+	return next.toISOString().slice(0, 10);
+}
+
+/** The `n`th `weekday` (0 = Sunday) of a month; n = -1 is the last one. */
+function nthWeekday(year: number, month: number, weekdayIndex: number, n: number): string {
+	if (n < 0) {
+		const last = new Date(Date.UTC(year, month, 0, 12));
+		last.setUTCDate(last.getUTCDate() - ((last.getUTCDay() - weekdayIndex + 7) % 7));
+		return last.toISOString().slice(0, 10);
+	}
+	const first = new Date(Date.UTC(year, month - 1, 1, 12));
+	return ymd(year, month, 1 + ((weekdayIndex - first.getUTCDay() + 7) % 7) + (n - 1) * 7);
+}
+
+/** A fixed-date holiday on a Saturday is observed Friday; on a Sunday, Monday. */
+function observed(date: string): string {
+	const day = weekday(date);
+	return day === 6 ? addDays(date, -1) : day === 0 ? addDays(date, 1) : date;
+}
+
+/**
+ * Days no outreach is planned or sent: U.S. federal holidays as observed, plus the day after
+ * Thanksgiving and Christmas Eve, when most practices are closed or short-staffed.
+ */
+export function outreachHolidays(year: number): string[] {
+	const thanksgiving = nthWeekday(year, 11, 4, 4);
+	return [
+		observed(ymd(year, 1, 1)),
+		nthWeekday(year, 1, 1, 3), // Martin Luther King Jr. Day
+		nthWeekday(year, 2, 1, 3), // Washington's Birthday
+		nthWeekday(year, 5, 1, -1), // Memorial Day
+		observed(ymd(year, 6, 19)),
+		observed(ymd(year, 7, 4)),
+		nthWeekday(year, 9, 1, 1), // Labor Day
+		nthWeekday(year, 10, 1, 2), // Columbus Day
+		observed(ymd(year, 11, 11)),
+		thanksgiving,
+		addDays(thanksgiving, 1),
+		ymd(year, 12, 24),
+		observed(ymd(year, 12, 25))
+	];
+}
+
+/** A weekday that is not an outreach holiday. */
+export function isSendingDay(date: string): boolean {
+	if (!isWeekday(date)) return false;
+	const year = Number(date.slice(0, 4));
+	// Next year's New Year's Day can be observed on December 31 of this one.
+	return ![...outreachHolidays(year), ...outreachHolidays(year + 1)].includes(date);
+}
+
+/** The first sending day on or after `date`. */
+export function nextSendingDay(date: string): string {
+	let day = date;
+	while (!isSendingDay(day)) day = addDays(day, 1);
+	return day;
+}
+
+/** `days` calendar days after `date`, moved forward past weekends and holidays. */
 export function dueDate(date: string, days: number): string {
-	const due = new Date(`${date}T12:00:00Z`);
-	due.setUTCDate(due.getUTCDate() + days);
-	while (due.getUTCDay() === 0 || due.getUTCDay() === 6) due.setUTCDate(due.getUTCDate() + 1);
-	return due.toISOString().slice(0, 10);
+	return nextSendingDay(addDays(date, days));
 }
 
 /**
@@ -253,7 +315,7 @@ export function planDay(input: {
 	newLeadIds: string[];
 	alreadyPlanned: number;
 }): PlannedMessage[] {
-	if (!isWeekday(input.today)) return [];
+	if (!isSendingDay(input.today)) return [];
 	let room = Math.max(0, input.limit - input.alreadyPlanned);
 	const plan: PlannedMessage[] = [];
 

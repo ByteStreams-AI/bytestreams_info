@@ -13,7 +13,7 @@ import {
 	OUTREACH_TZ,
 	classifyThread,
 	ineligibleReason,
-	isWeekday,
+	isSendingDay,
 	localDate,
 	planDay,
 	renderEmail,
@@ -109,7 +109,7 @@ export async function checkThreads(deps: OutreachDeps, settings: OutreachSetting
 /** Plans today's messages once per day. Returns how many were planned. */
 export async function planToday(deps: OutreachDeps, settings: OutreachSettings, now: Date): Promise<number> {
 	const today = localDate(now);
-	if (!isWeekday(today) || now < zonedToUtc(today, PLAN_FROM, OUTREACH_TZ)) return 0;
+	if (!isSendingDay(today) || now < zonedToUtc(today, PLAN_FROM, OUTREACH_TZ)) return 0;
 	if (await deps.hasPlannedDay(today)) return 0;
 
 	const suppressed = await deps.fetchSuppressed();
@@ -174,6 +174,8 @@ export async function sendDue(
 	now: Date
 ): Promise<Pick<TickReport, 'sent' | 'failed' | 'skipped'>> {
 	const report = { sent: 0, failed: 0, skipped: 0 };
+	// The cron already skips weekends; this also holds approved mail over holidays.
+	if (!isSendingDay(localDate(now))) return report;
 	const suppressed = await deps.fetchSuppressed();
 	const sequences = new Map((await deps.fetchSequences(['active', 'replied', 'bounced', 'opted_out', 'completed', 'stopped']))
 		.map((sequence) => [sequence.lead_id, sequence]));

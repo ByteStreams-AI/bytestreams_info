@@ -6,7 +6,10 @@ import {
 	firstName,
 	footer,
 	ineligibleReason,
+	isSendingDay,
 	isWeekday,
+	nextSendingDay,
+	outreachHolidays,
 	localDate,
 	planDay,
 	renderEmail,
@@ -106,8 +109,31 @@ describe('dates', () => {
 	it('knows weekdays and moves due dates off weekends', () => {
 		expect(isWeekday('2026-11-24')).toBe(true);
 		expect(isWeekday('2026-11-28')).toBe(false);
-		expect(dueDate('2026-11-24', 3)).toBe('2026-11-27'); // Tue + 3 = Fri
+		expect(dueDate('2026-11-17', 3)).toBe('2026-11-20'); // Tue + 3 = Fri
+		expect(dueDate('2026-11-24', 3)).toBe('2026-11-30'); // the day after Thanksgiving → Mon
 		expect(dueDate('2026-11-26', 3)).toBe('2026-11-30'); // Thu + 3 = Sun → Mon
+		expect(dueDate('2026-11-23', 3)).toBe('2026-11-30'); // Thanksgiving, the day after, the weekend
+	});
+
+	it('knows the holidays, as observed', () => {
+		expect(outreachHolidays(2026)).toEqual([
+			'2026-01-01', '2026-01-19', '2026-02-16', '2026-05-25', '2026-06-19', '2026-07-03',
+			'2026-09-07', '2026-10-12', '2026-11-11', '2026-11-26', '2026-11-27', '2026-12-24', '2026-12-25'
+		]);
+		expect(outreachHolidays(2027)).toContain('2027-12-24'); // Christmas on a Saturday, observed Friday
+		expect(outreachHolidays(2028)[0]).toBe('2027-12-31'); // New Year's Day on a Saturday
+		expect(isSendingDay('2027-12-31')).toBe(false);
+		expect(outreachHolidays(2027)[0]).toBe('2027-01-01');
+		expect(outreachHolidays(2028)).toContain('2028-12-25');
+		expect(outreachHolidays(2022)).toContain('2022-12-26'); // Christmas on a Sunday, observed Monday
+	});
+
+	it('skips weekends and holidays when sending', () => {
+		expect(isSendingDay('2026-11-25')).toBe(true);
+		expect(isSendingDay('2026-11-26')).toBe(false);
+		expect(isSendingDay('2026-11-28')).toBe(false);
+		expect(nextSendingDay('2026-11-26')).toBe('2026-11-30');
+		expect(nextSendingDay('2026-11-25')).toBe('2026-11-25');
 	});
 
 	it('spreads send times over the window and never schedules the past', () => {
@@ -141,6 +167,7 @@ describe('planDay', () => {
 		expect(planDay({ today: '2026-11-24', limit: 1, alreadyPlanned: 0, active, newLeadIds: ['new-1'] })).toHaveLength(1);
 		expect(planDay({ today: '2026-11-24', limit: 3, alreadyPlanned: 3, active, newLeadIds: ['new-1'] })).toEqual([]);
 		expect(planDay({ today: '2026-11-28', limit: 25, alreadyPlanned: 0, active, newLeadIds: ['new-1'] })).toEqual([]);
+		expect(planDay({ today: '2026-11-26', limit: 25, alreadyPlanned: 0, active, newLeadIds: ['new-1'] })).toEqual([]);
 	});
 });
 

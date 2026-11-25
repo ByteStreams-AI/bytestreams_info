@@ -76,7 +76,9 @@
 			</div>
 		</div>
 
-		{#if data.messages.length === 0}
+		{#if data.nextSendingDay}
+			<p class="empty">No outreach today: weekends and holidays are skipped. Next sending day: {data.nextSendingDay}.</p>
+		{:else if data.messages.length === 0}
 			<p class="empty">{data.planned ? 'Nothing planned today: no new leads with an email and no follow-ups due.' : 'Today is planned automatically at 7:00 Central on weekdays.'}</p>
 		{/if}
 
@@ -92,7 +94,7 @@
 						</button>
 						<form method="POST" action="?/skip" use:enhance>
 							<input type="hidden" name="message_id" value={message.message_id} />
-							<button class="btn-small" title="Don't send this one">Remove</button>
+							<button class="btn-small" title="Don't email this lead">Remove</button>
 						</form>
 						{#if expanded === message.message_id}<pre class="message-body">{message.body}</pre>{/if}
 					</li>
@@ -105,17 +107,24 @@
 			<ul class="messages">
 				{#each others as message (message.message_id)}
 					<li class="message message--{message.status}">
-						<span class="message-lead">{message.leads?.business_name ?? 'Lead'}</span>
-						<span class="message-meta">
-							{STEP_LABEL[message.step]} ·
-							{#if message.status === 'sent'}sent {time(message.sent_at)}
-							{:else if message.status === 'approved'}sends about {time(message.send_after)}
-							{:else}{message.status}{message.error ? `: ${message.error}` : ''}{/if}
-						</span>
+						<div class="message-summary">
+							<span class="message-lead">{message.leads?.business_name ?? 'Lead'}</span>
+							<span class="message-meta">
+								{STEP_LABEL[message.step]} ·
+								{#if message.status === 'sent'}sent {time(message.sent_at)}
+								{:else if message.status === 'approved'}sends about {time(message.send_after)}
+								{:else}{message.status}{message.error ? `: ${message.error}` : ''}{/if}
+							</span>
+						</div>
 						{#if message.status === 'approved'}
 							<form method="POST" action="?/skip" use:enhance>
 								<input type="hidden" name="message_id" value={message.message_id} />
 								<button class="btn-small">Cancel</button>
+							</form>
+						{:else if message.status === 'failed'}
+							<form method="POST" action="?/retry" use:enhance>
+								<input type="hidden" name="message_id" value={message.message_id} />
+								<button class="btn-small">Retry</button>
 							</form>
 						{/if}
 					</li>

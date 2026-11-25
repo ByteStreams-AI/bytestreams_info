@@ -164,6 +164,12 @@ describe('checkThreads', () => {
 });
 
 describe('sendDue', () => {
+	it('sends nothing on a holiday', async () => {
+		const deps = fakeDeps();
+		expect(await sendDue(deps, settings, 'token', new Date('2026-11-26T16:00:00Z'))).toEqual({ sent: 0, failed: 0, skipped: 0 });
+		expect(deps.claimDue).not.toHaveBeenCalled();
+	});
+
 	it('sends a first email, starts the sequence and marks the lead emailed', async () => {
 		const deps = fakeDeps({ claimDue: vi.fn().mockResolvedValue([message('new-1', 1)]) });
 		expect(await sendDue(deps, settings, 'token', NOW)).toEqual({ sent: 1, failed: 0, skipped: 0 });

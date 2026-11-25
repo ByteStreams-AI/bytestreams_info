@@ -459,7 +459,11 @@ export async function fetchOutreachCandidates(): Promise<OutreachCandidate[]> {
 	const client = getClient();
 	const { data: sequenced, error: sequenceError } = await client.from('outreach_sequences').select('lead_id');
 	if (sequenceError) throw new Error(sequenceError.message);
-	const skip = new Set((sequenced ?? []).map((row) => row.lead_id as string));
+	// A first email that was removed or failed keeps its (lead_id, step) row, so the planner cannot
+	// queue it again. Left in, such a lead would hold one of the day's slots forever.
+	const { data: queued, error: queuedError } = await client.from('outreach_messages').select('lead_id').eq('step', 1);
+	if (queuedError) throw new Error(queuedError.message);
+	const skip = new Set([...(sequenced ?? []), ...(queued ?? [])].map((row) => row.lead_id as string));
 
 	const { data, error } = await client
 		.from('leads')
@@ -578,6 +582,16 @@ export async function skipOutreachMessage(messageId: string, actorEmail: string)
 		.update({ status: 'skipped', error: `Removed by ${actorEmail}` })
 		.eq('message_id', messageId)
 		.in('status', ['pending', 'approved']);
+	if (error) throw new Error(error.message);
+}
+
+/** Puts a failed email back in the queue to go out on the next run. */
+export async function retryOutreachMessage(messageId: string, actorEmail: string): Promise<void> {
+	const { error } = await getClient(actorEmail)
+		.from('outreach_messages')
+		.update({ status: 'approved', send_after: new Date().toISOString(), error: null })
+		.eq('message_id', messageId)
+		.eq('status', 'failed');
 	if (error) throw new Error(error.message);
 }
 

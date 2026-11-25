@@ -95,6 +95,12 @@ describe('Gmail calls', () => {
 		expect(failure).toBeInstanceOf(GmailError);
 		expect(failure.status).toBe(403);
 		expect(failure.message).toMatch(/Reconnect Google/);
+
+		const disabled = await sendMessage('token', 'RAW', null, vi.fn().mockResolvedValue(
+			new Response('{"error":{"code":403,"message":"Gmail API has not been used in project 1 before or it is disabled."}}', { status: 403 })
+		)).catch((e) => e);
+		expect(disabled.message).toMatch(/Enable the Gmail API/);
+		expect(disabled.message).not.toMatch(/Reconnect/);
 		await expect(threadSenders('token', 't1', vi.fn().mockResolvedValue(new Response('boom', { status: 500 }))))
 			.rejects.toThrow('Gmail returned HTTP 500: boom');
 	});
